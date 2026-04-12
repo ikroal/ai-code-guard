@@ -1,0 +1,343 @@
+# AI Guard 系统设计文档
+
+> **版本**: v3.0  
+> **状态**: 设计定稿（架构边界统一）  
+> **目标**: 提供完整的 AI 行为约束与代码看护系统设计  
+
+---
+
+## 目录
+
+- [1. 概述](#1-概述)
+- [2. 双维度约束模型](#2-双维度约束模型)
+- [3. 架构设计](#3-架构设计)
+- [4. 关键设计（端到端链路）](#4-关键设计端到端链路)
+- [5. 实施路线图](#5-实施路线图)
+- [附录](#附录)
+
+---
+
+## 1. 概述
+
+### 1.1 系统定位与目标
+
+AI Guard 是一个面向 AI 编码 Agent 的看护系统，解决两类核心问题：
+
+| 问题类型 | 具体表现 | 解决方式 |
+|---|---|---|
+| 行为失控 | 危险命令、敏感文件修改、绕过检查 | 运行时行为拦截 |
+| 代码质量失控 | 规范不一致、测试不足、覆盖率不达标 | 提交前后代码验证 |
+
+### 1.2 设计原则
+
+1. **配置单一真相源**：配置层输出 `ResolvedPolicy`，其他层只消费。
+2. **生成与执行分离**：安装时生成静态工件，运行时/提交时只执行。
+3. **行为约束与代码约束分离**：前者实时判定，后者提交门禁。
+4. **Agent 协议适配独立**：适配层做协议转换，不承载策略判断。
+
+### 1.3 系统边界
+
+**系统负责**：
+- 行为约束（read/write/execute）
+- 代码看护（静态检查、语义分析、动态验证、质量门禁）
+- 规则集驱动的配置与工件生成
+
+**系统不负责**：
+- 自研 lint/test 引擎（复用 pre-commit 与成熟工具）
+- 接管 AI 对话流程（只处理工具调用与提交门禁）
+
+---
+
+## 2. 双维度约束模型
+
+### 2.1 行为约束维度（Runtime）
+
+目标：在 AI 工具调用发生前进行策略判定。
+
+| 操作类型 | 示例工具 | 约束来源 | 判定结果 |
+|---|---|---|---|
+| Read | read/grep/glob/webfetch | behavior 配置 | allow / deny / ask |
+| Write | edit/write/apply_patch | behavior 配置 | allow / deny / ask |
+| Execute | bash/shell | behavior 配置 | allow / deny / ask |
+
+### 2.2 代码看护维度（Commit/Push）
+
+目标：在代码进入仓库前做质量验证。
+
+| 检查层 | 时机 | 代表项 |
+|---|---|---|
+| 静态检查 | pre-commit | 格式、命名、custom checks |
+| 语义分析 | pre-commit / pre-push | clang-tidy 完整检查 |
+| 动态验证 + 门禁 | pre-push | test / coverage / asan |
+
+### 2.3 双维度协同
+
+- 行为约束解决“能不能做（operation-level）”
+- 代码看护解决“做得好不好（artifact-level）”
+
+两者构成完整闭环：**先约束行为，再验证产物**。
+
+---
+
+## 3. 架构设计
+
+### 3.1 五层架构总览
+
+```
+CLI 层
+  ↓
+配置层（ResolvedPolicy 单一真相源）
+  ↓
+核心层（Materializer / Runtime Enforcement / Verification Orchestrator）
+  ↓
+Agent 适配层（Agent Bridge）
+  ↓
+输出层（Output Pipeline）
+```
+
+### 3.2 各层职责与接口
+
+#### 3.2.1 CLI 层
+
+职责：命令入口、流程编排、错误与进度反馈。
+
+| 命令 | 触发链路 |
+|---|---|
+| `guard init/install` | 配置层 → Materializer |
+| `guard check/verify` | Verification Orchestrator |
+| `guard gate run --stage commit/push` | Git hook 触发 Verification Orchestrator |
+
+#### 3.2.2 配置层（唯一解释权）
+
+职责：加载、合并、校验配置，并输出 `ResolvedPolicy`。
+
+输入：defaults + ruleset + guard.yaml + CLI override  
+输出：`ResolvedPolicy`
+
+> 配置层是配置语义唯一 owner；核心层和适配层禁止重复解析配置。
+
+#### 3.2.3 核心层（三组件）
+
+| 组件 | 职责 | 输入 | 输出 |
+|---|---|---|---|
+| Materializer | 安装期工件生成 | ResolvedPolicy | 静态工件 |
+| Runtime Enforcement | 运行时行为判定 | ToolCall + ResolvedPolicy | PolicyDecision |
+| Verification Orchestrator | 提交验证编排 | stage + changed files + 工件 | CheckReport |
+
+**关键边界**：
+- Materializer 只“生成”，不“执行”
+- Verification Orchestrator 只“执行编排”，不“生成配置”
+- Runtime Enforcement 只做行为约束，不做代码质量验证
+
+#### 3.2.4 Agent 适配层（Agent Bridge）
+
+职责：协议转换与能力降级。
+
+- 输入转换：Agent event → `ToolCall`
+- 输出转换：`PolicyDecision` → Agent-specific response
+- 能力降级：如不支持 ask 则降级 deny
+
+#### 3.2.5 输出层（Output Pipeline）
+
+职责：结果渲染与分发。
+
+```
+Content -> Renderer -> Channel
+```
+
+---
+
+### 3.3 三条主数据流
+
+#### 3.3.1 安装流（init/install）
+
+```
+CLI -> 配置层(ResolvedPolicy) -> Materializer -> 工件写入
+```
+
+工件包含：
+- 规则文档（CLAUDE.md / AGENTS.md / ...）
+- Agent Hook/插件配置
+- 工具配置（.clang-format/.clang-tidy/...）
+- `.pre-commit-config.yaml`
+
+#### 3.3.2 运行时行为约束流
+
+```
+Agent Hook Event -> Agent Bridge -> Runtime Enforcement
+-> PolicyDecision -> Agent Bridge -> 执行/阻断
+```
+
+#### 3.3.3 提交验证流（commit/push）
+
+```
+git commit/push -> .git/hooks/pre-commit|pre-push
+-> guard gate run --stage ... -> Verification Orchestrator
+-> pre-commit/toolchain 执行 -> CheckReport -> 通过/阻断
+```
+
+### 3.4 关键架构决策
+
+1. **配置层保留并作为唯一真相源**：避免多处解析导致漂移。  
+2. **配置生成与执行分离**：解决 `.pre-commit-config.yaml` owner 冲突。  
+3. **代码看护委托 pre-commit 生态**：避免重复造轮子。  
+4. **适配层与核心层分离**：支持后续接入更多 Agent（KiloCode/CodeX/Gemini）。
+
+---
+
+## 4. 关键设计（端到端链路）
+
+### 4.1 CLI 入口与编排链路
+
+```
+用户命令 -> CLI 路由 -> 对应链路执行 -> 输出层反馈
+```
+
+关键点：
+- CLI 只做编排，不做策略判断
+- 统一错误码与返回结构，便于脚本化调用
+
+### 4.2 配置物化链路（Install-Time）
+
+```
+defaults + ruleset + guard.yaml + override
+    -> 配置层解析/合并/校验
+    -> ResolvedPolicy
+    -> Materializer 生成静态工件
+```
+
+**Artifact Owner（唯一）**：
+
+| 工件 | Owner |
+|---|---|
+| 规则文档 | Materializer |
+| Agent Hook/插件文件 | Materializer |
+| 工具配置文件 | Materializer |
+| `.pre-commit-config.yaml` | Materializer |
+
+### 4.3 运行时行为约束链路（Runtime）
+
+输入：一次工具调用事件。  
+输出：`allow / deny / ask`。
+
+关键点：
+- Runtime Enforcement 是纯策略判定内核
+- Agent Bridge 只负责协议适配
+- 不在该链路执行 test/lint/coverage
+
+### 4.4 提交验证链路（Commit/Push）
+
+输入：git 提交流程事件（自动）或 CLI 手动触发。  
+输出：`CheckReport` 与通过/阻断决策。
+
+| 触发方式 | 入口 | 说明 |
+|---|---|---|
+| 自动 | `.git/hooks/pre-commit` / `.git/hooks/pre-push` | 日常主路径 |
+| 手动 | `guard check/verify` | 本地预检/CI 调试 |
+
+### 4.5 Agent 适配链路
+
+适配策略：
+- 外部 Hook 型（Claude/Cursor）：脚本桥接
+- 插件型（OpenCode 等）：插件内桥接
+- 无 Hook 型：仅软约束 + 代码看护链路仍可生效
+
+### 4.6 输出与可观测性链路
+
+输出对象：
+- `PolicyDecision`（行为约束结果）
+- `CheckReport`（代码验证结果）
+- 安装摘要与状态报告
+
+推荐审计字段：`timestamp`、`agent`、`tool`、`stage`、`decision`、`reason`、`rule_id`。
+
+### 4.7 关键权衡与边界
+
+| 边界 | 归属 |
+|---|---|
+| 配置定义/解释 | 配置层 |
+| 静态工件生成 | Materializer |
+| 运行时行为判定 | Runtime Enforcement |
+| commit/push 检查编排 | Verification Orchestrator |
+| Agent 协议转换 | Agent Bridge |
+| 结果渲染与分发 | Output Pipeline |
+
+> 边界原则：**一个职责只归一个 owner**。
+
+---
+
+## 5. 实施路线图
+
+### 5.1 Phase 划分
+
+#### Phase 1：配置层 + Materializer
+- 完成 `ResolvedPolicy` 输出契约
+- 完成工件生成（规则文档、工具配置、pre-commit 配置）
+
+#### Phase 2：Runtime Enforcement + Agent Bridge（Claude/Cursor）
+- 完成 read/write/execute 判定链路
+- 完成 deny/ask/allow 协议映射
+
+#### Phase 3：Verification Orchestrator
+- 完成 commit/push 自动编排
+- 完成手动触发 check/verify
+- 完成 CheckReport 标准结构
+
+#### Phase 4：多 Agent 扩展 + 可观测性增强
+- 扩展 OpenCode/KiloCode 等接入策略
+- 完善输出通道与审计能力
+
+### 5.2 里程碑
+
+| 里程碑 | 交付 |
+|---|---|
+| M1 | 配置单一真相源与工件生成可用 |
+| M2 | 行为约束链路可用 |
+| M3 | 代码看护链路可用 |
+| M4 | 多 Agent 扩展与审计可用 |
+
+### 5.3 风险与应对
+
+| 风险 | 影响 | 应对 |
+|---|---|---|
+| Agent Hook 协议变更 | 运行时拦截失效 | 适配层隔离 + 版本探测 |
+| 工具链兼容差异 | 检查误报/漏报 | ruleset 分语言版本化 |
+| 配置漂移 | 执行结果不一致 | 强制 `ResolvedPolicy` 单入口 |
+
+---
+
+## 附录
+
+### A. 最小目录建议
+
+```
+ai-guard/
+├── cli/
+├── config/
+├── core/
+│   ├── materializer/
+│   ├── runtime_enforcement/
+│   └── verification_orchestrator/
+├── adapters/
+├── output/
+└── templates/
+```
+
+### B. 术语表
+
+| 术语 | 含义 |
+|---|---|
+| ResolvedPolicy | 配置层产出的统一可执行配置对象 |
+| Materializer | 安装期静态工件生成组件 |
+| Runtime Enforcement | 运行时行为约束判定组件 |
+| Verification Orchestrator | 提交验证编排组件 |
+| Agent Bridge | Agent 协议转换组件 |
+| Output Pipeline | 结果渲染与分发组件 |
+
+### C. 文档一致性检查清单
+
+- [ ] 版本统一为 v3.0
+- [ ] 核心层仅三组件（无旧命名冲突）
+- [ ] `.pre-commit-config.yaml` owner 唯一（Materializer）
+- [ ] 第4章按 4.1–4.7 组织
+- [ ] 无重复的旧 3.x 架构段落
