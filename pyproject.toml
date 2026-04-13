@@ -49,5 +49,8 @@ line-length = 88
 [tool.ruff.lint]
 select = ["E", "F", "I", "W"]
 
+[tool.ruff.lint.isort]
+known-first-party = ["ai_guard"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests/unit", "tests/integration"]
