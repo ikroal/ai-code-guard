@@ -1,9 +1,9 @@
 # AI Guard 系统设计文档
 
-> **版本**: v1.0  
+> **版本**: v1.1  
 > **状态**: 设计定稿  
-> **日期**: 2026-04-13  
-> **摘要**: 本文档描述 AI Guard 系统的完整设计方案。AI Guard 是一个面向 AI 编码 Agent 的看护系统，通过双维度约束模型（运行时行为拦截与提交期代码验证）为 AI 辅助编码过程建立安全与质量保障体系。文档涵盖业界调研、需求分析、架构设计、配置系统、模块设计、接口定义、数据模型、运维方案、测试策略及演进规划。
+> **日期**: 2026-04-14  
+> **摘要**: 本文档描述 AI Guard 系统的完整设计方案。AI Guard 是一个面向 AI 编码 Agent 的看护系统，通过双维度约束模型（运行时行为拦截与提交期代码验证）为 AI 辅助编码过程建立安全与质量保障体系。文档涵盖业界调研、需求分析、架构设计、配置系统、模块设计、接口定义、数据模型、运维方案、测试策略、演进规划及扩展规范。
 
 ---
 
@@ -20,6 +20,7 @@
 - [9. 部署与运维设计](#9-部署与运维设计)
 - [10. 测试策略](#10-测试策略)
 - [11. 演进规划](#11-演进规划)
+- [12. 扩展规范](#12-扩展规范)
 - [附录](#附录)
 
 ---
@@ -540,6 +541,7 @@ build:
 
 output:                                   # 可选，输出配置
   verbosity: "normal"                     # "quiet" | "normal" | "verbose"
+  locale: "zh-CN"                         # 报告语言：en（默认）/ zh-CN
   audit:
     enabled: true
     path: ".ai-guard/audit.jsonl"
@@ -640,6 +642,41 @@ rust:   { format: "rustfmt",             lint: "clippy" }
 java:   { format: "google-java-format",  lint: "spotbugs" }
 ```
 
+### 5.6 预置配置方案（Preset）
+
+`guard init --preset <name>` 支持按场景生成不同初始配置。预置方案定义在 `config/defaults/presets/` 目录中。
+
+| 方案 | 适用场景 | 行为约束 | 代码检查 | 审计 |
+|---|---|---|---|---|
+| `minimal` | 个人开发 / 轻量项目 | 仅内置默认 | format + test | 关闭 |
+| `standard`（默认） | 团队项目 | 内置默认 | format + naming + lint + test + coverage | 开启 |
+| `strict` | 企业安全 / 合规要求 | 内置默认 + 额外限制 | 全部 + security scan | 开启 + 长保留 + PR 报告 |
+
+不指定 `--preset` 时默认使用 `standard`。
+
+合并顺序：`内置默认 → preset → 规则集 → guard.yaml`。
+
+### 5.7 国际化（locale）
+
+`output.locale` 控制报告和终端输出的语言。
+
+| locale | 影响范围 |
+|---|---|
+| `en`（默认） | PR 报告 Markdown、终端 Rich 输出、gate run 精简输出 |
+| `zh-CN` | 同上，所有标签和提示文字切换为中文 |
+
+内置两套报告模板：`templates/report_en.md.j2` 和 `templates/report_zh_cn.md.j2`。
+
+**自定义模板（escape hatch）**：若 `.ai-guard/report.md.j2` 存在，优先使用。不作为正式功能推广，仅供有特殊需求的高级用户使用。
+
+**报告扩展演进路径**：
+
+| 阶段 | 方案 | 触发条件 |
+|---|---|---|
+| 当前 | locale 选择 + escape hatch 模板覆盖 | — |
+| 第一次扩展需求 | `--format json` 数据导出，用户自行渲染 | 已内置支持 |
+| 开箱即用的定制需求 | Jinja2 Block 继承，用户只覆盖 header/footer | 多个用户要求局部定制 |
+
 ---
 
 ## 6. 模块详细设计
@@ -736,15 +773,13 @@ install 为增量操作：新增 Agent 追加至已有列表，为全部 Agent �
 
 #### 6.3.2 接口定义
 
-```python
-class AgentAdapter(ABC):
-    name: str
-    capabilities: AgentCapabilities    # can_block, can_ask
+接口契约的完整定义见第 12.1 节。核心方法概述：
 
-    def rule_doc_path(self) -> str
-    def render_rule_doc(self, behavior: BehaviorConfig) -> str
-    def hook_files(self, behavior: BehaviorConfig) -> list[FileSpec]
-```
+| 方法 | 输入 | 输出 |
+|---|---|---|
+| `rule_doc_path()` | — | 规则文档文件路径 |
+| `render_rule_doc(behavior)` | BehaviorConfig | 规则文档内容字符串 |
+| `hook_files(behavior)` | BehaviorConfig | Hook 脚本和配置的 FileSpec 列表 |
 
 #### 6.3.3 已实现的适配器
 
@@ -917,7 +952,7 @@ Channel 选择由 CLI 命令层根据 `output.pr_report` 配置决定。`api_url
 
 | 命令 | 参数 | 行为 |
 |---|---|---|
-| `guard init` | `--language`（必填）, `--ruleset`, `--interactive` | 检测项目信息，生成 guard.yaml 模板 |
+| `guard init` | `--language`（必填）, `--ruleset`, `--preset`, `--interactive` | 检测项目信息，按 preset 生成 guard.yaml 模板 |
 | `guard install` | `--agent`（逗号分隔） | 无 --agent 时列出可选 Agent；有则生成工件 + 安装 Git Hooks |
 | `guard update` | — | 读取 state.json，重新生成全部工件 |
 | `guard uninstall` | `--keep-config` | 按 state.json 删除全部工件 |
@@ -1035,8 +1070,22 @@ class LanguageTools:
     lint: str
 
 @dataclass
+class AuditConfig:
+    enabled: bool = True
+    path: str = ".ai-guard/audit.jsonl"
+    retention: int = 30
+
+@dataclass
+class PrReportConfig:
+    enabled: bool = False
+    platform: str = "github"
+    api_url: str | None = None
+    token_env: str = "GITHUB_TOKEN"
+
+@dataclass
 class OutputConfig:
     verbosity: str = "normal"
+    locale: str = "en"                                    # en / zh-CN
     audit: AuditConfig = field(default_factory=AuditConfig)
     pr_report: PrReportConfig = field(default_factory=PrReportConfig)
 
@@ -1308,6 +1357,297 @@ guard.yaml 中的 `version` 字段用于配置格式版本迁移。当 schema �
 5. **各模块的设计深度应当一致**。后设计的模块容易因疲劳而草率，应以统一的检查清单验证每个模块的完整度。
 
 6. **不假设用户脚本的能力**。用户脚本可能不接受文件参数，应提供显式的 `pass_filenames` 控制而非假设默认行为。
+
+---
+
+## 12. 扩展规范
+
+本章定义 AI Guard 各扩展点的开发者契约。无论当前是否公开为外部 API，均以统一标准约束接口行为，确保内部实现和未来第三方扩展的一致性。
+
+### 12.1 Agent 适配器开发规范
+
+#### 12.1.1 接口契约
+
+```python
+class AgentAdapter(ABC):
+    @property
+    @abstractmethod
+    def name(self) -> str:
+        """Agent 标识符，用于 --agent 参数。小写，单词间用 - 连接。"""
+
+    @property
+    @abstractmethod
+    def capabilities(self) -> AgentCapabilities:
+        """声明 Agent 的 Hook 能力。"""
+
+    @abstractmethod
+    def rule_doc_path(self) -> str:
+        """规则文档的文件路径（相对于项目根目录）。"""
+
+    @abstractmethod
+    def render_rule_doc(self, behavior: BehaviorConfig) -> str:
+        """将行为规则渲染为 Agent 特定格式的规则文档内容。"""
+
+    @abstractmethod
+    def hook_files(self, behavior: BehaviorConfig) -> list[FileSpec]:
+        """生成 Agent 特定的 Hook 脚本和配置文件。"""
+
+@dataclass
+class AgentCapabilities:
+    can_block: bool    # 能否拦截操作
+    can_ask: bool      # 能否弹出用户确认
+
+@dataclass
+class FileSpec:
+    path: str              # 相对于项目根目录
+    content: str           # 文件内容
+    executable: bool = False
+```
+
+#### 12.1.2 capabilities 语义
+
+| 字段 | `true` | `false` |
+|---|---|---|
+| `can_block` | forbidden 规则运行时拦截（deny） | 仅规则文档软约束 |
+| `can_ask` | require_approval 触发用户确认（ask） | 降级为 deny |
+
+#### 12.1.3 规则文档约定
+
+输出必须包含托管块标记 `<!-- AI-GUARD:BEGIN -->` / `<!-- AI-GUARD:END -->`。Agent 特定格式差异（如 Cursor 的 `.mdc` frontmatter）由适配器自行处理。
+
+#### 12.1.4 Hook 脚本协议
+
+| 方向 | 格式 | 说明 |
+|---|---|---|
+| 输入 | stdin JSON | Agent 特定的工具调用信息 |
+| 输出 | stdout JSON | Agent 特定的判定响应 |
+| exit code | 始终 0 | 非 0 可能导致 Agent 异常 |
+
+脚本内部流程：读取 Agent 格式 → 转换为统一 ToolCall → 调用 Enforcer → 转换为 Agent 响应格式。协议转换由适配器在 `hook_files()` 中内嵌于生成的脚本模板。
+
+#### 12.1.5 错误处理
+
+适配器方法抛出异常时，install 报错并标明哪个 Agent 失败，其他 Agent 的工件生成不受影响。
+
+### 12.2 ReportChannel 开发规范
+
+#### 12.2.1 接口契约
+
+```python
+class ReportChannel(ABC):
+    @property
+    @abstractmethod
+    def name(self) -> str:
+        """渠道标识符，对应 output.pr_report.platform 的值。"""
+
+    @abstractmethod
+    def send(self, report: CheckReport, markdown: str, config: PrReportConfig) -> None:
+        """
+        发送报告到目标平台。
+
+        Args:
+            report: 结构化检查报告
+            markdown: 已渲染的 Markdown 字符串
+            config: PR 报告配置
+
+        Raises:
+            ChannelError: 发送失败时抛出
+        """
+```
+
+#### 12.2.2 认证约定
+
+通过 `config.token_env` 指定的环境变量获取平台令牌。渠道不存储令牌，不写入配置文件或缓存。
+
+#### 12.2.3 api_url 约定
+
+`config.api_url` 为 None 时使用平台默认地址（如 `https://api.github.com`），非 None 时用于自部署实例。
+
+#### 12.2.4 PR 定位
+
+从当前 Git 分支推断关联 PR。找不到时输出警告，跳过发送。
+
+#### 12.2.5 错误处理
+
+发送失败抛出 ChannelError。Reporter 捕获后向 stderr 输出警告，**不影响主流程和 exit code**。
+
+### 12.3 行为规则编写规范
+
+#### 12.3.1 Pattern 格式
+
+```
+{scheme}:{glob_or_regex}
+```
+
+| scheme | 资源类型 | 目标提取来源 | 示例 |
+|---|---|---|---|
+| `file` | 本地文件 | tool_args.file_path / path | `file:**/.env` |
+| `shell` | Shell 命令 | tool_args.command | `shell:git push --force*` |
+| `mcp` | MCP 工具 | tool_name（server:tool） | `mcp:memory:delete_*` |
+| `web` | Web URL | tool_args.url | `web:*.internal.com` |
+
+#### 12.3.2 匹配模式
+
+默认 glob（`*` 单层，`**` 多层）。`regex: true` 启用 Python `re.match` 正则匹配。
+
+#### 12.3.3 优先级
+
+`forbidden > require_approval > allow > 默认 allow`
+
+#### 12.3.4 编写建议
+
+- `reason` / `message` 简洁说明原因，AI Agent 会读到此信息并据此调整行为
+- glob 末尾加 `*` 匹配命令的后续参数
+- 文件路径使用相对路径（相对项目根目录）
+- 避免过宽 pattern（如 `file:**`）
+
+#### 12.3.5 remove 约束
+
+精确匹配移除。仅可移除 `default` 和 `ruleset` 来源的规则。`system` 规则不可移除。
+
+### 12.4 自定义检查脚本规范
+
+#### 12.4.1 输入约定
+
+| 配置 | 脚本接收的参数 |
+|---|---|
+| 无 `types` | 无参数 |
+| 有 `types` + `pass_filenames: true`（默认） | 匹配文件追加到命令末尾 |
+| 有 `types` + `pass_filenames: false` | 无参数 |
+| 有 `types` + `{files}` 占位符 | `{files}` 替换为文件列表 |
+
+#### 12.4.2 输出约定（基础模式）
+
+| 输出 | 约定 |
+|---|---|
+| exit code | `0` = 通过，非 `0` = 失败 |
+| stdout | 信息性输出 |
+| stderr | 错误信息（失败时展示给用户） |
+
+#### 12.4.3 输出约定（增强模式，可选）
+
+脚本可在 stdout 中输出 JSON Lines 格式的违规记录。AI Guard 尝试逐行解析，解析失败的行静默忽略，降级为基础模式。
+
+每行一条 JSON：
+
+```json
+{"file": "src/main.py", "line": 1, "message": "Missing license header"}
+```
+
+| 字段 | 必填 | 说明 |
+|---|---|---|
+| `file` | ✅ | 文件路径 |
+| `line` | ❌ | 行号 |
+| `column` | ❌ | 列号 |
+| `message` | ✅ | 违规描述 |
+| `severity` | ❌ | 默认 `"error"` |
+
+增强模式使 Reporter 能展示精确的违规位置，而非仅"Check failed (exit code N)"。
+
+#### 12.4.4 运行环境
+
+工作目录为项目根目录。通过 `shell=True` 执行。超时由 `timeout` 字段控制（默认 300s），超时后强制终止并标记为失败。
+
+### 12.5 规则集制作规范
+
+#### 12.5.1 目录结构
+
+```
+my-ruleset/
+├── guard.yaml       # 必须。与项目 guard.yaml 同格式
+├── files/           # 可选。工具配置文件
+└── checks/          # 可选。自定义检查脚本
+```
+
+#### 12.5.2 guard.yaml 可用字段
+
+| 字段 | 可用 | 说明 |
+|---|---|---|
+| `behavior` | ✅ | 追加行为规则 |
+| `code` | ✅ | 追加检查项 |
+| `languages` | ✅ | 提供语言工具映射 |
+| `project` | ❌ | 由项目自身定义 |
+| `rulesets` | ❌ | 规则集不嵌套引用 |
+| `build` | ❌ | 由项目自身定义 |
+| `output` | ❌ | 由项目自身定义 |
+
+#### 12.5.3 文件复制行为
+
+| 目录 | 目标 | 已存在时 |
+|---|---|---|
+| `files/` | 项目根目录 | 跳过 + 警告（不覆盖） |
+| `checks/` | `.ai-guard/checks/` | 覆盖（由 AI Guard 管理） |
+
+#### 12.5.4 版本管理
+
+推荐 Git tag（如 `v1.0.0`）。引用格式：`"git@github.com:org/rules.git#v1.0.0"`。未指定版本时使用默认分支。
+
+#### 12.5.5 命名约定
+
+`{语言}-{规范名称}`，如 `c-company-standard`、`python-team-rules`。通用规则集以 `common-` 或 `base-` 开头。
+
+### 12.6 AI 辅助扩展开发（Skill 化演进）
+
+#### 12.6.1 背景与动机
+
+AI Guard 的五类扩展点（Agent 适配器、报告渠道、行为规则、自定义检查、规则集）均具备以下特征：明确的接口契约、固定的文件结构约定、可验证的正确性标准。这些特征使其天然适合由 AI Agent 辅助完成——AI Agent 掌握规范后即可生成符合要求的扩展代码。
+
+本节规划将扩展规范转化为 AI Agent 可消费的 Skill（技能），使用户能够通过自然语言指令完成扩展开发，降低扩展的技术门槛。
+
+#### 12.6.2 可 Skill 化的扩展场景
+
+| 优先级 | Skill | 用户指令示例 | AI 执行的动作 |
+|---|---|---|---|
+| 高 | 创建自定义检查 | "帮我写一个检查 Python 文件必须有 type hints 的脚本" | 生成脚本（含 JSON Lines 增强输出）+ 更新 guard.yaml checks 配置 |
+| 高 | 创建行为规则 | "禁止 AI 修改 config/ 目录下的文件" | 生成 behavior.write.forbidden 条目并追加到 guard.yaml |
+| 中 | 制作规则集 | "把我们项目的规则打包成规则集" | 从 guard.yaml 提取规则 + 收集 files/ 和 checks/ → 生成规则集目录 |
+| 低 | 添加 Agent 适配器 | "帮我写一个 Windsurf 的适配器" | 根据 Agent Hook 文档生成 AgentAdapter 子类 |
+| 低 | 添加报告渠道 | "帮我把报告发到飞书" | 生成 ReportChannel 子类 + API 调用代码 |
+
+#### 12.6.3 Skill 执行流程示例
+
+以"创建自定义检查"为例：
+
+```
+用户: "帮我创建一个检查，确保所有 Python 文件第一行是 encoding 声明"
+
+Skill 执行:
+  1. 理解需求 → commit 阶段的自定义检查，types: [python]
+  2. 依据 12.4 规范生成脚本:
+     - 接受文件参数（pass_filenames: true）
+     - exit code 0/1 判定
+     - JSON Lines 增强输出
+  3. 写入 .ai-guard/checks/encoding_check.py
+  4. 更新 guard.yaml:
+     code.commit.checks.encoding_check:
+       command: "python3 .ai-guard/checks/encoding_check.py"
+       types: [python]
+  5. 执行 guard update 使配置生效
+  6. 用测试文件验证检查是否正确工作
+```
+
+#### 12.6.4 演进路径
+
+| 阶段 | 方式 | 前提条件 |
+|---|---|---|
+| 当前 | AI Agent 读取本文档第 12 章规范 → 手动辅助生成扩展代码 | 规范文档完备（已就绪） |
+| 短期 | 封装为 AI Agent 的 Skill 文件（如 `.claude/skills/`）→ 标准化交互流程 | Skill 基础设施成熟 |
+| 中期 | guard CLI 集成脚手架命令（`guard scaffold check` / `guard scaffold adapter`）→ 交互式生成模板 | Phase 3 完成后 |
+| 远期 | 扩展市场 + AI 一键安装（"帮我装一个 eslint 安全扫描规则集"）| 社区生态形成 |
+
+#### 12.6.5 Skill 与规范的关系
+
+Skill 是规范的自动化消费者，不是替代品：
+
+```
+第 12 章扩展规范（定义接口契约）
+        ↓
+Skill（AI Agent 按规范自动生成扩展代码）
+        ↓
+用户验证（guard check / guard status 验证正确性）
+```
+
+规范是 Skill 的"知识库"。规范变更时，Skill 自动获得新能力（因为 AI Agent 每次都读取最新规范）。这种设计避免了 Skill 与规范之间的版本同步问题。
 
 ---
 

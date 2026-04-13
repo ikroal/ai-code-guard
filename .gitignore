@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+dist/
+build/
+*.whl
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# macOS
+.DS_Store
+
+# AI Guard runtime
+.ai-guard/
+
+# Test & Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# Distribution
+*.tar.gz
+*.whl
+
+# Environment
+.env
+.env.local
+
+# Claude Code local settings
+.claude/settings.local.json
