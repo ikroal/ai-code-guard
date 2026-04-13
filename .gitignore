@@ -41,5 +41,9 @@ htmlcov/
 .env
 .env.local
 
-# Claude Code local settings
+# Claude Code
 .claude/settings.local.json
+.claude/skills/speckit-*/
+
+# Specify (template scaffolding, not needed in repo)
+.specify/
