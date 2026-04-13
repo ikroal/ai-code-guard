@@ -1,8 +1,9 @@
 """Smoke tests for CLI entry point."""
 
+from typer.testing import CliRunner
+
 from ai_guard import __version__
 from ai_guard.cli.main import app
-from typer.testing import CliRunner
 
 runner = CliRunner()
 

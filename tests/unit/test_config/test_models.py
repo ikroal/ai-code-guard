@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+
 from ai_guard.config.models import (
     AuditConfig,
     BehaviorConfig,
