@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from ai_guard.config.models import (
     AuditConfig,
     BehaviorConfig,
@@ -16,7 +15,6 @@ from ai_guard.config.models import (
     ResolvedConfig,
     Rule,
 )
-
 
 # ---------------------------------------------------------------------------
 # A. Rule
@@ -174,7 +172,7 @@ class TestCodeConfig:
 
     def test_with_check_items(self):
         cfg = CodeConfig(
-            commit_checks={"license": CheckItem(command="./check-license.sh")},
+            commit_checks={"license": CheckItem(command="check-license")},
             push_checks={"test": CheckItem(command="pytest", timeout=600)},
         )
         assert "license" in cfg.commit_checks
@@ -316,7 +314,9 @@ class TestResolvedConfig:
             behavior=BehaviorConfig(
                 read=OperationRules.empty(),
                 write=OperationRules(
-                    forbidden=[Rule(pattern="file:vendor/**", reason="no vendor edits")],
+                    forbidden=[
+                        Rule(pattern="file:vendor/**", reason="no vendor edits"),
+                    ],
                     require_approval=[],
                     allow=[Rule(pattern="file:src/**")],
                 ),
