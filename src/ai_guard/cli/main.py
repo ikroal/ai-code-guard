@@ -9,7 +9,6 @@ from ai_guard import __version__
 app = typer.Typer(
     name="guard",
     help="AI Guard - Guardian system for AI coding agents.",
-    no_args_is_help=True,
     invoke_without_command=True,
 )
 
