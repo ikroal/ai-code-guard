@@ -1,5 +1,13 @@
 """Configuration system for AI Guard."""
 
+from ai_guard.config.exceptions import (
+    ConfigError,
+    ConfigFileNotFoundError,
+    ConfigSyntaxError,
+    ConfigValidationError,
+    ValidationIssue,
+)
+from ai_guard.config.loader import RawConfig, load_config
 from ai_guard.config.models import (
     AuditConfig,
     BehaviorConfig,
@@ -12,8 +20,21 @@ from ai_guard.config.models import (
     ResolvedConfig,
     Rule,
 )
+from ai_guard.config.validator import validate_raw_config
 
 __all__ = [
+    # Exceptions
+    "ConfigError",
+    "ConfigFileNotFoundError",
+    "ConfigSyntaxError",
+    "ConfigValidationError",
+    "ValidationIssue",
+    # Loader
+    "load_config",
+    "RawConfig",
+    # Validator
+    "validate_raw_config",
+    # Models
     "Rule",
     "OperationRules",
     "BehaviorConfig",
