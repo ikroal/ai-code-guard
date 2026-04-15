@@ -1,7 +1,5 @@
 """AI Guard CLI entry point."""
 
-from typing import Optional
-
 import typer
 
 from ai_guard import __version__
@@ -16,7 +14,7 @@ app = typer.Typer(
 @app.callback(invoke_without_command=True)
 def main(
     ctx: typer.Context,
-    show_version: Optional[bool] = typer.Option(
+    show_version: bool | None = typer.Option(
         None, "--version", "-V", help="Print version and exit."
     ),
 ) -> None:
