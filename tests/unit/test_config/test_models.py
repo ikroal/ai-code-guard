@@ -363,10 +363,13 @@ class TestModuleExports:
             "ConfigFileNotFoundError",
             "ConfigSyntaxError",
             "ConfigValidationError",
+            "ConfigWarning",
             "ValidationIssue",
             # Loader
             "load_config",
             "RawConfig",
+            # Merger
+            "resolve_config",
             # Validator
             "validate_raw_config",
             # Models

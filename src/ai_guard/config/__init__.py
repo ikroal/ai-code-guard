@@ -5,9 +5,11 @@ from ai_guard.config.exceptions import (
     ConfigFileNotFoundError,
     ConfigSyntaxError,
     ConfigValidationError,
+    ConfigWarning,
     ValidationIssue,
 )
 from ai_guard.config.loader import RawConfig, load_config
+from ai_guard.config.merger import resolve_config
 from ai_guard.config.models import (
     AuditConfig,
     BehaviorConfig,
@@ -28,10 +30,13 @@ __all__ = [
     "ConfigFileNotFoundError",
     "ConfigSyntaxError",
     "ConfigValidationError",
+    "ConfigWarning",
     "ValidationIssue",
     # Loader
     "load_config",
     "RawConfig",
+    # Merger
+    "resolve_config",
     # Validator
     "validate_raw_config",
     # Models
