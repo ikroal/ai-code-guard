@@ -16,6 +16,7 @@ __all__ = [
     "ConfigFileNotFoundError",
     "ConfigSyntaxError",
     "ConfigValidationError",
+    "ConfigWarning",
     "ValidationIssue",
 ]
 
@@ -34,6 +35,14 @@ class ValidationIssue:
     path: str
     message: str
     value: Any = None
+
+
+class ConfigWarning(UserWarning):
+    """Warning for non-fatal config merge issues.
+
+    Emitted when a ``remove`` target is not found (possible typo)
+    or when a ``remove`` targets a system-protected rule.
+    """
 
 
 class ConfigError(Exception):
