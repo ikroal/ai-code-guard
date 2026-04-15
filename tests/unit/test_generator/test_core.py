@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from datetime import datetime
 from pathlib import Path
 
@@ -226,6 +227,9 @@ class TestWriteArtifacts:
         assert (tmp_path / "deep" / "path" / "to" / "file.txt").is_file()
 
     def test_sets_executable_flag(self, tmp_path: Path) -> None:
+        # Unix executable bits don't work on Windows
+        if sys.platform == "win32":
+            pytest.skip("Executable flag is Unix-specific")
         artifacts = [
             FileSpec(path="script.sh", content="#!/bin/bash", executable=True),
         ]
@@ -294,6 +298,9 @@ class TestWriteArtifacts:
     def test_raises_artifact_write_error_on_permission_denied(
         self, tmp_path: Path
     ) -> None:
+        # Windows doesn't support Unix-style permission restrictions
+        if sys.platform == "win32":
+            pytest.skip("Unix permission tests don't work on Windows")
         # This test is tricky on most systems; skip if we can't create
         # a permission-restricted directory
         if not tmp_path.exists():
