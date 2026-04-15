@@ -358,6 +358,18 @@ class TestModuleExports:
         import ai_guard.config as config_mod
 
         expected = {
+            # Exceptions
+            "ConfigError",
+            "ConfigFileNotFoundError",
+            "ConfigSyntaxError",
+            "ConfigValidationError",
+            "ValidationIssue",
+            # Loader
+            "load_config",
+            "RawConfig",
+            # Validator
+            "validate_raw_config",
+            # Models
             "Rule",
             "OperationRules",
             "BehaviorConfig",
