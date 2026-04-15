@@ -47,10 +47,37 @@ target-version = "py310"
 line-length = 88
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "W"]
+select = [
+    "E",      # pycodestyle errors
+    "F",      # pyflakes
+    "W",      # pycodestyle warnings
+    "I",      # isort
+    "UP",     # pyupgrade
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "SIM",    # flake8-simplify
+    "RUF",    # ruff-specific
+    "N",      # pep8-naming
+    "C90",    # mccabe (complexity)
+    "PLR0913", # pylint: too-many-arguments
+]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+    "SIM108", # ternary operator (sometimes if-else is clearer)
+    "RUF022", # unsorted-dunder-all (we use comment-grouped __all__)
+]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.pylint]
+max-args = 5
 
 [tool.ruff.lint.isort]
 known-first-party = ["ai_guard"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["D", "ANN", "ARG", "PLR0913", "C408"]  # relax requirements for tests
 
 [tool.pytest.ini_options]
 testpaths = ["tests/unit", "tests/integration"]

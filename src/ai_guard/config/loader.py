@@ -21,7 +21,7 @@ from ai_guard.config.exceptions import (
 )
 from ai_guard.config.validator import validate_raw_config
 
-__all__ = ["load_config", "RawConfig"]
+__all__ = ["RawConfig", "load_config"]
 
 
 # --- RawConfig TypedDicts ---

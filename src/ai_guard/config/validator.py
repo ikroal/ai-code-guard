@@ -188,7 +188,7 @@ _CODE_CONFIG = Dict(fields={"commit": _COMMIT_STAGE, "push": _PUSH_STAGE})
 
 _BUILD_CONFIG = Dict(fields={"command": Str()})
 
-_BEHAVIOR_CONFIG = Dict(fields={op: _OPERATION for op in ("read", "write", "execute")})
+_BEHAVIOR_CONFIG = Dict(fields=dict.fromkeys(("read", "write", "execute"), _OPERATION))
 
 # Root schema
 _ROOT = Dict(
@@ -345,17 +345,21 @@ class _Validator:
                 self._walk(data[name], child_node, child_path)
 
         # Special: validate regex pattern when regex=True
-        if node.check_regex and isinstance(data, dict):
-            if data.get("regex") is True and isinstance(data.get("pattern"), str):
-                try:
-                    re.compile(data["pattern"])
-                except re.error as exc:
-                    pattern_path = f"{path}.pattern" if path else "pattern"
-                    self._add(
-                        pattern_path,
-                        f"invalid regex pattern: {exc}",
-                        data["pattern"],
-                    )
+        if (
+            node.check_regex
+            and isinstance(data, dict)
+            and data.get("regex") is True
+            and isinstance(data.get("pattern"), str)
+        ):
+            try:
+                re.compile(data["pattern"])
+            except re.error as exc:
+                pattern_path = f"{path}.pattern" if path else "pattern"
+                self._add(
+                    pattern_path,
+                    f"invalid regex pattern: {exc}",
+                    data["pattern"],
+                )
 
     def _check_dyndict(self, data: Any, node: DynDict, path: str) -> None:
         if not isinstance(data, dict):

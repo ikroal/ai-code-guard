@@ -10,16 +10,16 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 __all__ = [
-    "Rule",
-    "OperationRules",
+    "AuditConfig",
     "BehaviorConfig",
     "CheckItem",
     "CodeConfig",
     "LanguageTools",
-    "AuditConfig",
-    "PrReportConfig",
+    "OperationRules",
     "OutputConfig",
+    "PrReportConfig",
     "ResolvedConfig",
+    "Rule",
 ]
 
 
