@@ -85,6 +85,21 @@ class TestClearCache:
     def test_no_cache_dir_returns_zero(self, tmp_path: Path) -> None:
         assert clear_cache(tmp_path) == 0
 
+    def test_clears_dirs_with_readonly_files(self, tmp_path: Path) -> None:
+        """Regression: clear must handle read-only files (Windows .git packs)."""
+        import stat
+
+        cache = tmp_path / ".ai-guard" / "cache"
+        ruleset = cache / "rules"
+        ruleset.mkdir(parents=True)
+        readonly_file = ruleset / "readonly.pack"
+        readonly_file.write_text("data", encoding="utf-8")
+        readonly_file.chmod(stat.S_IREAD)
+
+        count = clear_cache(tmp_path)
+        assert count == 1
+        assert list_cached(tmp_path) == []
+
     def test_preserves_cache_dir(self, tmp_path: Path) -> None:
         """Cache directory itself should remain after clearing."""
         cache = tmp_path / ".ai-guard" / "cache"
