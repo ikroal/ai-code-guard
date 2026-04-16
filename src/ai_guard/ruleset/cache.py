@@ -7,6 +7,7 @@ cache stored under ``.ai-guard/cache/``.
 from __future__ import annotations
 
 import shutil
+import stat
 from typing import TYPE_CHECKING
 
 from ai_guard.ruleset.models import CACHE_DIR
@@ -66,6 +67,14 @@ def clear_cache(project_root: Path) -> int:
     count = 0
     for entry in cache.iterdir():
         if entry.is_dir():
-            shutil.rmtree(entry)
+            shutil.rmtree(entry, onerror=_rm_readonly)
             count += 1
     return count
+
+
+def _rm_readonly(_func: object, path: str, _exc_info: object) -> None:
+    """Error handler for shutil.rmtree on read-only files (Windows .git)."""
+    import pathlib
+
+    pathlib.Path(path).chmod(stat.S_IWRITE)
+    pathlib.Path(path).unlink()
