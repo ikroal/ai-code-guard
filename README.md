@@ -1,112 +1,118 @@
+![CI](https://github.com/ikroal/ai-code-guard/actions/workflows/ci.yml/badge.svg)
 ![Python](https://img.shields.io/badge/python-%3E%3D3.10-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Status](https://img.shields.io/badge/status-alpha-orange)
 
 # AI Guard
 
-**Guardian system for AI coding agents — behavior constraints and code quality gates.**
+Guardrails for AI coding agents. One `guard.yaml` constrains behavior and enforces code quality across Claude Code, Cursor, OpenCode, Copilot, and KiloCode.
 
-[English](README.md) | [中文](README_zh.md)
+A single config file replaces per-agent rule documents, scattered hook scripts, and manual pre-commit setup.
 
-> [!NOTE]
-> AI Guard is under active development. Phases 1-3 are complete; Phase 4 (Ruleset Management) is in progress.
+- **Runtime interception** — agent hooks block dangerous operations (force push, secret access, config tampering) before they execute
+- **Code quality gates** — format, lint, naming, and custom checks at commit and push time
+- **Anti-bypass protection** — the agent cannot modify its own constraints, disable hooks, or skip checks
+- **5 agents, 1 config** — `guard.yaml` generates agent-specific rule docs, hook scripts, pre-commit config, and policy files
 
-## What is AI Guard?
+## Installation
 
-AI coding agents (Claude Code, Cursor, OpenCode, etc.) can autonomously read/write files, execute commands, and generate code. AI Guard provides a unified guardrail system that:
-
-- **Constrains behavior** — intercept dangerous operations at runtime via agent hooks (e.g., force push, secret file access, bypassing checks)
-- **Gates code quality** — enforce formatting, linting, naming conventions, and custom checks at commit/push time
-- **One config, all agents** — a single `guard.yaml` drives rules for every supported AI agent
+```bash
+pip install ai-guard
+```
 
 ## Quick Start
 
 ```bash
-# Install from source
-pip install -e .
-
-# Initialize configuration
-guard init --language python
-
-# Install artifacts for your agent
-guard install --agent claude-code
-
-# Run commit-stage quality checks
-guard check
-
-# Fetch a shared ruleset
-guard ruleset fetch https://github.com/company/rules.git#v1.0
+guard init --language python          # create guard.yaml
+guard install --agent claude-code     # generate rules + hooks
+guard check                           # run quality checks
+guard ruleset fetch <url>#v1.0        # fetch shared ruleset
 ```
 
-## CLI Commands
+## Supported Agents
+
+| Agent | Runtime Hook | Code Quality | Rule Document |
+|-------|:---:|:---:|---|
+| Claude Code | deny + ask | yes | `CLAUDE.md` |
+| Cursor | deny | yes | `.cursor/rules/behavior.mdc` |
+| OpenCode | deny + ask | yes | `AGENTS.md` |
+| GitHub Copilot | — | yes | `.github/copilot-instructions.md` |
+| KiloCode | — | yes | `.kilocode/rules/behavior.md` |
+
+Agents with runtime hooks intercept operations before execution. Agents without hooks receive behavior rules as soft constraints in their rule documents. All agents get pre-commit quality gates.
+
+## Configuration
+
+```yaml
+behavior:
+  write:
+    forbidden:
+      - pattern: "file:.git/**"
+      - pattern: "file:**/.env"
+    require_approval:
+      - pattern: "file:guard.yaml"
+  execute:
+    forbidden:
+      - pattern: "shell:git push --force*"
+      - pattern: "shell:git commit --no-verify*"
+
+code:
+  commit:
+    format: true
+    naming: true
+  push:
+    lint: true
+```
+
+Patterns use `{scheme}:{glob}` format — `file:`, `shell:`, `mcp:`, `web:`. Add `regex: true` for regex matching.
+
+Rules are evaluated in priority order: **forbidden** (deny) > **require_approval** (ask user) > **allow** > default allow.
+
+See [guard.yaml reference](design/AI_GUARD_SYSTEM_DESIGN.md) for full schema.
+
+## Commands
 
 | Command | Description |
 |---------|-------------|
-| `guard init` | Generate a `guard.yaml` configuration file |
-| `guard install` | Install rule docs, hook scripts, and git hooks for agents |
-| `guard update` | Re-generate all artifacts from latest config |
-| `guard uninstall` | Remove all generated artifacts |
-| `guard status` | Show installation status and drift detection |
-| `guard doctor` | Run environment diagnostics |
-| `guard agents` | Display agent capability matrix |
-| `guard check` | Run commit-stage quality checks |
-| `guard verify` | Run full push-stage validation |
-| `guard run <name>` | Run a single named check item |
+| `guard init` | Generate `guard.yaml` from presets |
+| `guard install --agent <name>` | Generate rules, hooks, and configs |
+| `guard update` | Regenerate after config changes |
+| `guard uninstall` | Remove generated artifacts |
+| `guard check` | Run commit-stage checks |
+| `guard verify` | Run push-stage validation |
+| `guard run <name>` | Run a single check |
+| `guard gate run --stage <s>` | Git hook entry point |
+| `guard status` | Installation state and drift detection |
+| `guard doctor` | Environment diagnostics |
+| `guard agents` | Agent capability matrix |
 | `guard ruleset fetch` | Fetch a ruleset from a git repository |
 | `guard ruleset list` | List cached rulesets |
 | `guard ruleset cache clear` | Clear the ruleset cache |
 
-## Supported Agents
+## How It Works
 
-| Agent | Behavior Interception | Code Quality Gates |
-|-------|----------------------|-------------------|
-| Claude Code | Full (Hook) | Full |
-| Cursor | Full (Hook) | Full |
-| OpenCode | Full (Plugin) | Full |
-| GitHub Copilot | Rule doc only | Full |
-| KiloCode | Rule doc only | Full |
+`guard install` reads `guard.yaml` and generates all artifacts at once — rule documents, hook scripts, `.pre-commit-config.yaml`, and `.ai-guard/policy.json`. No config parsing happens at runtime.
 
-## Architecture
+When the agent runs, its hook script loads the pre-built policy and matches each operation against the rules. Forbidden operations are blocked. Operations requiring approval prompt the user. Everything else is allowed. Every decision is logged to `.ai-guard/audit.jsonl`.
 
-```mermaid
-graph LR
-    A[guard.yaml] --> B[Config]
-    B --> C[Generator]
-    B --> E[Enforcer]
-    B --> F[Checker]
-    C --> D[AgentAdapter]
-    F --> G[Reporter]
-    E --> G
-```
-
-| Module | Responsibility |
-|--------|---------------|
-| **Config** | Load, merge, and validate configuration |
-| **Generator** | Produce rule docs, hook scripts, tool configs, and git hooks |
-| **AgentAdapter** | Adapt unified rules to agent-specific formats |
-| **Enforcer** | Runtime policy matching and decision (allow / deny / ask) |
-| **Checker** | Orchestrate commit/push verification |
-| **Reporter** | Format and deliver check results and audit logs |
-| **Ruleset** | Fetch, cache, and manage shared external rulesets |
+At commit and push time, pre-commit hooks run format, lint, naming, and custom checks. The agent cannot skip these because `git commit --no-verify` is itself a forbidden pattern.
 
 ## Roadmap
 
-- [x] System design complete
 - [x] **Phase 1** — Config + Generator + CLI (8 commands)
 - [x] **Phase 2** — Enforcer + runtime behavior interception
 - [x] **Phase 3** — Checker + Reporter + code quality gates
 - [ ] **Phase 4** — Ruleset fetch, caching, and management
 - [ ] **Phase 5** — PR report posting and CI/CD integration
 
-## Documentation
+## Development
 
-- [System Design Document](design/AI_GUARD_SYSTEM_DESIGN.md) — full architecture, module design, interfaces, and data models
-
-## Requirements
-
-- Python >= 3.10
-- Git >= 2.20
+```bash
+pip install -e ".[dev]"
+pytest                    # 692 tests
+ruff check .
+```
 
 ## License
 
-[MIT License](LICENSE)
+[MIT](LICENSE)
