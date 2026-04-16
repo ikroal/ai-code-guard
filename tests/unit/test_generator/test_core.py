@@ -581,6 +581,133 @@ class TestGenerateToolConfigs:
         assert result[0].path == "text.txt"
 
 
+class TestGenerateToolConfigsForce:
+    """generate_tool_configs force/skip behavior tests."""
+
+    def test_skips_existing_file_by_default(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Existing user file should be skipped with warning when force=False."""
+        cache = tmp_path / ".ai-guard" / "cache" / "rules" / "files"
+        cache.mkdir(parents=True)
+        (cache / ".editorconfig").write_text("ruleset content", encoding="utf-8")
+
+        # User already has this file
+        (tmp_path / ".editorconfig").write_text("user content", encoding="utf-8")
+
+        result = generate_tool_configs(tmp_path, ["rules"], force=False)
+        assert len(result) == 0
+
+        captured = capsys.readouterr()
+        assert ".editorconfig" in captured.out
+        assert "skip" in captured.out.lower() or "exists" in captured.out.lower()
+
+    def test_overwrites_existing_file_when_forced(self, tmp_path: Path) -> None:
+        """Existing file should be included when force=True."""
+        cache = tmp_path / ".ai-guard" / "cache" / "rules" / "files"
+        cache.mkdir(parents=True)
+        (cache / ".editorconfig").write_text("ruleset content", encoding="utf-8")
+
+        (tmp_path / ".editorconfig").write_text("user content", encoding="utf-8")
+
+        result = generate_tool_configs(tmp_path, ["rules"], force=True)
+        assert len(result) == 1
+        assert result[0].content == "ruleset content"
+
+    def test_copies_new_file_regardless_of_force(self, tmp_path: Path) -> None:
+        """New files should always be copied, even with force=False."""
+        cache = tmp_path / ".ai-guard" / "cache" / "rules" / "files"
+        cache.mkdir(parents=True)
+        (cache / "new-config.yml").write_text("new", encoding="utf-8")
+
+        result = generate_tool_configs(tmp_path, ["rules"], force=False)
+        assert len(result) == 1
+        assert result[0].path == "new-config.yml"
+
+    def test_mixed_existing_and_new(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Only existing files should be skipped; new files still copied."""
+        cache = tmp_path / ".ai-guard" / "cache" / "rules" / "files"
+        cache.mkdir(parents=True)
+        (cache / "existing.cfg").write_text("from ruleset", encoding="utf-8")
+        (cache / "new.cfg").write_text("new config", encoding="utf-8")
+
+        (tmp_path / "existing.cfg").write_text("user version", encoding="utf-8")
+
+        result = generate_tool_configs(tmp_path, ["rules"], force=False)
+        assert len(result) == 1
+        assert result[0].path == "new.cfg"
+
+
+class TestGenerateCheckScripts:
+    """generate_check_scripts function tests."""
+
+    def test_returns_empty_list_when_no_rulesets(self, tmp_path: Path) -> None:
+        from ai_guard.generator.core import generate_check_scripts
+
+        result = generate_check_scripts(tmp_path, [])
+        assert result == []
+
+    def test_returns_empty_list_when_cache_missing(self, tmp_path: Path) -> None:
+        from ai_guard.generator.core import generate_check_scripts
+
+        result = generate_check_scripts(tmp_path, ["company-rules"])
+        assert result == []
+
+    def test_copies_scripts_to_ai_guard_checks(self, tmp_path: Path) -> None:
+        from ai_guard.generator.core import generate_check_scripts
+
+        cache = tmp_path / ".ai-guard" / "cache" / "rules" / "checks"
+        cache.mkdir(parents=True)
+        (cache / "encoding_check.py").write_text("# check", encoding="utf-8")
+
+        result = generate_check_scripts(tmp_path, ["rules"])
+        assert len(result) == 1
+        assert result[0].path == ".ai-guard/checks/encoding_check.py"
+        assert result[0].content == "# check"
+
+    def test_copies_from_multiple_rulesets(self, tmp_path: Path) -> None:
+        from ai_guard.generator.core import generate_check_scripts
+
+        cache1 = tmp_path / ".ai-guard" / "cache" / "a" / "checks"
+        cache1.mkdir(parents=True)
+        (cache1 / "check_a.py").write_text("a", encoding="utf-8")
+
+        cache2 = tmp_path / ".ai-guard" / "cache" / "b" / "checks"
+        cache2.mkdir(parents=True)
+        (cache2 / "check_b.py").write_text("b", encoding="utf-8")
+
+        result = generate_check_scripts(tmp_path, ["a", "b"])
+        assert len(result) == 2
+        paths = [r.path for r in result]
+        assert ".ai-guard/checks/check_a.py" in paths
+        assert ".ai-guard/checks/check_b.py" in paths
+
+    def test_skips_binary_files(self, tmp_path: Path) -> None:
+        from ai_guard.generator.core import generate_check_scripts
+
+        cache = tmp_path / ".ai-guard" / "cache" / "rules" / "checks"
+        cache.mkdir(parents=True)
+        (cache / "check.py").write_text("# ok", encoding="utf-8")
+        (cache / "binary.bin").write_bytes(b"\x00\xff\xfe")
+
+        result = generate_check_scripts(tmp_path, ["rules"])
+        assert len(result) == 1
+        assert result[0].path == ".ai-guard/checks/check.py"
+
+    def test_skips_missing_checks_dir(self, tmp_path: Path) -> None:
+        from ai_guard.generator.core import generate_check_scripts
+
+        # Ruleset exists in cache but has no checks/ dir
+        cache = tmp_path / ".ai-guard" / "cache" / "rules"
+        cache.mkdir(parents=True)
+        (cache / "guard.yaml").write_text("version: 1", encoding="utf-8")
+
+        result = generate_check_scripts(tmp_path, ["rules"])
+        assert result == []
+
+
 # ---------------------------------------------------------------------------
 # G4: Pre-commit Config Tests
 # ---------------------------------------------------------------------------

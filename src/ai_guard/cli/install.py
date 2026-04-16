@@ -20,6 +20,7 @@ from ai_guard.config.merger import resolve_config
 from ai_guard.generator.core import (
     create_state,
     delete_artifacts,
+    generate_check_scripts,
     generate_git_hooks,
     generate_hook_files,
     generate_policy_cache,
@@ -69,6 +70,8 @@ def _run_generator_pipeline(
     adapters: list[AgentAdapter],
     project_root: Path,
     rulesets: list[str],
+    *,
+    force: bool = False,
 ) -> list[str]:
     """Run G1-G7 generator primitives and write artifacts.
 
@@ -77,6 +80,7 @@ def _run_generator_pipeline(
         adapters: List of agent adapters to generate for.
         project_root: Path to project root directory.
         rulesets: List of ruleset names for tool config generation.
+        force: If True, overwrite existing tool config files.
 
     Returns:
         List of written artifact paths (relative to project root).
@@ -93,8 +97,11 @@ def _run_generator_pipeline(
     # G2: Hook files
     artifacts.extend(generate_hook_files(adapters, resolved_config.behavior))
 
-    # G3: Tool configs from rulesets
-    artifacts.extend(generate_tool_configs(project_root, rulesets))
+    # G3: Tool configs from rulesets (skip existing unless --force)
+    artifacts.extend(generate_tool_configs(project_root, rulesets, force=force))
+
+    # G3b: Check scripts from rulesets (always overwrite)
+    artifacts.extend(generate_check_scripts(project_root, rulesets))
 
     # G4: Pre-commit config
     artifacts.append(
@@ -220,6 +227,8 @@ def install_command(
     agents: list[str],
     project_root: Path,
     config_path: Path,
+    *,
+    force: bool = False,
 ) -> None:
     """Execute the install command.
 
@@ -230,6 +239,7 @@ def install_command(
         agents: Agent names to install (empty to list available).
         project_root: Path to project root directory.
         config_path: Path to guard.yaml.
+        force: If True, overwrite existing tool config files.
     """
     if not agents:
         _print_available_agents()
@@ -269,7 +279,7 @@ def install_command(
     # Run generator pipeline
     try:
         written_paths = _run_generator_pipeline(
-            resolved, adapters, project_root, rulesets
+            resolved, adapters, project_root, rulesets, force=force
         )
     except ArtifactWriteError as e:
         print(f"Error: Failed to write artifacts: {', '.join(e.failed_paths)}")
@@ -285,6 +295,8 @@ def install_command(
 def update_command(
     project_root: Path,
     config_path: Path,
+    *,
+    force: bool = False,
 ) -> None:
     """Execute the update command.
 
@@ -293,6 +305,7 @@ def update_command(
     Args:
         project_root: Path to project root directory.
         config_path: Path to guard.yaml.
+        force: If True, overwrite existing tool config files.
     """
     existing_state = read_state(project_root)
     if existing_state is None:
@@ -320,7 +333,7 @@ def update_command(
     # Run generator pipeline
     try:
         written_paths = _run_generator_pipeline(
-            resolved, adapters, project_root, rulesets
+            resolved, adapters, project_root, rulesets, force=force
         )
     except ArtifactWriteError as e:
         print(f"Error: Failed to write artifacts: {', '.join(e.failed_paths)}")

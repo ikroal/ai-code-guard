@@ -124,6 +124,14 @@ def install(
             help="Path to guard.yaml",
         ),
     ] = Path("guard.yaml"),
+    force: Annotated[
+        bool,
+        typer.Option(
+            "--force",
+            "-f",
+            help="Overwrite existing tool config files from rulesets",
+        ),
+    ] = False,
 ) -> None:
     """Install AI Guard artifacts for specified agents.
 
@@ -132,7 +140,9 @@ def install(
     """
     agents = [a.strip() for a in agent.split(",") if a.strip()] if agent else []
     project_root = config.parent.resolve()
-    install_command(agents=agents, project_root=project_root, config_path=config)
+    install_command(
+        agents=agents, project_root=project_root, config_path=config, force=force
+    )
 
 
 @app.command()
@@ -145,6 +155,14 @@ def update(
             help="Path to guard.yaml",
         ),
     ] = Path("guard.yaml"),
+    force: Annotated[
+        bool,
+        typer.Option(
+            "--force",
+            "-f",
+            help="Overwrite existing tool config files from rulesets",
+        ),
+    ] = False,
 ) -> None:
     """Re-generate all artifacts for installed agents.
 
@@ -152,7 +170,7 @@ def update(
     artifacts based on the latest guard.yaml configuration.
     """
     project_root = config.parent.resolve()
-    update_command(project_root=project_root, config_path=config)
+    update_command(project_root=project_root, config_path=config, force=force)
 
 
 @app.command()

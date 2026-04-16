@@ -481,16 +481,23 @@ def generate_git_hooks(project_root: Path) -> list[FileSpec]:
 def generate_tool_configs(
     project_root: Path,
     rulesets: list[str],
+    *,
+    force: bool = False,
 ) -> list[FileSpec]:
     """Copy tool config files from ruleset cache (G3).
 
-    Rulesets are cloned to .ai-guard/cache/<ruleset-name>/.
-    Tool config files (like .clang-format, pyproject.toml) are
-    stored in the ruleset's 'files/' subdirectory.
+    Rulesets are cloned to ``.ai-guard/cache/<ruleset-name>/``.
+    Tool config files (like ``.clang-format``, ``pyproject.toml``)
+    are stored in the ruleset's ``files/`` subdirectory.
+
+    When ``force`` is False, files that already exist in the project
+    root are skipped with a warning. When True, all files are
+    included regardless of existing content.
 
     Args:
         project_root: Path to project root.
         rulesets: List of ruleset names installed.
+        force: If True, overwrite existing files.
 
     Returns:
         List of FileSpec for tool config files to be copied
@@ -506,11 +513,62 @@ def generate_tool_configs(
 
         for file_path in files_dir.iterdir():
             if file_path.is_file():
+                # Skip existing user files unless forced
+                if not force and (project_root / file_path.name).is_file():
+                    print(
+                        f"Skipping {file_path.name}: already exists "
+                        f"(use --force to overwrite)"
+                    )
+                    continue
+
                 try:
                     content = file_path.read_text(encoding="utf-8")
                     artifacts.append(
                         FileSpec(
                             path=file_path.name,  # Copy to project root
+                            content=content,
+                        )
+                    )
+                except UnicodeDecodeError:
+                    # Skip binary files
+                    continue
+    return artifacts
+
+
+def generate_check_scripts(
+    project_root: Path,
+    rulesets: list[str],
+) -> list[FileSpec]:
+    """Copy check scripts from ruleset cache (G3b).
+
+    Rulesets may include a ``checks/`` subdirectory with custom
+    check scripts. These are copied to ``.ai-guard/checks/`` in
+    the project directory. Unlike tool configs, check scripts are
+    always overwritten (managed by AI Guard).
+
+    Args:
+        project_root: Path to project root.
+        rulesets: List of ruleset names installed.
+
+    Returns:
+        List of FileSpec for check scripts to be copied
+        to ``.ai-guard/checks/``.
+    """
+    artifacts: list[FileSpec] = []
+    cache_dir = project_root / ".ai-guard" / "cache"
+
+    for ruleset in rulesets:
+        checks_dir = cache_dir / ruleset / "checks"
+        if not checks_dir.is_dir():
+            continue
+
+        for file_path in checks_dir.iterdir():
+            if file_path.is_file():
+                try:
+                    content = file_path.read_text(encoding="utf-8")
+                    artifacts.append(
+                        FileSpec(
+                            path=f".ai-guard/checks/{file_path.name}",
                             content=content,
                         )
                     )
