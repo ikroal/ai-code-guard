@@ -130,6 +130,22 @@ class TestRulesetFetchAndCacheClear:
         assert result.exit_code == 0
         assert "No cached rulesets" in result.output
 
+    def test_show_after_fetch(self, tmp_path: Path) -> None:
+        """Fetch a ruleset and show its details."""
+        url = _create_bare_repo(tmp_path / "repos")
+        pr = str(tmp_path)
+
+        runner.invoke(app, ["ruleset", "fetch", url, "--project-root", pr])
+
+        result = runner.invoke(
+            app, ["ruleset", "show", "test-rules", "--project-root", pr]
+        )
+        assert result.exit_code == 0, f"show failed: {result.output}"
+        assert "test-rules" in result.output
+        assert "file:secret/**" in result.output
+        assert ".editorconfig" in result.output
+        assert "check_headers.py" in result.output
+
     def test_fetch_with_tag(self, tmp_path: Path) -> None:
         """Fetch a specific version using #tag."""
         url = _create_bare_repo(tmp_path / "repos", tag="v1.0")
