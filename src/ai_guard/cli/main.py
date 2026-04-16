@@ -14,6 +14,11 @@ from ai_guard.cli.check import (
 )
 from ai_guard.cli.init import init_command
 from ai_guard.cli.install import install_command, uninstall_command, update_command
+from ai_guard.cli.ruleset import (
+    ruleset_cache_clear_command,
+    ruleset_fetch_command,
+    ruleset_list_command,
+)
 from ai_guard.cli.status import agents_command, doctor_command, status_command
 
 app = typer.Typer(
@@ -288,3 +293,48 @@ def gate_run(
 
 
 app.add_typer(gate_app)
+
+# ruleset subcommand group
+ruleset_app = typer.Typer(name="ruleset", help="Manage external rulesets.")
+cache_app = typer.Typer(name="cache", help="Manage ruleset cache.")
+
+
+@ruleset_app.command(name="fetch")
+def ruleset_fetch(
+    url: Annotated[
+        str,
+        typer.Argument(help="Git URL of the ruleset (use #version for pinning)"),
+    ],
+    project_root: Annotated[
+        Path,
+        typer.Option("--project-root", "-p", help="Project root directory"),
+    ] = Path("."),
+) -> None:
+    """Fetch or update a ruleset from a Git repository."""
+    ruleset_fetch_command(url=url, project_root=project_root.resolve())
+
+
+@ruleset_app.command(name="list")
+def ruleset_list(
+    project_root: Annotated[
+        Path,
+        typer.Option("--project-root", "-p", help="Project root directory"),
+    ] = Path("."),
+) -> None:
+    """List cached rulesets."""
+    ruleset_list_command(project_root=project_root.resolve())
+
+
+@cache_app.command(name="clear")
+def cache_clear(
+    project_root: Annotated[
+        Path,
+        typer.Option("--project-root", "-p", help="Project root directory"),
+    ] = Path("."),
+) -> None:
+    """Remove all cached rulesets."""
+    ruleset_cache_clear_command(project_root=project_root.resolve())
+
+
+ruleset_app.add_typer(cache_app)
+app.add_typer(ruleset_app)
