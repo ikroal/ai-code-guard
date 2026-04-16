@@ -25,10 +25,8 @@ class TestGeneratorError:
             raise GeneratorError("test error")
 
     def test_message(self) -> None:
-        try:
-            raise GeneratorError("test message")
-        except GeneratorError as e:
-            assert str(e) == "test message"
+        err = GeneratorError("test message")
+        assert str(err) == "test message"
 
 
 class TestArtifactWriteError:

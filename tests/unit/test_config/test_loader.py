@@ -75,7 +75,8 @@ class TestLoadConfigSuccess:
     def test_returns_dict_not_dataclass(self, tmp_path: Path) -> None:
         path = _write_yaml(tmp_path, {"version": 1, "project": {"language": "go"}})
         result = load_config(path)
-        assert isinstance(result, dict) and result.__class__ is dict
+        assert isinstance(result, dict)
+        assert result.__class__ is dict
 
     def test_accepts_string_path(self, tmp_path: Path) -> None:
         path = _write_yaml(tmp_path, {"version": 1, "project": {"language": "rust"}})

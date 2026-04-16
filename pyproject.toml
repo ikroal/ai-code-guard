@@ -39,7 +39,7 @@ guard = "ai_guard.cli.main:app"
 dev = [
     "pytest>=8.0",
     "pytest-cov>=5.0",
-    "ruff>=0.4",
+    "ruff>=0.15",
 ]
 
 [tool.ruff]
@@ -60,11 +60,28 @@ select = [
     "N",      # pep8-naming
     "C90",    # mccabe (complexity)
     "PLR0913", # pylint: too-many-arguments
+    "PLE",    # pylint errors
+    "PLW",    # pylint warnings
+    "PT",     # flake8-pytest-style
+    "PIE",    # flake8-pie
+    "PGH",    # pygrep-hooks
+    "PERF",   # perflint (performance)
+    # "FURB",  # refurb — still preview in ruff 0.15
+    "RSE",    # flake8-raise
+    "RET",    # flake8-return
+    "FLY",    # flynt (f-string)
+    "FA",     # flake8-future-annotations
+    "ERA",    # eradicate (commented-out code)
+    "ICN",    # flake8-import-conventions
+    "LOG",    # flake8-logging
 ]
 ignore = [
     "E501",   # line too long (handled by formatter)
     "SIM108", # ternary operator (sometimes if-else is clearer)
     "RUF022", # unsorted-dunder-all (we use comment-grouped __all__)
+    "PLW0603", # global statement — used intentionally for singleton Jinja2 envs
+    "RSE102", # unnecessary parens on raise — typer.Exit() requires them
+    "ERA001", # commented-out code — false positives on section comments
 ]
 
 [tool.ruff.lint.mccabe]
