@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 
 from ai_guard.enforcer.engine import evaluate
-from ai_guard.enforcer.matcher import Decision
+from ai_guard.enforcer.matcher import Decision, PolicyDecision
 
 
 def _write_policy(project_root: Path, policy_data: dict) -> None:
@@ -93,10 +93,15 @@ class TestEvaluateFileOps:
     """Tests for file read/write evaluation."""
 
     def test_write_to_git_denied(self, tmp_path: Path) -> None:
-        """Writing to .git/ is denied."""
+        """Writing to .git/ is denied with full PolicyDecision fields."""
         _write_policy(tmp_path, _standard_policy())
         result = evaluate("Write", {"file_path": ".git/config"}, tmp_path)
+        assert isinstance(result, PolicyDecision)
         assert result.decision == Decision.DENY
+        assert result.operation == "write"
+        assert result.scheme == "file"
+        assert result.target == ".git/config"
+        assert result.policy_hash == "abcd1234"
 
     def test_write_to_src_allowed(self, tmp_path: Path) -> None:
         """Writing to src/ is allowed."""

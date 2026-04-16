@@ -5,7 +5,7 @@ Provides a thin JSON stdin/stdout interface for non-Python hooks
 
 Usage:
     echo '{"tool_name": "Write", "tool_input": {"file_path": "x.py"}}' | \
-        python3 -m ai_guard.enforcer.cli
+        python3 -m ai_guard.enforcer
 
 Input (stdin JSON):
     {"tool_name": "...", "tool_input": {...}}
@@ -30,7 +30,6 @@ def main() -> None:
     try:
         input_data = json.load(sys.stdin)
     except (json.JSONDecodeError, OSError):
-        # Cannot parse input — fail-closed
         json.dump({"decision": "deny", "reason": "Invalid input"}, sys.stdout)
         print()
         return

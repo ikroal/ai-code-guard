@@ -22,6 +22,7 @@ if TYPE_CHECKING:
 __all__ = [
     "Decision",
     "MatchResult",
+    "PolicyDecision",
     "VALID_SCHEMES",
     "evaluate_rules",
     "find_matching_rule",
@@ -66,6 +67,60 @@ class MatchResult:
     decision: Decision
     matched_rule: Rule | None
     tier: str
+
+
+@dataclass
+class PolicyDecision:
+    """Full decision with classification context for audit logging.
+
+    Extends MatchResult with operation classification and policy
+    hash for complete audit trail recording.
+
+    Attributes:
+        decision: The policy decision (allow/deny/ask).
+        operation: Classified operation type.
+        scheme: Resource scheme type.
+        target: Extracted resource identifier.
+        matched_rule: The rule that triggered the decision,
+            or None if no rule matched.
+        tier: Which tier matched.
+        policy_hash: Config hash from policy.json.
+    """
+
+    decision: Decision
+    operation: str
+    scheme: str
+    target: str
+    matched_rule: Rule | None
+    tier: str
+    policy_hash: str
+
+    def to_audit_record(self, tool_name: str, agent: str) -> dict[str, str | None]:
+        """Build audit record dict for Reporter.
+
+        Args:
+            tool_name: Original tool name from the AI agent.
+            agent: Agent identifier (e.g., "claude-code").
+
+        Returns:
+            Dict with all audit fields (except timestamp).
+        """
+        reason = None
+        pattern = None
+        if self.matched_rule is not None:
+            reason = self.matched_rule.reason or self.matched_rule.message
+            pattern = self.matched_rule.pattern
+        return {
+            "agent": agent,
+            "tool": tool_name,
+            "operation": self.operation,
+            "scheme": self.scheme,
+            "target": self.target,
+            "decision": self.decision.value,
+            "reason": reason,
+            "matched_rule": pattern,
+            "policy_hash": self.policy_hash,
+        }
 
 
 # ---------------------------------------------------------------------------
