@@ -1,0 +1,15 @@
+# Minimal preset - 个人开发/轻量项目
+# 仅内置默认 + format + test
+
+code:
+  commit:
+    format: true
+  push:
+    checks:
+      test:
+        command: "pytest"
+        pass_filenames: false
+
+output:
+  audit:
+    enabled: false

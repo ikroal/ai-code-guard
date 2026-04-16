@@ -1,0 +1,32 @@
+# Strict preset - 企业安全/合规要求
+# 完整行为约束 + 全部检查 + 安全扫描 + PR报告
+
+behavior:
+  write:
+    forbidden:
+      - pattern: "file:.env*"
+        reason: "Environment files contain secrets"
+      - pattern: "file:*credentials*"
+        reason: "Credential files are protected"
+
+code:
+  commit:
+    format: true
+    naming: true
+  push:
+    lint: true
+    checks:
+      test:
+        command: "pytest --cov --cov-fail-under=80"
+        pass_filenames: false
+      security:
+        command: "bandit -r ."
+        types: [python]
+        pass_filenames: false
+
+output:
+  audit:
+    enabled: true
+    retention: 90
+  pr_report:
+    enabled: true
