@@ -229,3 +229,94 @@ class TestInstallWithRuleset:
         assert result.exit_code == 0
         assert "Warning" in result.output
         assert "nonexistent-rules" in result.output
+
+
+class TestRulesetFileCopy:
+    """Test ruleset files/ and checks/ copying (WP4.2)."""
+
+    def _init_and_install_with_ruleset(
+        self,
+        tmp_path: Path,
+        ruleset_url: str,
+        ruleset_name: str,
+        extra_args: list[str] | None = None,
+    ) -> object:
+        """Helper: fetch ruleset, init config, install."""
+        pr = str(tmp_path)
+        (tmp_path / ".git").mkdir(exist_ok=True)
+
+        # Fetch
+        result = runner.invoke(
+            app, ["ruleset", "fetch", ruleset_url, "--project-root", pr]
+        )
+        assert result.exit_code == 0, f"fetch failed: {result.output}"
+
+        # Init config
+        config_path = tmp_path / "guard.yaml"
+        if not config_path.is_file():
+            result = runner.invoke(
+                app, ["init", "--language", "python", "--output", str(config_path)]
+            )
+            assert result.exit_code == 0
+
+        # Add rulesets
+        text = config_path.read_text(encoding="utf-8")
+        if "rulesets:" not in text:
+            text += f'\nrulesets:\n  - "{ruleset_name}"\n'
+            config_path.write_text(text, encoding="utf-8")
+
+        # Install
+        cmd = ["install", "--agent", "claude-code", "--config", str(config_path)]
+        if extra_args:
+            cmd.extend(extra_args)
+        return runner.invoke(app, cmd)
+
+    def test_install_copies_checks_to_ai_guard(self, tmp_path: Path) -> None:
+        """Check scripts from ruleset should appear in .ai-guard/checks/."""
+        url = _create_bare_repo(tmp_path / "repos")
+        result = self._init_and_install_with_ruleset(tmp_path, url, "test-rules")
+        assert result.exit_code == 0, f"install failed: {result.output}"
+        assert (tmp_path / ".ai-guard" / "checks" / "check_headers.py").is_file()
+
+    def test_install_copies_files_to_root(self, tmp_path: Path) -> None:
+        """Tool config files from ruleset should appear at project root."""
+        url = _create_bare_repo(tmp_path / "repos")
+        result = self._init_and_install_with_ruleset(tmp_path, url, "test-rules")
+        assert result.exit_code == 0, f"install failed: {result.output}"
+        assert (tmp_path / ".editorconfig").is_file()
+        assert (tmp_path / ".editorconfig").read_text(
+            encoding="utf-8"
+        ) == "root = true\n"
+
+    def test_install_skips_existing_files(self, tmp_path: Path) -> None:
+        """Existing user files should not be overwritten without --force."""
+        url = _create_bare_repo(tmp_path / "repos")
+
+        # Create user file BEFORE install
+        (tmp_path / ".editorconfig").write_text("user content", encoding="utf-8")
+
+        result = self._init_and_install_with_ruleset(tmp_path, url, "test-rules")
+        assert result.exit_code == 0
+        assert "Skipping" in result.output or "skip" in result.output.lower()
+
+        # User file should be preserved
+        assert (tmp_path / ".editorconfig").read_text(
+            encoding="utf-8"
+        ) == "user content"
+
+    def test_install_force_overwrites_existing_files(self, tmp_path: Path) -> None:
+        """--force should overwrite existing user files."""
+        url = _create_bare_repo(tmp_path / "repos")
+
+        # Create user file BEFORE install
+        (tmp_path / ".editorconfig").write_text("user content", encoding="utf-8")
+
+        result = self._init_and_install_with_ruleset(
+            tmp_path, url, "test-rules", extra_args=["--force"]
+        )
+        assert result.exit_code == 0
+
+        # Ruleset file should have replaced user file
+        assert (tmp_path / ".editorconfig").read_text(
+            encoding="utf-8"
+        ) == "root = true\n"
