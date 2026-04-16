@@ -311,7 +311,7 @@ def ruleset_fetch(
     ] = Path("."),
 ) -> None:
     """Fetch or update a ruleset from a Git repository."""
-    ruleset_fetch_command(url=url, project_root=project_root.resolve())
+    ruleset_fetch_command(url=url, project_root=Path(project_root).absolute())
 
 
 @ruleset_app.command(name="list")
@@ -322,7 +322,7 @@ def ruleset_list(
     ] = Path("."),
 ) -> None:
     """List cached rulesets."""
-    ruleset_list_command(project_root=project_root.resolve())
+    ruleset_list_command(project_root=Path(project_root).absolute())
 
 
 @cache_app.command(name="clear")
@@ -333,7 +333,7 @@ def cache_clear(
     ] = Path("."),
 ) -> None:
     """Remove all cached rulesets."""
-    ruleset_cache_clear_command(project_root=project_root.resolve())
+    ruleset_cache_clear_command(project_root=Path(project_root).absolute())
 
 
 ruleset_app.add_typer(cache_app)
