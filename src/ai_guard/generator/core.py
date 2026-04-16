@@ -1,7 +1,10 @@
 """Generator core functions for AI Guard.
 
-Implements state management, managed block handling, and artifact
-writing primitives (G7).
+Implements G1-G7 primitives for artifact generation:
+- G1: generate_rule_docs - Agent-specific rule documents
+- G2: generate_hook_files - Agent-specific Hook scripts
+- G3-G6: Agent-agnostic artifacts (WP1.3c)
+- G7: write_artifacts - Write all artifacts to disk
 
 Managed block markers and wrap_with_managed_block are defined in
 shared.types (shared across modules).
@@ -12,6 +15,7 @@ from __future__ import annotations
 import stat
 from datetime import datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from ai_guard import __version__
 from ai_guard.generator.exceptions import ArtifactWriteError
@@ -23,14 +27,84 @@ from ai_guard.shared.types import (
     wrap_with_managed_block,
 )
 
+if TYPE_CHECKING:
+    from ai_guard.adapters.base import AgentAdapter
+    from ai_guard.config.models import BehaviorConfig
+
 __all__ = [
+    # G1/G2 primitives
+    "generate_rule_docs",
+    "generate_hook_files",
+    # State management
     "read_state",
     "write_state",
+    "create_state",
+    # Managed block handling
     "replace_managed_block",
     "wrap_with_managed_block",
+    # Artifact writing (G7)
     "write_artifacts",
     "delete_artifacts",
 ]
+
+
+# ---------------------------------------------------------------------------
+# G1/G2 Primitives: Agent-specific artifact generation
+# ---------------------------------------------------------------------------
+
+
+def generate_rule_docs(
+    adapters: list[AgentAdapter],
+    behavior: BehaviorConfig,
+) -> list[FileSpec]:
+    """Generate rule documents for all specified agents (G1).
+
+    Calls each adapter's render_rule_doc method to produce
+    Agent-specific rule document content, wrapped with managed
+    block markers.
+
+    Args:
+        adapters: List of AgentAdapter instances.
+        behavior: BehaviorConfig containing read/write/execute rules.
+
+    Returns:
+        List of FileSpec objects for rule documents.
+    """
+    artifacts: list[FileSpec] = []
+    for adapter in adapters:
+        content = adapter.render_rule_doc(behavior)
+        artifacts.append(
+            FileSpec(
+                path=adapter.rule_doc_path(),
+                content=content,
+            )
+        )
+    return artifacts
+
+
+def generate_hook_files(
+    adapters: list[AgentAdapter],
+    behavior: BehaviorConfig,
+) -> list[FileSpec]:
+    """Generate Hook scripts for agents with Hook capability (G2).
+
+    Only adapters with can_block=True produce Hook files.
+    Calls each adapter's hook_files method to produce Agent-specific
+    Hook script content.
+
+    Args:
+        adapters: List of AgentAdapter instances.
+        behavior: BehaviorConfig (Hook scripts may embed rules or
+            reference policy.json).
+
+    Returns:
+        List of FileSpec objects for Hook scripts and configs.
+    """
+    artifacts: list[FileSpec] = []
+    for adapter in adapters:
+        if adapter.capabilities.can_block:
+            artifacts.extend(adapter.hook_files(behavior))
+    return artifacts
 
 
 # ---------------------------------------------------------------------------
