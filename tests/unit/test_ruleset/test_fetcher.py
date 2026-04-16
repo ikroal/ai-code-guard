@@ -120,12 +120,15 @@ def _create_bare_repo(
             capture_output=True,
         )
 
-    return f"file://{bare}"
+    return bare.as_uri()
 
 
 def _get_head_sha(bare_path: str) -> str:
     """Get the HEAD commit SHA from a bare repo URL."""
-    path = bare_path.replace("file://", "")
+    from urllib.parse import urlparse
+    from urllib.request import url2pathname
+
+    path = url2pathname(urlparse(bare_path).path)
     result = subprocess.run(
         ["git", "rev-parse", "HEAD"],
         cwd=path,

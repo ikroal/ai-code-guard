@@ -87,7 +87,7 @@ def _create_bare_repo(
             ["git", "push", "origin", tag], cwd=work, check=True, capture_output=True
         )
 
-    return f"file://{bare}"
+    return bare.as_uri()
 
 
 # ---------------------------------------------------------------------------

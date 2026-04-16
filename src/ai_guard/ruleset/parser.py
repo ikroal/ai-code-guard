@@ -88,7 +88,7 @@ def _extract_name(url: str) -> str:
 
     # For SSH URLs like git@host:org/repo, take after last '/' or ':'
     # For HTTPS like https://host/org/repo, take after last '/'
-    for sep in ("/", ":"):
+    for sep in ("/", "\\", ":"):
         idx = path.rfind(sep)
         if idx != -1:
             return path[idx + 1 :]
