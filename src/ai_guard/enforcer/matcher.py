@@ -14,8 +14,10 @@ import enum
 import fnmatch
 import re
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
-from ai_guard.config.models import OperationRules, Rule
+if TYPE_CHECKING:
+    from ai_guard.config.models import OperationRules, Rule
 
 __all__ = [
     "Decision",

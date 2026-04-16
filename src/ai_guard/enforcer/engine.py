@@ -6,13 +6,15 @@ into a single entry point for runtime behavior enforcement.
 
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from ai_guard.enforcer.classifier import classify
 from ai_guard.enforcer.exceptions import PolicyCorruptError
 from ai_guard.enforcer.matcher import Decision, MatchResult, evaluate_rules
 from ai_guard.enforcer.policy import load_policy
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 __all__ = ["evaluate"]
 

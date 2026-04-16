@@ -7,8 +7,7 @@ Loads ``.ai-guard/policy.json`` and reconstructs a
 from __future__ import annotations
 
 import json
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from ai_guard.config.models import (
     BehaviorConfig,
@@ -16,6 +15,9 @@ from ai_guard.config.models import (
     Rule,
 )
 from ai_guard.enforcer.exceptions import PolicyCorruptError
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 __all__ = ["load_policy"]
 

@@ -7,16 +7,14 @@ and state management to manage AI Guard artifact lifecycle.
 from __future__ import annotations
 
 import contextlib
-from pathlib import Path
+from typing import TYPE_CHECKING
 
-from ai_guard.adapters.base import AgentAdapter
 from ai_guard.adapters.registry import AdapterNotFoundError, get_adapter, list_adapters
 from ai_guard.config.exceptions import (
     ConfigError,
 )
 from ai_guard.config.loader import load_config
 from ai_guard.config.merger import resolve_config
-from ai_guard.config.models import ResolvedConfig
 from ai_guard.generator.core import (
     create_state,
     delete_artifacts,
@@ -32,6 +30,13 @@ from ai_guard.generator.core import (
 )
 from ai_guard.generator.exceptions import ArtifactWriteError
 from ai_guard.generator.models import STATE_FILE
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    from ai_guard.adapters.base import AgentAdapter
+    from ai_guard.config.models import ResolvedConfig
+    from ai_guard.shared.types import FileSpec
 
 __all__ = ["install_command", "update_command", "uninstall_command"]
 
@@ -76,7 +81,6 @@ def _run_generator_pipeline(
     Raises:
         ArtifactWriteError: If file writes fail.
     """
-    from ai_guard.shared.types import FileSpec
 
     artifacts: list[FileSpec] = []
 

@@ -10,10 +10,14 @@ Hook entry: .cursor/hooks/check.sh (stdin/stdout JSON)
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from ai_guard.adapters._render import render_hook, render_rule_doc
 from ai_guard.adapters.base import AgentAdapter, AgentCapabilities
-from ai_guard.config.models import BehaviorConfig
 from ai_guard.shared.types import FileSpec, wrap_with_managed_block
+
+if TYPE_CHECKING:
+    from ai_guard.config.models import BehaviorConfig
 
 __all__ = ["CursorAdapter"]
 

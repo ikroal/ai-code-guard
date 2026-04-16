@@ -11,10 +11,14 @@ Rule document: .kilocode/rules/behavior.md
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from ai_guard.adapters._render import render_rule_doc
 from ai_guard.adapters.base import AgentAdapter, AgentCapabilities
-from ai_guard.config.models import BehaviorConfig
 from ai_guard.shared.types import FileSpec, wrap_with_managed_block
+
+if TYPE_CHECKING:
+    from ai_guard.config.models import BehaviorConfig
 
 __all__ = ["KiloCodeAdapter"]
 

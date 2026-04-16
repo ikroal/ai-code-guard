@@ -12,9 +12,11 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
-from ai_guard.config.models import BehaviorConfig
-from ai_guard.shared.types import FileSpec  # Shared type
+if TYPE_CHECKING:
+    from ai_guard.config.models import BehaviorConfig
+    from ai_guard.shared.types import FileSpec
 
 __all__ = [
     "AgentAdapter",
