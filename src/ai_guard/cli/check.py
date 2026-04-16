@@ -17,7 +17,7 @@ from ai_guard.checker.core import (
 from ai_guard.checker.models import CheckReport
 from ai_guard.config.exceptions import ConfigError
 from ai_guard.config.merger import resolve_config
-from ai_guard.reporter.formatting import format_gate, format_terminal
+from ai_guard.reporter.formatting import format_gate, format_json, format_terminal
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -35,12 +35,15 @@ _BUILTIN_CHECKS = frozenset({"format", "naming", "lint"})
 def check_command(
     files: list[str],
     config_path: Path,
+    *,
+    output_format: str = "text",
 ) -> None:
     """Execute the check command (commit-stage checks).
 
     Args:
         files: Explicit file list, or empty for auto-detect.
         config_path: Path to guard.yaml.
+        output_format: Output format (``"text"`` or ``"json"``).
     """
     resolved = _load_config(config_path)
     project_root = config_path.parent.resolve()
@@ -48,20 +51,22 @@ def check_command(
 
     report = run_stage("commit", resolved.code, project_root, files=file_list)
 
-    output = format_terminal(report, verbosity=resolved.output.verbosity)
-    print(output)
+    print(_format_report(report, output_format, resolved.output.verbosity))
     raise SystemExit(0 if report.passed else 1)
 
 
 def verify_command(
     skip_build: bool,
     config_path: Path,
+    *,
+    output_format: str = "text",
 ) -> None:
     """Execute the verify command (push-stage validation).
 
     Args:
         skip_build: Whether to skip the build step.
         config_path: Path to guard.yaml.
+        output_format: Output format (``"text"`` or ``"json"``).
     """
     resolved = _load_config(config_path)
     project_root = config_path.parent.resolve()
@@ -69,8 +74,7 @@ def verify_command(
 
     report = run_stage("push", resolved.code, project_root, build_command=build_cmd)
 
-    output = format_terminal(report, verbosity=resolved.output.verbosity)
-    print(output)
+    print(_format_report(report, output_format, resolved.output.verbosity))
     raise SystemExit(0 if report.passed else 1)
 
 
@@ -117,8 +121,7 @@ def run_command(
         duration_ms=result.duration_ms,
     )
 
-    output = format_terminal(report, verbosity=resolved.output.verbosity)
-    print(output)
+    print(_format_report(report, "text", resolved.output.verbosity))
     raise SystemExit(0 if report.passed else 1)
 
 
@@ -141,6 +144,22 @@ def gate_run_command(
     message, exit_code = format_gate(report)
     print(message)
     raise SystemExit(exit_code)
+
+
+def _format_report(report: CheckReport, output_format: str, verbosity: str) -> str:
+    """Format a CheckReport for output.
+
+    Args:
+        report: The check report to format.
+        output_format: ``"text"`` or ``"json"``.
+        verbosity: Verbosity level for text output.
+
+    Returns:
+        Formatted string.
+    """
+    if output_format == "json":
+        return format_json(report)
+    return format_terminal(report, verbosity=verbosity)
 
 
 def _load_config(config_path: Path):

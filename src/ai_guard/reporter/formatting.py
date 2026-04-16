@@ -1,11 +1,14 @@
-"""Reporter formatting — terminal, gate, and Markdown output.
+"""Reporter formatting — terminal, gate, Markdown, and JSON output.
 
 Converts CheckReport into human-readable formats for terminal
-display, Git Hook output, and PR comment rendering.
+display, Git Hook output, PR comment rendering, and machine-readable
+JSON for CI/CD pipelines.
 """
 
 from __future__ import annotations
 
+import dataclasses
+import json
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -183,3 +186,23 @@ def format_markdown(
         passed=passed,
         total=total,
     )
+
+
+# ---------------------------------------------------------------------------
+# JSON Output
+# ---------------------------------------------------------------------------
+
+
+def format_json(report: Any) -> str:
+    """Serialize a CheckReport to JSON for CI/CD pipelines.
+
+    Uses ``dataclasses.asdict()`` to convert the entire report tree
+    (CheckReport → CheckResult → Violation) into a JSON string.
+
+    Args:
+        report: A CheckReport instance.
+
+    Returns:
+        Pretty-printed JSON string parseable by ``jq``.
+    """
+    return json.dumps(dataclasses.asdict(report), indent=2)
