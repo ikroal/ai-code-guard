@@ -80,6 +80,16 @@ class TestParseRulesetUrl:
         assert ref.name == "my-rules"
         assert ref.version == "v1"
 
+    def test_file_url_windows_style(self) -> None:
+        """Regression: file:///C:/path (Windows as_uri format) must extract name correctly."""
+        ref = parse_ruleset_url("file:///C:/Users/runner/repos/test-rules.git")
+        assert ref.name == "test-rules"
+
+    def test_file_url_windows_backslash(self) -> None:
+        """Regression: backslash paths must not produce an absolute-path name."""
+        ref = parse_ruleset_url("file:///C:\\Users\\runner\\repos\\test-rules.git")
+        assert ref.name == "test-rules"
+
     # --- Name extraction edge cases ---
 
     def test_name_strips_dot_git(self) -> None:

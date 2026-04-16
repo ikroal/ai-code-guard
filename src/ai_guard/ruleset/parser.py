@@ -86,11 +86,15 @@ def _extract_name(url: str) -> str:
     if path.endswith(".git"):
         path = path[:-4]
 
-    # For SSH URLs like git@host:org/repo, take after last '/' or ':'
-    # For HTTPS like https://host/org/repo, take after last '/'
+    # Find the rightmost path separator (/, \, or :) and take what follows.
+    # This handles HTTPS (/), SSH (:), and Windows backslash paths.
+    best = -1
     for sep in ("/", "\\", ":"):
         idx = path.rfind(sep)
-        if idx != -1:
-            return path[idx + 1 :]
+        if idx > best:
+            best = idx
+
+    if best != -1:
+        return path[best + 1 :]
 
     return path
