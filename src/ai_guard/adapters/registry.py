@@ -6,9 +6,10 @@ and can be retrieved for use by the Generator module.
 
 from __future__ import annotations
 
-from typing import Final
+from typing import TYPE_CHECKING, Final
 
-from ai_guard.adapters.base import AgentAdapter
+if TYPE_CHECKING:
+    from ai_guard.adapters.base import AgentAdapter
 
 __all__ = [
     "AdapterNotFoundError",

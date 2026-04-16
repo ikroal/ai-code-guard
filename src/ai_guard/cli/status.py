@@ -9,7 +9,7 @@ from __future__ import annotations
 import hashlib
 import shutil
 import sys
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 from ai_guard import __version__
 from ai_guard.adapters.registry import get_adapter, list_adapters
@@ -17,6 +17,9 @@ from ai_guard.config.exceptions import ConfigError
 from ai_guard.config.loader import load_config
 from ai_guard.config.merger import resolve_config
 from ai_guard.generator.core import read_state
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 __all__ = ["status_command", "doctor_command", "agents_command"]
 
@@ -127,7 +130,7 @@ def _print_rules(config_path: Path) -> None:
             ("allow", op_rules.allow),
         ]:
             for rule in rules:
-                print(f"  {op_name}.{tier_name}: {rule.pattern} " f"[{rule.source}]")
+                print(f"  {op_name}.{tier_name}: {rule.pattern} [{rule.source}]")
 
 
 # ---------------------------------------------------------------------------
