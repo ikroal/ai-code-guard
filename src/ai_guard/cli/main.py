@@ -21,6 +21,7 @@ from ai_guard.cli.ruleset import (
     ruleset_show_command,
 )
 from ai_guard.cli.status import agents_command, doctor_command, status_command
+from ai_guard.cli.validation import validation_list_command, validation_report_command
 
 app = typer.Typer(
     name="guard",
@@ -394,3 +395,31 @@ def cache_clear(
 
 ruleset_app.add_typer(cache_app)
 app.add_typer(ruleset_app)
+
+# validation subcommand group
+validation_app = typer.Typer(name="validation", help="Inspect configured checks.")
+
+
+@validation_app.command(name="list")
+def validation_list(
+    config: Annotated[
+        Path,
+        typer.Option("--config", "-c", help="Path to guard.yaml"),
+    ] = Path("guard.yaml"),
+) -> None:
+    """List all configured checks by stage."""
+    validation_list_command(config_path=config)
+
+
+@validation_app.command(name="report")
+def validation_report(
+    config: Annotated[
+        Path,
+        typer.Option("--config", "-c", help="Path to guard.yaml"),
+    ] = Path("guard.yaml"),
+) -> None:
+    """Generate a formatted check configuration report."""
+    validation_report_command(config_path=config)
+
+
+app.add_typer(validation_app)
