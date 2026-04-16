@@ -3,10 +3,8 @@ Cursor Hook template (shell script).
 
 Generates a bash script that:
 1. Reads stdin JSON (Cursor format)
-2. Parses tool call info
-3. Loads policy from .ai-guard/policy.json
-4. Calls Enforcer for policy decision (placeholder for WP2)
-5. Outputs stdout JSON (Cursor format)
+2. Calls Enforcer via python3 -m ai_guard.enforcer subprocess
+3. Outputs stdout JSON (Cursor format)
 
 This template is rendered by adapters/_render.render_hook("cursor", behavior).
 #}
@@ -23,61 +21,27 @@ This template is rendered by adapters/_render.render_hook("cursor", behavior).
 
 set -e
 
-# Policy cache path
-POLICY_PATH=".ai-guard/policy.json"
-
 # Read input from stdin (Cursor format varies by hook type)
 input=$(cat)
 
 # Parse tool call (Cursor uses different formats for different hooks)
-# Try multiple possible field names
 tool_name=$(echo "$input" | jq -r '.tool // .command // .name // "unknown"' 2>/dev/null || echo "unknown")
-target=$(echo "$input" | jq -r '.args.file_path // .args.path // .args.command // .arguments.file_path // .file_path // ""' 2>/dev/null || echo "")
 
-# Determine operation type from tool name
-case "$tool_name" in
-    Read|read_file|glob|Glob)
-        operation="read"
-        ;;
-    Write|write_file|Edit|edit_file|edit)
-        operation="write"
-        ;;
-    Bash|bash|Task|task|Shell|shell)
-        operation="execute"
-        target=$(echo "$input" | jq -r '.args.command // .command // .args // ""' 2>/dev/null || echo "")
-        ;;
-    *)
-        operation="unknown"
-        ;;
-esac
+# Build Enforcer input JSON
+enforcer_input=$(jq -n \
+    --arg tn "$tool_name" \
+    --argjson ti "$(echo "$input" | jq '.args // .arguments // {}' 2>/dev/null || echo '{}')" \
+    '{tool_name: $tn, tool_input: $ti}')
 
-# Load policy
-if [ ! -f "$POLICY_PATH" ]; then
-    decision="allow"
-else
-    # Check if policy is valid JSON
-    if ! jq empty "$POLICY_PATH" 2>/dev/null; then
-        # Corrupted policy - fail-closed
-        decision="deny"
-    else
-        # TODO: WP2 - Call Enforcer Python module for proper matching
-        # Placeholder: simple pattern check
-        forbidden=$(jq -r '.behavior.'"$operation"'.forbidden[]?.pattern' "$POLICY_PATH" 2>/dev/null | tr '\n' ' ')
+# Call Enforcer via Python subprocess
+enforcer_output=$(echo "$enforcer_input" | python3 -m ai_guard.enforcer 2>/dev/null || echo '{"decision": "deny"}')
 
-        # Simple substring match placeholder
-        for pattern in $forbidden; do
-            clean_pattern=$(echo "$pattern" | sed 's/file://g' | sed 's/\*//g')
-            if [[ "$target" == *"$clean_pattern"* ]]; then
-                decision="deny"
-                break
-            fi
-        done
+# Extract decision
+decision=$(echo "$enforcer_output" | jq -r '.decision // "deny"' 2>/dev/null || echo "deny")
 
-        # Default allow if no match
-        if [ -z "$decision" ]; then
-            decision="allow"
-        fi
-    fi
+# Cursor does not support "ask" — downgrade to "deny"
+if [ "$decision" = "ask" ]; then
+    decision="deny"
 fi
 
 # Output Cursor expected format
