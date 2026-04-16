@@ -8,6 +8,7 @@ import typer
 from ai_guard import __version__
 from ai_guard.cli.init import init_command
 from ai_guard.cli.install import install_command, uninstall_command, update_command
+from ai_guard.cli.status import agents_command, doctor_command, status_command
 
 app = typer.Typer(
     name="guard",
@@ -160,3 +161,49 @@ def uninstall(
     """
     project_root = Path.cwd()
     uninstall_command(project_root=project_root, keep_config=keep_config)
+
+
+@app.command()
+def status(
+    rules: Annotated[
+        bool,
+        typer.Option(
+            "--rules",
+            help="Display active rule list with sources",
+        ),
+    ] = False,
+    config: Annotated[
+        Path,
+        typer.Option(
+            "--config",
+            "-c",
+            help="Path to guard.yaml",
+        ),
+    ] = Path("guard.yaml"),
+) -> None:
+    """Show installation status, drift detection, and artifact integrity."""
+    project_root = config.parent.resolve()
+    status_command(project_root=project_root, config_path=config, show_rules=rules)
+
+
+@app.command()
+def doctor(
+    config: Annotated[
+        Path,
+        typer.Option(
+            "--config",
+            "-c",
+            help="Path to guard.yaml",
+        ),
+    ] = Path("guard.yaml"),
+) -> None:
+    """Run environment diagnostics and check system health."""
+    project_root = config.parent.resolve()
+    doctor_command(project_root=project_root, config_path=config)
+
+
+@app.command()
+def agents() -> None:
+    """Display agent capability matrix and installation status."""
+    project_root = Path.cwd()
+    agents_command(project_root=project_root)
