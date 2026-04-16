@@ -103,6 +103,14 @@ class TestResolveConfigMinimal:
         result = resolve_config(path)
         # Should work fine with no rulesets
         assert result.version == 1
+        assert result.rulesets == []
+
+    def test_rulesets_passthrough(self, tmp_path: Path) -> None:
+        """Rulesets from guard.yaml are passed through to ResolvedConfig."""
+        data = _minimal_guard(rulesets=["security-rules", "team-conventions"])
+        path = _write_yaml(tmp_path, data)
+        result = resolve_config(path)
+        assert result.rulesets == ["security-rules", "team-conventions"]
 
 
 # ---------------------------------------------------------------------------
