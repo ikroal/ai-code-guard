@@ -1,0 +1,91 @@
+"""Tests for ai_guard.adapters.copilot — GitHub Copilot Agent adapter."""
+
+from __future__ import annotations
+
+from ai_guard.adapters.copilot import CopilotAdapter
+from ai_guard.config.models import BehaviorConfig, OperationRules, Rule
+from ai_guard.shared.types import MARKER_BEGIN, MARKER_END
+
+# ---------------------------------------------------------------------------
+# Adapter Properties
+# ---------------------------------------------------------------------------
+
+
+class TestCopilotAdapterProperties:
+    def test_name(self) -> None:
+        adapter = CopilotAdapter()
+        assert adapter.name == "copilot"
+
+    def test_capabilities_no_block(self) -> None:
+        adapter = CopilotAdapter()
+        caps = adapter.capabilities
+        assert caps.can_block is False
+
+    def test_capabilities_no_ask(self) -> None:
+        adapter = CopilotAdapter()
+        caps = adapter.capabilities
+        assert caps.can_ask is False
+
+    def test_rule_doc_path(self) -> None:
+        adapter = CopilotAdapter()
+        # Copilot uses .github/copilot-instructions.md
+        assert ".github/" in adapter.rule_doc_path()
+        assert "copilot" in adapter.rule_doc_path().lower()
+
+
+# ---------------------------------------------------------------------------
+# Rule Document Rendering
+# ---------------------------------------------------------------------------
+
+
+class TestCopilotAdapterRenderRuleDoc:
+    def test_output_has_managed_block_markers(self) -> None:
+        adapter = CopilotAdapter()
+        behavior = BehaviorConfig.empty()
+        result = adapter.render_rule_doc(behavior)
+        assert MARKER_BEGIN in result
+        assert MARKER_END in result
+
+    def test_output_structure_with_rules(self) -> None:
+        adapter = CopilotAdapter()
+        behavior = BehaviorConfig(
+            read=OperationRules(
+                forbidden=[Rule(pattern="file:.env")],
+                require_approval=[],
+                allow=[],
+            ),
+            write=OperationRules.empty(),
+            execute=OperationRules.empty(),
+        )
+        result = adapter.render_rule_doc(behavior)
+        # Should contain behavior rules
+        assert len(result) > len(MARKER_BEGIN) + len(MARKER_END)
+
+
+# ---------------------------------------------------------------------------
+# Hook Files (None for Copilot)
+# ---------------------------------------------------------------------------
+
+
+class TestCopilotAdapterHookFiles:
+    def test_returns_empty_list(self) -> None:
+        # Copilot has no Hook capability
+        adapter = CopilotAdapter()
+        behavior = BehaviorConfig.empty()
+        files = adapter.hook_files(behavior)
+        assert files == []
+
+    def test_returns_empty_with_rules(self) -> None:
+        # Even with rules, no hooks are generated
+        adapter = CopilotAdapter()
+        behavior = BehaviorConfig(
+            read=OperationRules(
+                forbidden=[Rule(pattern="file:.env")],
+                require_approval=[],
+                allow=[],
+            ),
+            write=OperationRules.empty(),
+            execute=OperationRules.empty(),
+        )
+        files = adapter.hook_files(behavior)
+        assert files == []

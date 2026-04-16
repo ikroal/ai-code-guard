@@ -1,0 +1,90 @@
+"""Tests for ai_guard.adapters.kilocode — KiloCode Agent adapter."""
+
+from __future__ import annotations
+
+from ai_guard.adapters.kilocode import KiloCodeAdapter
+from ai_guard.config.models import BehaviorConfig, OperationRules, Rule
+from ai_guard.shared.types import MARKER_BEGIN, MARKER_END
+
+# ---------------------------------------------------------------------------
+# Adapter Properties
+# ---------------------------------------------------------------------------
+
+
+class TestKiloCodeAdapterProperties:
+    def test_name(self) -> None:
+        adapter = KiloCodeAdapter()
+        assert adapter.name == "kilocode"
+
+    def test_capabilities_no_block(self) -> None:
+        adapter = KiloCodeAdapter()
+        caps = adapter.capabilities
+        assert caps.can_block is False
+
+    def test_capabilities_no_ask(self) -> None:
+        adapter = KiloCodeAdapter()
+        caps = adapter.capabilities
+        assert caps.can_ask is False
+
+    def test_rule_doc_path(self) -> None:
+        adapter = KiloCodeAdapter()
+        # KiloCode uses .kilocode/rules/
+        assert ".kilocode/rules/" in adapter.rule_doc_path()
+        assert adapter.rule_doc_path().endswith(".md")
+
+
+# ---------------------------------------------------------------------------
+# Rule Document Rendering
+# ---------------------------------------------------------------------------
+
+
+class TestKiloCodeAdapterRenderRuleDoc:
+    def test_output_has_managed_block_markers(self) -> None:
+        adapter = KiloCodeAdapter()
+        behavior = BehaviorConfig.empty()
+        result = adapter.render_rule_doc(behavior)
+        assert MARKER_BEGIN in result
+        assert MARKER_END in result
+
+    def test_output_structure_with_rules(self) -> None:
+        adapter = KiloCodeAdapter()
+        behavior = BehaviorConfig(
+            read=OperationRules.empty(),
+            write=OperationRules.empty(),
+            execute=OperationRules(
+                forbidden=[Rule(pattern="shell:git push --force*")],
+                require_approval=[],
+                allow=[],
+            ),
+        )
+        result = adapter.render_rule_doc(behavior)
+        assert len(result) > len(MARKER_BEGIN) + len(MARKER_END)
+
+
+# ---------------------------------------------------------------------------
+# Hook Files (None for KiloCode)
+# ---------------------------------------------------------------------------
+
+
+class TestKiloCodeAdapterHookFiles:
+    def test_returns_empty_list(self) -> None:
+        # KiloCode has no Hook capability
+        adapter = KiloCodeAdapter()
+        behavior = BehaviorConfig.empty()
+        files = adapter.hook_files(behavior)
+        assert files == []
+
+    def test_returns_empty_with_rules(self) -> None:
+        # Even with rules, no hooks are generated
+        adapter = KiloCodeAdapter()
+        behavior = BehaviorConfig(
+            read=OperationRules.empty(),
+            write=OperationRules.empty(),
+            execute=OperationRules(
+                forbidden=[Rule(pattern="shell:rm -rf /*")],
+                require_approval=[],
+                allow=[],
+            ),
+        )
+        files = adapter.hook_files(behavior)
+        assert files == []

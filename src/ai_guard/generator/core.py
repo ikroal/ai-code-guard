@@ -2,6 +2,9 @@
 
 Implements state management, managed block handling, and artifact
 writing primitives (G7).
+
+Managed block markers and wrap_with_managed_block are defined in
+shared.types (shared across modules).
 """
 
 from __future__ import annotations
@@ -12,7 +15,13 @@ from pathlib import Path
 
 from ai_guard import __version__
 from ai_guard.generator.exceptions import ArtifactWriteError
-from ai_guard.generator.models import STATE_FILE, FileSpec, GeneratedState
+from ai_guard.generator.models import STATE_FILE, GeneratedState
+from ai_guard.shared.types import (
+    MARKER_BEGIN,
+    MARKER_END,
+    FileSpec,
+    wrap_with_managed_block,
+)
 
 __all__ = [
     "read_state",
@@ -20,11 +29,8 @@ __all__ = [
     "replace_managed_block",
     "wrap_with_managed_block",
     "write_artifacts",
+    "delete_artifacts",
 ]
-
-# Managed block markers
-MARKER_BEGIN = "<!-- AI-GUARD:BEGIN -->"
-MARKER_END = "<!-- AI-GUARD:END -->"
 
 
 # ---------------------------------------------------------------------------
@@ -89,18 +95,8 @@ def create_state(
 # ---------------------------------------------------------------------------
 # Managed Block Handling
 # ---------------------------------------------------------------------------
-
-
-def wrap_with_managed_block(content: str) -> str:
-    """Wrap content with managed block markers.
-
-    Args:
-        content: The content to wrap.
-
-    Returns:
-        Content wrapped with AI-GUARD markers.
-    """
-    return f"{MARKER_BEGIN}\n{content}\n{MARKER_END}\n"
+# Note: wrap_with_managed_block and MARKER constants are imported from
+# adapters.base - they are shared types used by both modules.
 
 
 def replace_managed_block(existing_content: str, new_content: str) -> str:
