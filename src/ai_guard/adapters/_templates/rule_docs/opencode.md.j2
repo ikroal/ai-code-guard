@@ -1,0 +1,15 @@
+{#
+OpenCode rule document template.
+
+OpenCode uses AGENTS.md format (pure Markdown).
+Extends base.md.j2 without modifications since OpenCode
+supports both can_block=True and can_ask=True.
+
+OpenCode supports:
+- Plugin-based runtime interception (can_block=True)
+- User confirmation prompts (can_ask=True)
+#}
+
+{% extends "rule_docs/base.md.j2" %}
+
+{# OpenCode uses base template without modifications #}

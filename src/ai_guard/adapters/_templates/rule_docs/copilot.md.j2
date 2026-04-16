@@ -1,0 +1,47 @@
+{#
+GitHub Copilot rule document template.
+
+Copilot has no Hook capability (can_block=False, can_ask=False).
+Rules are soft constraints only - no runtime interception.
+
+This template adds a warning about limited capability
+and treats forbidden/require_approval the same (soft deny).
+#}
+
+{% block header %}
+## Behavior Constraints
+
+> **Warning**: GitHub Copilot does not support runtime interception.
+> The rules below are soft constraints in the instructions document.
+> Enforcement relies on Git Hooks and manual code review.
+
+The following rules define recommended constraints for AI operations.
+{% endblock %}
+
+{% for op_name, op_rules in operations %}
+### {{ op_name }} Operations
+
+{% if op_rules.forbidden %}
+**Forbidden** (recommended deny):
+{% for rule in op_rules.forbidden %}
+- `{{ rule.pattern }}`{% if rule.reason %} — {{ rule.reason }}{% endif %}
+{% endfor %}
+
+{% endif %}
+
+{% if op_rules.require_approval %}
+**Require Approval** (recommended deny - no ask capability):
+{% for rule in op_rules.require_approval %}
+- `{{ rule.pattern }}`{% if rule.message %} — {{ rule.message }}{% endif %}
+{% endfor %}
+
+{% endif %}
+
+{% if op_rules.allow %}
+**Allowed** (permitted):
+{% for rule in op_rules.allow %}
+- `{{ rule.pattern }}`
+{% endfor %}
+
+{% endif %}
+{% endfor %}

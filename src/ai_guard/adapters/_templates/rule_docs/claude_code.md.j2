@@ -1,0 +1,14 @@
+{#
+Claude Code rule document template.
+
+Extends base.md.j2 with Claude Code-specific formatting.
+No frontmatter needed - CLAUDE.md is pure Markdown.
+
+Claude Code supports:
+- PreToolUse Hook for runtime interception (can_block=True)
+- User confirmation prompts (can_ask=True)
+#}
+
+{% extends "rule_docs/base.md.j2" %}
+
+{# Claude Code uses base template without modifications #}

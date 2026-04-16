@@ -1,0 +1,49 @@
+{#
+Base rule document template for AI Guard.
+
+All agent-specific templates extend this base template.
+Provides the common structure for behavior constraint rules
+across read, write, and execute operations.
+
+Context variables:
+- behavior: BehaviorConfig containing all operation rules
+- operations: List of (operation_name, OperationRules) tuples
+#}
+
+{% block frontmatter %}{% endblock %}
+
+{% block header %}
+## Behavior Constraints
+
+The following rules define what operations are permitted, blocked, or require approval.
+{% endblock %}
+
+{% for op_name, op_rules in operations %}
+### {{ op_name }} Operations
+
+{% if op_rules.forbidden %}
+**Forbidden** (blocked):
+{% for rule in op_rules.forbidden %}
+- `{{ rule.pattern }}`{% if rule.reason %} — {{ rule.reason }}{% endif %}
+{% endfor %}
+
+{% endif %}
+
+{% if op_rules.require_approval %}
+{% block require_approval_section scoped %}
+**Require Approval** (ask user):
+{% for rule in op_rules.require_approval %}
+- `{{ rule.pattern }}`{% if rule.message %} — {{ rule.message }}{% endif %}
+{% endfor %}
+
+{% endblock %}
+{% endif %}
+
+{% if op_rules.allow %}
+**Allowed** (permitted):
+{% for rule in op_rules.allow %}
+- `{{ rule.pattern }}`
+{% endfor %}
+
+{% endif %}
+{% endfor %}
