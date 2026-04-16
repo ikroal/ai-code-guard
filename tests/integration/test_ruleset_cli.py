@@ -12,7 +12,6 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
-import pytest
 import yaml
 from typer.testing import CliRunner
 
@@ -99,15 +98,13 @@ def _create_bare_repo(
 class TestRulesetFetchAndCacheClear:
     """Test guard ruleset fetch → list → cache clear lifecycle."""
 
-    def test_fetch_list_clear(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_fetch_list_clear(self, tmp_path: Path) -> None:
         """Full lifecycle: fetch a ruleset, list it, then clear cache."""
-        monkeypatch.chdir(tmp_path)
         url = _create_bare_repo(tmp_path / "repos")
+        pr = str(tmp_path)
 
         # fetch
-        result = runner.invoke(app, ["ruleset", "fetch", url])
+        result = runner.invoke(app, ["ruleset", "fetch", url, "--project-root", pr])
         assert result.exit_code == 0, f"fetch failed: {result.output}"
         assert "Fetching ruleset" in result.output
         assert "guard.yaml: found" in result.output
@@ -119,38 +116,36 @@ class TestRulesetFetchAndCacheClear:
         assert (cache_dir / ".ruleset-meta.json").is_file()
 
         # list
-        result = runner.invoke(app, ["ruleset", "list"])
+        result = runner.invoke(app, ["ruleset", "list", "--project-root", pr])
         assert result.exit_code == 0
         assert "test-rules" in result.output
 
         # cache clear
-        result = runner.invoke(app, ["ruleset", "cache", "clear"])
+        result = runner.invoke(app, ["ruleset", "cache", "clear", "--project-root", pr])
         assert result.exit_code == 0
         assert "Cleared 1" in result.output
 
         # list again (empty)
-        result = runner.invoke(app, ["ruleset", "list"])
+        result = runner.invoke(app, ["ruleset", "list", "--project-root", pr])
         assert result.exit_code == 0
         assert "No cached rulesets" in result.output
 
-    def test_fetch_with_tag(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_fetch_with_tag(self, tmp_path: Path) -> None:
         """Fetch a specific version using #tag."""
-        monkeypatch.chdir(tmp_path)
         url = _create_bare_repo(tmp_path / "repos", tag="v1.0")
+        pr = str(tmp_path)
 
-        result = runner.invoke(app, ["ruleset", "fetch", f"{url}#v1.0"])
+        result = runner.invoke(
+            app, ["ruleset", "fetch", f"{url}#v1.0", "--project-root", pr]
+        )
         assert result.exit_code == 0, f"fetch failed: {result.output}"
         assert "v1.0" in result.output
 
-    def test_fetch_invalid_url(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_fetch_invalid_url(self, tmp_path: Path) -> None:
         """Fetch with invalid URL shows error."""
-        monkeypatch.chdir(tmp_path)
-
-        result = runner.invoke(app, ["ruleset", "fetch", "not-a-url"])
+        result = runner.invoke(
+            app, ["ruleset", "fetch", "not-a-url", "--project-root", str(tmp_path)]
+        )
         assert result.exit_code == 1
         assert "Error" in result.output
 
@@ -158,12 +153,10 @@ class TestRulesetFetchAndCacheClear:
 class TestInstallWithRuleset:
     """Test that install merges ruleset config from cache."""
 
-    def test_install_loads_ruleset_config(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_install_loads_ruleset_config(self, tmp_path: Path) -> None:
         """fetch → init (with ruleset name) → install → verify merge."""
-        monkeypatch.chdir(tmp_path)
         (tmp_path / ".git").mkdir()
+        pr = str(tmp_path)
 
         # Create a ruleset with a custom rule
         ruleset_config = {
@@ -182,7 +175,7 @@ class TestInstallWithRuleset:
         )
 
         # Fetch the ruleset
-        result = runner.invoke(app, ["ruleset", "fetch", url])
+        result = runner.invoke(app, ["ruleset", "fetch", url, "--project-root", pr])
         assert result.exit_code == 0, f"fetch failed: {result.output}"
 
         # Use guard init to create a valid guard.yaml, then add rulesets
@@ -212,11 +205,8 @@ class TestInstallWithRuleset:
         # Verify the ruleset's .editorconfig was copied via G3
         assert (tmp_path / ".editorconfig").is_file()
 
-    def test_install_warns_missing_ruleset(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_install_warns_missing_ruleset(self, tmp_path: Path) -> None:
         """install with uncached ruleset should warn."""
-        monkeypatch.chdir(tmp_path)
         (tmp_path / ".git").mkdir()
 
         # Use guard init to create a valid guard.yaml
@@ -228,9 +218,9 @@ class TestInstallWithRuleset:
         assert result.exit_code == 0
 
         # Add a non-existent ruleset reference
-        content = yaml.safe_load(config_path.read_text(encoding="utf-8"))
-        content["rulesets"] = ["nonexistent-rules"]
-        config_path.write_text(yaml.dump(content), encoding="utf-8")
+        text = config_path.read_text(encoding="utf-8")
+        text += '\nrulesets:\n  - "nonexistent-rules"\n'
+        config_path.write_text(text, encoding="utf-8")
 
         result = runner.invoke(
             app,
