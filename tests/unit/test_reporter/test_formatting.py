@@ -3,7 +3,12 @@
 from __future__ import annotations
 
 from ai_guard.checker.models import CheckReport, CheckResult, Violation
-from ai_guard.reporter.formatting import format_gate, format_markdown, format_terminal
+from ai_guard.reporter.formatting import (
+    format_gate,
+    format_json,
+    format_markdown,
+    format_terminal,
+)
 
 
 def _passed_report() -> CheckReport:
@@ -183,3 +188,46 @@ class TestFormatMarkdown:
         """Report without violations omits details block."""
         md = format_markdown(_passed_report())
         assert "<details>" not in md
+
+
+class TestFormatJson:
+    """format_json function tests."""
+
+    def test_output_is_valid_json(self) -> None:
+        import json
+
+        output = format_json(_passed_report())
+        data = json.loads(output)
+        assert isinstance(data, dict)
+
+    def test_contains_stage_and_passed(self) -> None:
+        import json
+
+        data = json.loads(format_json(_passed_report()))
+        assert data["stage"] == "commit"
+        assert data["passed"] is True
+
+    def test_contains_results(self) -> None:
+        import json
+
+        data = json.loads(format_json(_passed_report()))
+        assert "results" in data
+        assert len(data["results"]) == 2
+        assert data["results"][0]["name"] == "format"
+
+    def test_violations_serialized(self) -> None:
+        import json
+
+        data = json.loads(format_json(_failed_report()))
+        failed_results = [r for r in data["results"] if not r["passed"]]
+        assert len(failed_results) == 1
+        violations = failed_results[0]["violations"]
+        assert len(violations) == 2
+        assert violations[0]["file"] == "src/main.py"
+        assert violations[0]["line"] == 10
+
+    def test_duration_included(self) -> None:
+        import json
+
+        data = json.loads(format_json(_passed_report()))
+        assert data["duration_ms"] == 38

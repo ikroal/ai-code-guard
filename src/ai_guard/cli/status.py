@@ -7,6 +7,7 @@ AI Guard installation state, environment health, and agent capabilities.
 from __future__ import annotations
 
 import hashlib
+import json
 import shutil
 import sys
 from typing import TYPE_CHECKING
@@ -43,6 +44,8 @@ def status_command(
     project_root: Path,
     config_path: Path,
     show_rules: bool,
+    *,
+    output_format: str = "text",
 ) -> None:
     """Execute the status command.
 
@@ -52,8 +55,31 @@ def status_command(
         project_root: Path to project root directory.
         config_path: Path to guard.yaml.
         show_rules: Whether to display the active rule list.
+        output_format: Output format (``"text"`` or ``"json"``).
     """
     state = read_state(project_root)
+
+    if output_format == "json":
+        _status_json(state, project_root, config_path)
+    else:
+        _status_text(state, project_root, config_path, show_rules=show_rules)
+
+
+def _status_text(
+    state: object,
+    project_root: Path,
+    config_path: Path,
+    *,
+    show_rules: bool,
+) -> None:
+    """Output status as text.
+
+    Args:
+        state: GeneratedState or None.
+        project_root: Path to project root.
+        config_path: Path to guard.yaml.
+        show_rules: Whether to display active rules.
+    """
     if state is None:
         print("AI Guard is not installed.")
         print("Run 'guard install --agent <name>' to install.")
@@ -87,11 +113,7 @@ def status_command(
         print("\nWarning: guard.yaml not found.")
 
     # Artifact integrity check
-    missing = []
-    for artifact_path in state.artifacts:
-        full_path = project_root / artifact_path
-        if not full_path.is_file():
-            missing.append(artifact_path)
+    missing = [p for p in state.artifacts if not (project_root / p).is_file()]
 
     if missing:
         print(f"\nMissing artifacts ({len(missing)}):")
@@ -104,6 +126,41 @@ def status_command(
     # Rules display
     if show_rules:
         _print_rules(config_path)
+
+
+def _status_json(state: object, project_root: Path, config_path: Path) -> None:
+    """Output status as JSON.
+
+    Args:
+        state: GeneratedState or None.
+        project_root: Path to project root.
+        config_path: Path to guard.yaml.
+    """
+    if state is None:
+        print(json.dumps({"installed": False}))
+        return
+
+    # Compute drift
+    drift = False
+    if config_path.is_file():
+        current_hash = _compute_config_hash(config_path)
+        drift = current_hash != state.config_hash
+
+    # Check missing artifacts
+    missing = [p for p in state.artifacts if not (project_root / p).is_file()]
+
+    data = {
+        "installed": True,
+        "installed_agents": state.installed_agents,
+        "ai_guard_version": state.ai_guard_version,
+        "current_version": __version__,
+        "installed_at": state.installed_at.isoformat(),
+        "config_hash": state.config_hash,
+        "config_drift": drift,
+        "artifacts": state.artifacts,
+        "missing_artifacts": missing,
+    }
+    print(json.dumps(data, indent=2))
 
 
 def _print_rules(config_path: Path) -> None:

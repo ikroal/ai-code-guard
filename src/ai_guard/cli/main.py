@@ -210,10 +210,22 @@ def status(
             help="Path to guard.yaml",
         ),
     ] = Path("guard.yaml"),
+    output_format: Annotated[
+        str,
+        typer.Option(
+            "--format",
+            help="Output format: text or json",
+        ),
+    ] = "text",
 ) -> None:
     """Show installation status, drift detection, and artifact integrity."""
     project_root = config.parent.resolve()
-    status_command(project_root=project_root, config_path=config, show_rules=rules)
+    status_command(
+        project_root=project_root,
+        config_path=config,
+        show_rules=rules,
+        output_format=output_format,
+    )
 
 
 @app.command()
@@ -252,9 +264,13 @@ def check(
         Path,
         typer.Option("--config", "-c", help="Path to guard.yaml"),
     ] = Path("guard.yaml"),
+    output_format: Annotated[
+        str,
+        typer.Option("--format", help="Output format: text or json"),
+    ] = "text",
 ) -> None:
     """Run commit-stage quality checks."""
-    check_command(files=files or [], config_path=config)
+    check_command(files=files or [], config_path=config, output_format=output_format)
 
 
 @app.command()
@@ -267,9 +283,15 @@ def verify(
         Path,
         typer.Option("--config", "-c", help="Path to guard.yaml"),
     ] = Path("guard.yaml"),
+    output_format: Annotated[
+        str,
+        typer.Option("--format", help="Output format: text or json"),
+    ] = "text",
 ) -> None:
     """Run full push-stage validation (includes commit checks)."""
-    verify_command(skip_build=skip_build, config_path=config)
+    verify_command(
+        skip_build=skip_build, config_path=config, output_format=output_format
+    )
 
 
 @app.command(name="run")

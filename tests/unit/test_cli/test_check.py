@@ -233,3 +233,44 @@ class TestGateRunCommand:
             )
         assert result.exit_code == 0
         assert "passed" in result.output
+
+
+class TestJsonOutput:
+    """Tests for --format json output."""
+
+    def test_check_json_output(self, tmp_path: Path) -> None:
+        """check --format json outputs valid JSON."""
+        import json
+
+        config = _write_config(tmp_path)
+        with patch("ai_guard.checker.core.get_changed_files", return_value=[]):
+            result = runner.invoke(
+                app, ["check", "--config", str(config), "--format", "json"]
+            )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["stage"] == "commit"
+        assert data["passed"] is True
+        assert "results" in data
+
+    def test_verify_json_output(self, tmp_path: Path) -> None:
+        """verify --format json outputs valid JSON."""
+        import json
+
+        config = _write_config(tmp_path)
+        with patch("ai_guard.checker.core.get_changed_files", return_value=[]):
+            result = runner.invoke(
+                app,
+                [
+                    "verify",
+                    "--skip-build",
+                    "--config",
+                    str(config),
+                    "--format",
+                    "json",
+                ],
+            )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["stage"] == "push"
+        assert "results" in data

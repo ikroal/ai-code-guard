@@ -256,3 +256,31 @@ class TestAgentsCommand:
         result = runner.invoke(app, ["agents"])
         assert result.exit_code == 0
         assert "claude.md" in result.output.lower()
+
+
+class TestStatusJsonOutput:
+    """Tests for status --format json."""
+
+    def test_status_json_installed(self, installed_project: Path) -> None:
+        """JSON output includes installation details."""
+        config = installed_project / "guard.yaml"
+        result = runner.invoke(
+            app, ["status", "--config", str(config), "--format", "json"]
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["installed"] is True
+        assert "claude-code" in data["installed_agents"]
+        assert "config_hash" in data
+        assert "artifacts" in data
+
+    def test_status_json_not_installed(self, tmp_path: Path) -> None:
+        """JSON output when not installed."""
+        config = tmp_path / "guard.yaml"
+        config.write_text("version: 1\n")
+        result = runner.invoke(
+            app, ["status", "--config", str(config), "--format", "json"]
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["installed"] is False
