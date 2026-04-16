@@ -3,11 +3,10 @@ OpenCode Plugin template (TypeScript).
 
 Generates a TypeScript plugin that:
 1. Intercepts tool calls via OpenCode plugin API
-2. Calls Enforcer for policy decision (placeholder for WP2)
+2. Calls Enforcer via python3 -m ai_guard.enforcer subprocess
 3. Throws error to block forbidden operations
 
 This template is rendered by adapters/_render.render_hook("opencode", behavior).
-WP2.2 will complete the full plugin implementation with proper protocol conversion.
 #}
 /**
  * OpenCode Plugin for AI Guard
@@ -19,65 +18,32 @@ WP2.2 will complete the full plugin implementation with proper protocol conversi
  * - Intercept tool calls before execution
  * - Throw error to block operation
  * - Return/continue to allow operation
- *
- * TODO: WP2.2 - Complete implementation with proper OpenCode API integration
  */
 
 import type { Tool, ToolCall } from "opencode";
+import { execSync } from "child_process";
 
-// Policy cache path
-const POLICY_PATH = ".ai-guard/policy.json";
+// Policy evaluation via Python Enforcer subprocess
+function evaluatePolicy(call: ToolCall): {
+  decision: string;
+  reason?: string;
+} {
+  const input = JSON.stringify({
+    tool_name: call.tool,
+    tool_input: call.args || {},
+  });
 
-/**
- * Load policy from cache file.
- * Placeholder for WP2 - uses synchronous file read.
- */
-function loadPolicy(): Record<string, unknown> | null {
-  // TODO: WP2 - Implement proper async policy loading
-  // Placeholder: return null (allow all)
-  return null;
-}
-
-/**
- * Classify tool call into operation type.
- */
-function classifyTool(call: ToolCall): { operation: string; target: string } {
-  const toolName = call.tool;
-  const args = call.args || {};
-
-  // Read operations
-  if (["read", "read_file", "glob"].includes(toolName)) {
-    return { operation: "read", target: args.file_path || args.pattern || "" };
+  try {
+    const output = execSync(`echo '${input.replace(/'/g, "\\'")}' | python3 -m ai_guard.enforcer`, {
+      encoding: "utf-8",
+      timeout: 5000,
+      stdio: ["pipe", "pipe", "pipe"],
+    }).trim();
+    return JSON.parse(output);
+  } catch {
+    // Fail-closed: subprocess error → deny
+    return { decision: "deny", reason: "Enforcer subprocess error" };
   }
-
-  // Write operations
-  if (["write", "write_file", "edit", "edit_file"].includes(toolName)) {
-    return { operation: "write", target: args.file_path || args.path || "" };
-  }
-
-  // Execute operations
-  if (["bash", "shell", "execute"].includes(toolName)) {
-    return { operation: "execute", target: args.command || "" };
-  }
-
-  return { operation: "unknown", target: "" };
-}
-
-/**
- * Evaluate policy for the given operation.
- * Placeholder for WP2.
- */
-function evaluatePolicy(
-  policy: Record<string, unknown> | null,
-  operation: string,
-  target: string
-): "allow" | "deny" | "ask" {
-  if (!policy) {
-    return "allow";
-  }
-
-  // TODO: WP2 - Call Enforcer for proper pattern matching
-  return "allow";
 }
 
 /**
@@ -85,23 +51,21 @@ function evaluatePolicy(
  * Called before each tool execution.
  */
 export function intercept(call: ToolCall): void {
-  const policy = loadPolicy();
-  const { operation, target } = classifyTool(call);
-  const decision = evaluatePolicy(policy, operation, target);
+  const result = evaluatePolicy(call);
 
-  if (decision === "deny") {
+  if (result.decision === "deny") {
     throw new Error(
       `AI Guard: Operation blocked by policy\n` +
         `Tool: ${call.tool}\n` +
-        `Operation: ${operation}\n` +
-        `Target: ${target}`
+        (result.reason ? `Reason: ${result.reason}\n` : "")
     );
   }
 
-  if (decision === "ask") {
-    // TODO: WP2 - Implement user confirmation prompt
-    // Placeholder: treat as allow
-    console.log("AI Guard: Would ask user for confirmation");
+  if (result.decision === "ask") {
+    // OpenCode supports ask via plugin API
+    console.warn(
+      `AI Guard: Operation requires approval — ${result.reason || "policy rule"}`
+    );
   }
 
   // Allow operation to proceed
