@@ -1,0 +1,17 @@
+# Standard preset - 团队项目（默认）
+# format + naming + lint + test + coverage + audit
+
+code:
+  commit:
+    format: true
+    naming: true
+  push:
+    lint: true
+    checks:
+      test:
+        command: "pytest --cov"
+        pass_filenames: false
+
+output:
+  audit:
+    enabled: true
