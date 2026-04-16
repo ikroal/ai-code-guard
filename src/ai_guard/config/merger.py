@@ -278,6 +278,7 @@ def _to_resolved_config(
         output=_to_output(merged.get("output", {})),
         build_command=merged.get("build", {}).get("command"),
         config_hash=config_hash,
+        rulesets=merged.get("rulesets", []),
     )
 
 

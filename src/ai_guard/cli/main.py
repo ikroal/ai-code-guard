@@ -7,6 +7,7 @@ import typer
 
 from ai_guard import __version__
 from ai_guard.cli.init import init_command
+from ai_guard.cli.install import install_command, uninstall_command, update_command
 
 app = typer.Typer(
     name="guard",
@@ -91,3 +92,71 @@ def init(
         force=force,
         output=output,
     )
+
+
+@app.command()
+def install(
+    agent: Annotated[
+        str | None,
+        typer.Option(
+            "--agent",
+            "-a",
+            help="Comma-separated agent names (e.g., claude-code,cursor)",
+        ),
+    ] = None,
+    config: Annotated[
+        Path,
+        typer.Option(
+            "--config",
+            "-c",
+            help="Path to guard.yaml",
+        ),
+    ] = Path("guard.yaml"),
+) -> None:
+    """Install AI Guard artifacts for specified agents.
+
+    Without --agent, lists available agents. With --agent, generates
+    rule documents, Hook scripts, tool configs, and Git hooks.
+    """
+    agents = [a.strip() for a in agent.split(",") if a.strip()] if agent else []
+    project_root = config.parent.resolve()
+    install_command(agents=agents, project_root=project_root, config_path=config)
+
+
+@app.command()
+def update(
+    config: Annotated[
+        Path,
+        typer.Option(
+            "--config",
+            "-c",
+            help="Path to guard.yaml",
+        ),
+    ] = Path("guard.yaml"),
+) -> None:
+    """Re-generate all artifacts for installed agents.
+
+    Reads the current installation state and regenerates all
+    artifacts based on the latest guard.yaml configuration.
+    """
+    project_root = config.parent.resolve()
+    update_command(project_root=project_root, config_path=config)
+
+
+@app.command()
+def uninstall(
+    keep_config: Annotated[
+        bool,
+        typer.Option(
+            "--keep-config",
+            help="Keep guard.yaml after uninstall",
+        ),
+    ] = False,
+) -> None:
+    """Remove all AI Guard artifacts.
+
+    Deletes generated files tracked in .ai-guard/state.json.
+    Use --keep-config to preserve guard.yaml.
+    """
+    project_root = Path.cwd()
+    uninstall_command(project_root=project_root, keep_config=keep_config)
