@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any
 
 from ai_guard.enforcer.classifier import classify
 from ai_guard.enforcer.exceptions import PolicyCorruptError
-from ai_guard.enforcer.matcher import Decision, MatchResult, evaluate_rules
+from ai_guard.enforcer.matcher import Decision, PolicyDecision, evaluate_rules
 from ai_guard.enforcer.policy import load_policy
 
 if TYPE_CHECKING:
@@ -23,7 +23,7 @@ def evaluate(
     tool_name: str,
     tool_input: dict[str, Any],
     project_root: Path,
-) -> MatchResult:
+) -> PolicyDecision:
     """Evaluate a tool call against the installed policy.
 
     Orchestrates the full Enforcer pipeline:
@@ -35,26 +35,49 @@ def evaluate(
         project_root: Path to project root directory.
 
     Returns:
-        MatchResult with the policy decision, matched rule,
-        and tier information.
+        PolicyDecision with the decision, classification context,
+        matched rule, and policy hash for audit logging.
     """
     # E1: Load policy
     try:
         policy_result = load_policy(project_root)
     except PolicyCorruptError:
-        return MatchResult(Decision.DENY, None, "error")
+        return PolicyDecision(
+            decision=Decision.DENY,
+            operation="",
+            scheme="",
+            target="",
+            matched_rule=None,
+            tier="error",
+            policy_hash="",
+        )
 
     if policy_result is None:
-        # No policy installed — first-time use, allow all
-        return MatchResult(Decision.ALLOW, None, "no_policy")
+        return PolicyDecision(
+            decision=Decision.ALLOW,
+            operation="",
+            scheme="",
+            target="",
+            matched_rule=None,
+            tier="no_policy",
+            policy_hash="",
+        )
 
-    behavior, _config_hash = policy_result
+    behavior, config_hash = policy_result
 
     # E2: Classify tool call
     operation, scheme, target = classify(tool_name, tool_input)
 
     if operation == "unknown":
-        return MatchResult(Decision.ALLOW, None, "unknown_tool")
+        return PolicyDecision(
+            decision=Decision.ALLOW,
+            operation=operation,
+            scheme=scheme,
+            target=target,
+            matched_rule=None,
+            tier="unknown_tool",
+            policy_hash=config_hash,
+        )
 
     # Select operation rules
     operation_rules = {
@@ -64,7 +87,25 @@ def evaluate(
     }.get(operation)
 
     if operation_rules is None:
-        return MatchResult(Decision.ALLOW, None, "unknown_tool")
+        return PolicyDecision(
+            decision=Decision.ALLOW,
+            operation=operation,
+            scheme=scheme,
+            target=target,
+            matched_rule=None,
+            tier="unknown_tool",
+            policy_hash=config_hash,
+        )
 
     # E3/E4: Match and decide
-    return evaluate_rules(target, scheme, operation_rules)
+    match_result = evaluate_rules(target, scheme, operation_rules)
+
+    return PolicyDecision(
+        decision=match_result.decision,
+        operation=operation,
+        scheme=scheme,
+        target=target,
+        matched_rule=match_result.matched_rule,
+        tier=match_result.tier,
+        policy_hash=config_hash,
+    )
