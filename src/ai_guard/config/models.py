@@ -252,3 +252,4 @@ class ResolvedConfig:
     output: OutputConfig
     build_command: str | None = None
     config_hash: str = ""
+    rulesets: list[str] = field(default_factory=list)

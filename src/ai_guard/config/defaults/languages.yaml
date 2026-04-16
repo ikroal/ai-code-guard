@@ -1,0 +1,12 @@
+# Language tool mappings for AI Guard
+# Used by Generator to produce pre-commit configuration
+# Format: language -> {format: formatter_tool, lint: linter_tool}
+
+c: {format: "clang-format", lint: "clang-tidy"}
+cpp: {format: "clang-format", lint: "clang-tidy"}
+python: {format: "black", lint: "ruff"}
+typescript: {format: "prettier", lint: "eslint"}
+javascript: {format: "prettier", lint: "eslint"}
+go: {format: "gofmt", lint: "golangci-lint"}
+rust: {format: "rustfmt", lint: "clippy"}
+java: {format: "google-java-format", lint: "spotbugs"}

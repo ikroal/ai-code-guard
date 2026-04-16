@@ -9,11 +9,23 @@ from pathlib import Path
 
 import pytest
 
+from ai_guard.config.models import (
+    BehaviorConfig,
+    CheckItem,
+    CodeConfig,
+    LanguageTools,
+    OperationRules,
+    Rule,
+)
 from ai_guard.generator.core import (
     MARKER_BEGIN,
     MARKER_END,
     create_state,
     delete_artifacts,
+    generate_git_hooks,
+    generate_policy_cache,
+    generate_precommit_config,
+    generate_tool_configs,
     read_state,
     replace_managed_block,
     wrap_with_managed_block,
@@ -366,3 +378,275 @@ class TestMarkerConstants:
 
     def test_marker_end_format(self) -> None:
         assert MARKER_END == "<!-- AI-GUARD:END -->"
+
+
+# ---------------------------------------------------------------------------
+# G5: Policy Cache Tests
+# ---------------------------------------------------------------------------
+
+
+class TestGeneratePolicyCache:
+    """generate_policy_cache function tests."""
+
+    def test_returns_file_spec(self) -> None:
+        behavior = BehaviorConfig.empty()
+        result = generate_policy_cache(behavior, "abc123")
+        assert isinstance(result, FileSpec)
+        assert result.path == ".ai-guard/policy.json"
+
+    def test_includes_config_hash(self) -> None:
+        behavior = BehaviorConfig.empty()
+        result = generate_policy_cache(behavior, "test_hash")
+        data = json.loads(result.content)
+        assert data["config_hash"] == "test_hash"
+
+    def test_serializes_empty_behavior(self) -> None:
+        behavior = BehaviorConfig.empty()
+        result = generate_policy_cache(behavior, "hash")
+        data = json.loads(result.content)
+        assert "behavior" in data
+        assert data["behavior"]["read"]["forbidden"] == []
+        assert data["behavior"]["write"]["forbidden"] == []
+        assert data["behavior"]["execute"]["forbidden"] == []
+
+    def test_serializes_rules(self) -> None:
+        behavior = BehaviorConfig(
+            read=OperationRules(
+                forbidden=[
+                    Rule(pattern="file:.env", reason="secrets", source="user"),
+                ],
+                require_approval=[],
+                allow=[],
+            ),
+            write=OperationRules.empty(),
+            execute=OperationRules.empty(),
+        )
+        result = generate_policy_cache(behavior, "hash")
+        data = json.loads(result.content)
+        assert data["behavior"]["read"]["forbidden"][0]["pattern"] == "file:.env"
+        assert data["behavior"]["read"]["forbidden"][0]["reason"] == "secrets"
+        assert data["behavior"]["read"]["forbidden"][0]["source"] == "user"
+
+    def test_omits_optional_fields_when_none(self) -> None:
+        behavior = BehaviorConfig(
+            read=OperationRules(
+                forbidden=[Rule(pattern="file:test", source="default")],
+                require_approval=[],
+                allow=[],
+            ),
+            write=OperationRules.empty(),
+            execute=OperationRules.empty(),
+        )
+        result = generate_policy_cache(behavior, "hash")
+        data = json.loads(result.content)
+        rule = data["behavior"]["read"]["forbidden"][0]
+        assert "reason" not in rule
+        assert "message" not in rule
+        assert "regex" not in rule
+
+    def test_includes_regex_flag(self) -> None:
+        behavior = BehaviorConfig(
+            read=OperationRules(
+                forbidden=[Rule(pattern="regex:test", regex=True, source="user")],
+                require_approval=[],
+                allow=[],
+            ),
+            write=OperationRules.empty(),
+            execute=OperationRules.empty(),
+        )
+        result = generate_policy_cache(behavior, "hash")
+        data = json.loads(result.content)
+        rule = data["behavior"]["read"]["forbidden"][0]
+        assert rule["regex"] is True
+
+
+# ---------------------------------------------------------------------------
+# G6: Git Hooks Tests
+# ---------------------------------------------------------------------------
+
+
+class TestGenerateGitHooks:
+    """generate_git_hooks function tests."""
+
+    def test_returns_empty_list_when_git_missing(self, tmp_path: Path) -> None:
+        result = generate_git_hooks(tmp_path)
+        assert result == []
+
+    def test_returns_hooks_when_git_exists(self, tmp_path: Path) -> None:
+        (tmp_path / ".git").mkdir()
+        (tmp_path / ".git" / "hooks").mkdir()
+        result = generate_git_hooks(tmp_path)
+        assert len(result) == 2
+
+    def test_hooks_have_correct_paths(self, tmp_path: Path) -> None:
+        (tmp_path / ".git").mkdir()
+        (tmp_path / ".git" / "hooks").mkdir()
+        result = generate_git_hooks(tmp_path)
+        paths = [a.path for a in result]
+        assert ".git/hooks/pre-commit" in paths
+        assert ".git/hooks/pre-push" in paths
+
+    def test_hooks_are_executable(self, tmp_path: Path) -> None:
+        (tmp_path / ".git").mkdir()
+        (tmp_path / ".git" / "hooks").mkdir()
+        result = generate_git_hooks(tmp_path)
+        for hook in result:
+            assert hook.executable is True
+
+    def test_hooks_contain_guard_command(self, tmp_path: Path) -> None:
+        (tmp_path / ".git").mkdir()
+        (tmp_path / ".git" / "hooks").mkdir()
+        result = generate_git_hooks(tmp_path)
+        for hook in result:
+            assert "guard gate run" in hook.content
+
+    def test_pre_commit_has_correct_stage(self, tmp_path: Path) -> None:
+        (tmp_path / ".git").mkdir()
+        (tmp_path / ".git" / "hooks").mkdir()
+        result = generate_git_hooks(tmp_path)
+        pre_commit = next(a for a in result if "pre-commit" in a.path)
+        assert "--stage commit" in pre_commit.content
+
+    def test_pre_push_has_correct_stage(self, tmp_path: Path) -> None:
+        (tmp_path / ".git").mkdir()
+        (tmp_path / ".git" / "hooks").mkdir()
+        result = generate_git_hooks(tmp_path)
+        pre_push = next(a for a in result if "pre-push" in a.path)
+        assert "--stage push" in pre_push.content
+
+
+# ---------------------------------------------------------------------------
+# G3: Tool Configs Tests
+# ---------------------------------------------------------------------------
+
+
+class TestGenerateToolConfigs:
+    """generate_tool_configs function tests."""
+
+    def test_returns_empty_list_when_no_rulesets(self, tmp_path: Path) -> None:
+        result = generate_tool_configs(tmp_path, [])
+        assert result == []
+
+    def test_returns_empty_list_when_cache_missing(self, tmp_path: Path) -> None:
+        result = generate_tool_configs(tmp_path, ["company-rules"])
+        assert result == []
+
+    def test_copies_files_from_ruleset(self, tmp_path: Path) -> None:
+        # Create mock ruleset cache
+        cache_dir = tmp_path / ".ai-guard" / "cache" / "company-rules" / "files"
+        cache_dir.mkdir(parents=True)
+        (cache_dir / ".clang-format").write_text("Format config", encoding="utf-8")
+
+        result = generate_tool_configs(tmp_path, ["company-rules"])
+        assert len(result) == 1
+        assert result[0].path == ".clang-format"
+        assert result[0].content == "Format config"
+
+    def test_copies_from_multiple_rulesets(self, tmp_path: Path) -> None:
+        # Create two ruleset caches
+        cache1 = tmp_path / ".ai-guard" / "cache" / "ruleset-a" / "files"
+        cache1.mkdir(parents=True)
+        (cache1 / "config-a.yaml").write_text("a", encoding="utf-8")
+
+        cache2 = tmp_path / ".ai-guard" / "cache" / "ruleset-b" / "files"
+        cache2.mkdir(parents=True)
+        (cache2 / "config-b.yaml").write_text("b", encoding="utf-8")
+
+        result = generate_tool_configs(tmp_path, ["ruleset-a", "ruleset-b"])
+        assert len(result) == 2
+        paths = [a.path for a in result]
+        assert "config-a.yaml" in paths
+        assert "config-b.yaml" in paths
+
+    def test_skips_missing_ruleset(self, tmp_path: Path) -> None:
+        # Create only one ruleset cache
+        cache = tmp_path / ".ai-guard" / "cache" / "existing" / "files"
+        cache.mkdir(parents=True)
+        (cache / "file.txt").write_text("content", encoding="utf-8")
+
+        result = generate_tool_configs(tmp_path, ["existing", "missing"])
+        assert len(result) == 1
+        assert result[0].path == "file.txt"
+
+    def test_skips_binary_files(self, tmp_path: Path) -> None:
+        cache = tmp_path / ".ai-guard" / "cache" / "ruleset" / "files"
+        cache.mkdir(parents=True)
+        (cache / "text.txt").write_text("text", encoding="utf-8")
+        # Write binary file
+        (cache / "binary.bin").write_bytes(b"\x00\xff\xfe")
+
+        result = generate_tool_configs(tmp_path, ["ruleset"])
+        # Should only have text file
+        assert len(result) == 1
+        assert result[0].path == "text.txt"
+
+
+# ---------------------------------------------------------------------------
+# G4: Pre-commit Config Tests
+# ---------------------------------------------------------------------------
+
+
+class TestGeneratePrecommitConfig:
+    """generate_precommit_config function tests."""
+
+    def test_returns_file_spec(self) -> None:
+        code = CodeConfig()
+        languages = {"python": LanguageTools(format="black", lint="ruff")}
+        result = generate_precommit_config(code, languages)
+        assert isinstance(result, FileSpec)
+        assert result.path == ".pre-commit-config.yaml"
+
+    def test_includes_repo_local(self) -> None:
+        code = CodeConfig()
+        languages = {"python": LanguageTools(format="black", lint="ruff")}
+        result = generate_precommit_config(code, languages)
+        assert "repo: local" in result.content
+
+    def test_includes_format_hooks_when_enabled(self) -> None:
+        code = CodeConfig(commit_format=True)
+        languages = {"python": LanguageTools(format="black", lint="ruff")}
+        result = generate_precommit_config(code, languages)
+        assert "format-python" in result.content
+        assert "black" in result.content
+
+    def test_includes_lint_hooks_when_enabled(self) -> None:
+        code = CodeConfig(push_lint=True)
+        languages = {"python": LanguageTools(format="black", lint="ruff")}
+        result = generate_precommit_config(code, languages)
+        assert "lint-python" in result.content
+        assert "ruff" in result.content
+
+    def test_omits_format_when_disabled(self) -> None:
+        code = CodeConfig(commit_format=False)
+        languages = {"python": LanguageTools(format="black", lint="ruff")}
+        result = generate_precommit_config(code, languages)
+        assert "format-python" not in result.content
+
+    def test_includes_custom_checks(self) -> None:
+        code = CodeConfig(
+            commit_checks={
+                "test": CheckItem(command="pytest", pass_filenames=False),
+            },
+        )
+        languages = {}
+        result = generate_precommit_config(code, languages)
+        assert "custom-test" in result.content
+        assert "pytest" in result.content
+
+    def test_includes_language_types(self) -> None:
+        code = CodeConfig(commit_format=True)
+        languages = {"python": LanguageTools(format="black", lint="ruff")}
+        result = generate_precommit_config(code, languages)
+        assert "types: [python]" in result.content
+
+    def test_handles_multiple_languages(self) -> None:
+        code = CodeConfig(commit_format=True, push_lint=True)
+        languages = {
+            "python": LanguageTools(format="black", lint="ruff"),
+            "typescript": LanguageTools(format="prettier", lint="eslint"),
+        }
+        result = generate_precommit_config(code, languages)
+        assert "format-python" in result.content
+        assert "format-typescript" in result.content
+        assert "lint-python" in result.content
+        assert "lint-typescript" in result.content
