@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
-from ai_guard.ruleset.cache import clear_cache, get_cache_dir, list_cached
+from ai_guard.ruleset.cache import clear_cache, get_cache_dir, list_cached, read_meta
 
 
 class TestGetCacheDir:
@@ -118,3 +119,30 @@ class TestClearCache:
         (cache / "rules").mkdir()
         clear_cache(tmp_path)
         assert (ai_guard / "state.json").is_file()
+
+
+class TestReadMeta:
+    """Test read_meta."""
+
+    def test_reads_meta_json(self, tmp_path: Path) -> None:
+        cache = tmp_path / ".ai-guard" / "cache" / "my-rules"
+        cache.mkdir(parents=True)
+        meta = {
+            "url": "https://example.com/repo.git",
+            "version": "v1.0",
+            "fetched_at": "2026-04-17T00:00:00",
+        }
+        (cache / ".ruleset-meta.json").write_text(json.dumps(meta), encoding="utf-8")
+
+        result = read_meta(tmp_path, "my-rules")
+        assert result is not None
+        assert result["url"] == "https://example.com/repo.git"
+        assert result["version"] == "v1.0"
+
+    def test_returns_none_when_no_meta(self, tmp_path: Path) -> None:
+        cache = tmp_path / ".ai-guard" / "cache" / "my-rules"
+        cache.mkdir(parents=True)
+        assert read_meta(tmp_path, "my-rules") is None
+
+    def test_returns_none_when_no_ruleset(self, tmp_path: Path) -> None:
+        assert read_meta(tmp_path, "nonexistent") is None

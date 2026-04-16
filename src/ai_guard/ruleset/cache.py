@@ -6,16 +6,17 @@ cache stored under ``.ai-guard/cache/``.
 
 from __future__ import annotations
 
+import json
 import shutil
 import stat
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from ai_guard.ruleset.models import CACHE_DIR
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-__all__ = ["clear_cache", "get_cache_dir", "list_cached"]
+__all__ = ["clear_cache", "get_cache_dir", "list_cached", "read_meta"]
 
 
 def get_cache_dir(project_root: Path) -> Path:
@@ -46,6 +47,22 @@ def list_cached(project_root: Path) -> list[str]:
     if not cache.is_dir():
         return []
     return sorted(p.name for p in cache.iterdir() if p.is_dir())
+
+
+def read_meta(project_root: Path, name: str) -> dict[str, Any] | None:
+    """Read ``.ruleset-meta.json`` for a cached ruleset.
+
+    Args:
+        project_root: Path to the project root.
+        name: Ruleset directory name.
+
+    Returns:
+        Parsed metadata dict, or None if the file does not exist.
+    """
+    meta_path = project_root / CACHE_DIR / name / ".ruleset-meta.json"
+    if not meta_path.is_file():
+        return None
+    return json.loads(meta_path.read_text(encoding="utf-8"))  # type: ignore[no-any-return]
 
 
 def clear_cache(project_root: Path) -> int:

@@ -18,6 +18,7 @@ from ai_guard.cli.ruleset import (
     ruleset_cache_clear_command,
     ruleset_fetch_command,
     ruleset_list_command,
+    ruleset_show_command,
 )
 from ai_guard.cli.status import agents_command, doctor_command, status_command
 
@@ -341,6 +342,21 @@ def ruleset_list(
 ) -> None:
     """List cached rulesets."""
     ruleset_list_command(project_root=project_root.resolve())
+
+
+@ruleset_app.command(name="show")
+def ruleset_show(
+    name: Annotated[
+        str,
+        typer.Argument(help="Ruleset name to display"),
+    ],
+    project_root: Annotated[
+        Path,
+        typer.Option("--project-root", "-p", help="Project root directory"),
+    ] = Path("."),
+) -> None:
+    """Show details of a cached ruleset."""
+    ruleset_show_command(name=name, project_root=project_root.resolve())
 
 
 @cache_app.command(name="clear")
