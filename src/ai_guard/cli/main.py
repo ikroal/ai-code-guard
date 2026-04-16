@@ -6,6 +6,12 @@ from typing import Annotated
 import typer
 
 from ai_guard import __version__
+from ai_guard.cli.check import (
+    check_command,
+    gate_run_command,
+    run_command,
+    verify_command,
+)
 from ai_guard.cli.init import init_command
 from ai_guard.cli.install import install_command, uninstall_command, update_command
 from ai_guard.cli.status import agents_command, doctor_command, status_command
@@ -207,3 +213,78 @@ def agents() -> None:
     """Display agent capability matrix and installation status."""
     project_root = Path.cwd()
     agents_command(project_root=project_root)
+
+
+@app.command()
+def check(
+    files: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--files",
+            help="Explicit file paths to check (default: staged files)",
+        ),
+    ] = None,
+    config: Annotated[
+        Path,
+        typer.Option("--config", "-c", help="Path to guard.yaml"),
+    ] = Path("guard.yaml"),
+) -> None:
+    """Run commit-stage quality checks."""
+    check_command(files=files or [], config_path=config)
+
+
+@app.command()
+def verify(
+    skip_build: Annotated[
+        bool,
+        typer.Option("--skip-build", help="Skip the build step"),
+    ] = False,
+    config: Annotated[
+        Path,
+        typer.Option("--config", "-c", help="Path to guard.yaml"),
+    ] = Path("guard.yaml"),
+) -> None:
+    """Run full push-stage validation (includes commit checks)."""
+    verify_command(skip_build=skip_build, config_path=config)
+
+
+@app.command(name="run")
+def run_single(
+    name: Annotated[str, typer.Argument(help="Check name to run")],
+    stage: Annotated[
+        str,
+        typer.Option("--stage", "-s", help="Check stage (commit or push)"),
+    ] = "commit",
+    files: Annotated[
+        list[str] | None,
+        typer.Option("--files", help="Explicit file paths to check"),
+    ] = None,
+    config: Annotated[
+        Path,
+        typer.Option("--config", "-c", help="Path to guard.yaml"),
+    ] = Path("guard.yaml"),
+) -> None:
+    """Run a single named check item."""
+    run_command(name=name, stage=stage, files=files or [], config_path=config)
+
+
+# gate subcommand group
+gate_app = typer.Typer(name="gate", help="Git Hook entry points.")
+
+
+@gate_app.command(name="run")
+def gate_run(
+    stage: Annotated[
+        str,
+        typer.Option("--stage", "-s", help="Check stage (commit or push)"),
+    ] = "commit",
+    config: Annotated[
+        Path,
+        typer.Option("--config", "-c", help="Path to guard.yaml"),
+    ] = Path("guard.yaml"),
+) -> None:
+    """Internal entry point for Git hooks."""
+    gate_run_command(stage=stage, config_path=config)
+
+
+app.add_typer(gate_app)

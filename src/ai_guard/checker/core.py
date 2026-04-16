@@ -306,6 +306,7 @@ def run_stage(
     code_config: CodeConfig,
     project_root: Path,
     build_command: str | None = None,
+    files: list[str] | None = None,
 ) -> CheckReport:
     """Orchestrate all checks for a stage.
 
@@ -317,6 +318,7 @@ def run_stage(
         code_config: CodeConfig with enabled flags and checks.
         project_root: Path to project root directory.
         build_command: Optional build command (push stage only).
+        files: Explicit file list. If None, auto-detect via git.
 
     Returns:
         CheckReport with aggregated results.
@@ -325,7 +327,7 @@ def run_stage(
 
     if stage == "push":
         # Fail-fast: run commit stage first
-        commit_report = run_stage("commit", code_config, project_root)
+        commit_report = run_stage("commit", code_config, project_root, files=files)
         if not commit_report.passed:
             elapsed = int((time.monotonic() - start) * 1000)
             return CheckReport(
@@ -335,7 +337,8 @@ def run_stage(
                 duration_ms=elapsed,
             )
 
-    files = get_changed_files(stage, project_root)
+    if files is None:
+        files = get_changed_files(stage, project_root)
     results: list[CheckResult] = []
 
     if stage == "commit":
