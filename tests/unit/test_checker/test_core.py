@@ -1,0 +1,182 @@
+"""Tests for Checker core orchestration (K2-K6)."""
+
+from __future__ import annotations
+
+from pathlib import Path
+from unittest.mock import patch
+
+from ai_guard.checker.core import (
+    _filter_files_by_type,
+    get_changed_files,
+    run_build,
+    run_check,
+    run_stage,
+)
+from ai_guard.config.models import CheckItem, CodeConfig
+
+
+class TestGetChangedFiles:
+    """Tests for get_changed_files (K2)."""
+
+    def test_commit_stage_command(self, tmp_path: Path) -> None:
+        """Commit stage uses git diff --cached."""
+        with patch("ai_guard.checker.core.subprocess.run") as mock_run:
+            mock_run.return_value.returncode = 0
+            mock_run.return_value.stdout = "a.py\nb.py\n"
+            files = get_changed_files("commit", tmp_path)
+            assert files == ["a.py", "b.py"]
+            cmd = mock_run.call_args[0][0]
+            assert "--cached" in cmd
+
+    def test_push_stage_command(self, tmp_path: Path) -> None:
+        """Push stage uses git diff origin/main..HEAD."""
+        with patch("ai_guard.checker.core.subprocess.run") as mock_run:
+            mock_run.return_value.returncode = 0
+            mock_run.return_value.stdout = "c.py\n"
+            files = get_changed_files("push", tmp_path)
+            assert files == ["c.py"]
+            cmd = mock_run.call_args[0][0]
+            assert "origin/main..HEAD" in cmd
+
+    def test_empty_output(self, tmp_path: Path) -> None:
+        """Empty git output returns empty list."""
+        with patch("ai_guard.checker.core.subprocess.run") as mock_run:
+            mock_run.return_value.returncode = 0
+            mock_run.return_value.stdout = ""
+            files = get_changed_files("commit", tmp_path)
+            assert files == []
+
+    def test_git_error_returns_empty(self, tmp_path: Path) -> None:
+        """Git error returns empty list."""
+        with patch("ai_guard.checker.core.subprocess.run") as mock_run:
+            mock_run.return_value.returncode = 1
+            mock_run.return_value.stdout = ""
+            files = get_changed_files("commit", tmp_path)
+            assert files == []
+
+
+class TestRunCheck:
+    """Tests for run_check (K4)."""
+
+    def test_successful_command(self, tmp_path: Path) -> None:
+        """Successful command returns passed=True."""
+        check = CheckItem(command="echo ok", timeout=10)
+        result = run_check("echo-test", check, [], tmp_path)
+        assert result.passed is True
+        assert result.name == "echo-test"
+
+    def test_failing_command(self, tmp_path: Path) -> None:
+        """Failing command returns passed=False."""
+        check = CheckItem(command="exit 1", timeout=10)
+        result = run_check("fail-test", check, [], tmp_path)
+        assert result.passed is False
+
+    def test_timeout(self, tmp_path: Path) -> None:
+        """Command timeout returns passed=False."""
+        check = CheckItem(command="sleep 10", timeout=1)
+        result = run_check("timeout-test", check, [], tmp_path)
+        assert result.passed is False
+        assert "Timed out" in result.output
+
+    def test_disabled_check_skipped(self, tmp_path: Path) -> None:
+        """Disabled check is skipped."""
+        check = CheckItem(command="exit 1", enabled=False)
+        result = run_check("disabled", check, [], tmp_path)
+        assert result.passed is True
+        assert result.skipped is True
+
+    def test_no_matching_files_skipped(self, tmp_path: Path) -> None:
+        """Check with types filter and no matching files is skipped."""
+        check = CheckItem(command="ruff check", types=["python"])
+        result = run_check("ruff", check, ["main.js"], tmp_path)
+        assert result.passed is True
+        assert result.skipped is True
+
+    def test_pass_filenames(self, tmp_path: Path) -> None:
+        """Files are appended when pass_filenames is True."""
+        check = CheckItem(command="echo", types=["python"])
+        result = run_check("echo", check, ["a.py", "b.py"], tmp_path)
+        assert result.passed is True
+        assert "a.py" in result.output
+
+
+class TestRunBuild:
+    """Tests for run_build (K5)."""
+
+    def test_successful_build(self, tmp_path: Path) -> None:
+        """Successful build returns passed=True."""
+        result = run_build("echo build-ok", tmp_path)
+        assert result.passed is True
+        assert result.name == "build"
+
+    def test_failing_build(self, tmp_path: Path) -> None:
+        """Failing build returns passed=False."""
+        result = run_build("exit 1", tmp_path)
+        assert result.passed is False
+
+
+class TestFilterFilesByType:
+    """Tests for _filter_files_by_type helper."""
+
+    def test_python_filter(self) -> None:
+        """Python type filter matches .py files."""
+        files = ["a.py", "b.js", "c.py"]
+        assert _filter_files_by_type(files, ["python"]) == ["a.py", "c.py"]
+
+    def test_no_filter(self) -> None:
+        """None types returns all files."""
+        files = ["a.py", "b.js"]
+        assert _filter_files_by_type(files, None) == files
+
+    def test_multiple_types(self) -> None:
+        """Multiple type filters combined."""
+        files = ["a.py", "b.ts", "c.go", "d.txt"]
+        result = _filter_files_by_type(files, ["python", "typescript"])
+        assert result == ["a.py", "b.ts"]
+
+
+class TestRunStage:
+    """Tests for run_stage orchestration (K6)."""
+
+    def test_commit_stage_runs_checks(self, tmp_path: Path) -> None:
+        """Commit stage runs format + naming checks."""
+        config = CodeConfig(commit_format=True, commit_naming=True)
+        with patch("ai_guard.checker.core.get_changed_files", return_value=[]):
+            report = run_stage("commit", config, tmp_path)
+        assert report.stage == "commit"
+        # Format and naming are pre-commit hooks — skipped with no files
+        assert report.passed is True
+
+    def test_commit_stage_with_custom_checks(self, tmp_path: Path) -> None:
+        """Commit stage runs custom checks."""
+        config = CodeConfig(
+            commit_format=False,
+            commit_naming=False,
+            commit_checks={"echo": CheckItem(command="echo ok")},
+        )
+        with patch("ai_guard.checker.core.get_changed_files", return_value=[]):
+            report = run_stage("commit", config, tmp_path)
+        assert report.passed is True
+        assert any(r.name == "echo" for r in report.results)
+
+    def test_push_stage_fail_fast(self, tmp_path: Path) -> None:
+        """Push stage fails fast if commit stage fails."""
+        config = CodeConfig(
+            commit_checks={"fail": CheckItem(command="exit 1")},
+        )
+        with patch("ai_guard.checker.core.get_changed_files", return_value=[]):
+            report = run_stage("push", config, tmp_path)
+        assert report.stage == "push"
+        assert report.passed is False
+
+    def test_push_stage_with_build(self, tmp_path: Path) -> None:
+        """Push stage runs build command."""
+        config = CodeConfig(
+            commit_format=False,
+            commit_naming=False,
+            push_lint=False,
+        )
+        with patch("ai_guard.checker.core.get_changed_files", return_value=[]):
+            report = run_stage("push", config, tmp_path, build_command="echo build")
+        assert report.passed is True
+        assert any(r.name == "build" for r in report.results)
