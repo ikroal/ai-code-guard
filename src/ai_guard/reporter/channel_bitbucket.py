@@ -1,7 +1,7 @@
-"""GitHub ReportChannel — posts check reports as PR comments.
+"""Bitbucket ReportChannel — posts check reports as PR comments.
 
-Uses the GitHub REST API to create issue comments on pull requests.
-Supports both github.com and self-hosted GitHub Enterprise instances
+Uses the Bitbucket REST API to create comments on pull requests.
+Supports both bitbucket.org and self-hosted Bitbucket instances
 via the ``api_url`` configuration.
 """
 
@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import urllib.request
 from typing import TYPE_CHECKING
 from urllib.error import HTTPError, URLError
@@ -20,37 +19,34 @@ from ai_guard.reporter.channel_base import ChannelError, ReportChannel, register
 if TYPE_CHECKING:
     from ai_guard.config.models import PrReportConfig
 
-__all__ = ["GitHubChannel"]
-
-_PR_REF_PATTERN = re.compile(r"^refs/pull/(\d+)/")
-"""Pattern to extract PR number from GITHUB_REF."""
+__all__ = ["BitbucketChannel"]
 
 
 @register_channel
-class GitHubChannel(ReportChannel):
-    """Post check reports to GitHub PR comments.
+class BitbucketChannel(ReportChannel):
+    """Post check reports to Bitbucket PR comments.
 
     Repository and PR number are resolved automatically:
 
     **Repository** (in priority order):
-        1. ``GITHUB_REPOSITORY`` environment variable
+        1. ``BITBUCKET_REPO_FULL_NAME`` environment variable
         2. ``git remote get-url origin`` parsed
 
     **PR number** (in priority order):
         1. ``AI_GUARD_PR_NUMBER`` environment variable
-        2. ``GITHUB_REF`` (``refs/pull/<n>/merge``)
-        3. GitHub API query by current branch name
+        2. ``BITBUCKET_PR_ID`` environment variable
+        3. Bitbucket API query by current branch name
 
     Attributes:
-        DEFAULT_API_URL: Default GitHub API base URL.
+        DEFAULT_API_URL: Default Bitbucket API base URL.
     """
 
-    DEFAULT_API_URL = "https://api.github.com"
+    DEFAULT_API_URL = "https://api.bitbucket.org"
 
     @property
     def name(self) -> str:
         """Platform identifier."""
-        return "github"
+        return "bitbucket"
 
     def send(self, markdown: str, config: PrReportConfig) -> None:
         """Post markdown as a comment on the associated PR.
@@ -66,60 +62,58 @@ class GitHubChannel(ReportChannel):
         token = self._get_token(config)
         repo = self._get_repository()
         api_url = (config.api_url or self.DEFAULT_API_URL).rstrip("/")
-        pr_number = self._get_pr_number(token, repo, api_url)
+        pr_id = self._get_pr_id(token, repo, api_url)
 
-        url = f"{api_url}/repos/{repo}/issues/{pr_number}/comments"
-        self._post_json(url, {"body": markdown}, token)
+        url = f"{api_url}/2.0/repositories/{repo}/pullrequests/{pr_id}/comments"
+        self._post_json(url, {"content": {"raw": markdown}}, token)
 
-    def _get_pr_number(self, token: str, repo: str, api_url: str) -> str:
-        """Determine the PR number.
+    def _get_pr_id(self, token: str, repo: str, api_url: str) -> str:
+        """Determine the PR ID.
 
         Priority:
             1. ``AI_GUARD_PR_NUMBER`` env var
-            2. ``GITHUB_REF`` (``refs/pull/<n>/merge``)
+            2. ``BITBUCKET_PR_ID`` env var
             3. API query by current branch
 
         Args:
-            token: GitHub API token for API query fallback.
-            repo: Repository in ``owner/repo`` format.
-            api_url: GitHub API base URL.
+            token: Bitbucket API token for API query fallback.
+            repo: Repository in ``workspace/repo`` format.
+            api_url: Bitbucket API base URL.
 
         Returns:
-            PR number as string.
+            PR ID as string.
 
         Raises:
-            ChannelError: If PR number cannot be determined.
+            ChannelError: If PR ID cannot be determined.
         """
         # 1. Explicit env var
-        pr_number = os.environ.get("AI_GUARD_PR_NUMBER")
-        if pr_number:
-            return pr_number
+        pr_id = os.environ.get("AI_GUARD_PR_NUMBER")
+        if pr_id:
+            return pr_id
 
-        # 2. GITHUB_REF
-        github_ref = os.environ.get("GITHUB_REF", "")
-        match = _PR_REF_PATTERN.match(github_ref)
-        if match:
-            return match.group(1)
+        # 2. BITBUCKET_PR_ID
+        pr_id = os.environ.get("BITBUCKET_PR_ID")
+        if pr_id:
+            return pr_id
 
         # 3. API query by branch
         branch = get_current_branch()
         if branch:
-            owner = repo.split("/")[0] if "/" in repo else repo
-            query_url = (
-                f"{api_url}/repos/{repo}/pulls"
-                f"?head={owner}:{branch}&state=open&per_page=1"
-            )
+            query_url = f"{api_url}/2.0/repositories/{repo}/pullrequests?state=OPEN"
             try:
                 data = self._get_json(query_url, token)
-                if data and isinstance(data, list) and len(data) > 0:
-                    return str(data[0]["number"])
+                if data and isinstance(data, dict):
+                    for pr in data.get("values", []):
+                        source = pr.get("source", {})
+                        source_branch = source.get("branch", {})
+                        if source_branch.get("name") == branch:
+                            return str(pr["id"])
             except ChannelError:
                 pass  # Fall through to error
 
         raise ChannelError(
-            "Cannot determine PR number. Set AI_GUARD_PR_NUMBER, "
-            "GITHUB_REF (refs/pull/<n>/merge), or push your branch "
-            "and open a PR"
+            "Cannot determine PR ID. Set AI_GUARD_PR_NUMBER, "
+            "BITBUCKET_PR_ID, or push your branch and open a PR"
         )
 
     @staticmethod
@@ -138,7 +132,7 @@ class GitHubChannel(ReportChannel):
         token = os.environ.get(config.token_env)
         if not token:
             raise ChannelError(
-                f"GitHub token not found: set the {config.token_env} "
+                f"Bitbucket token not found: set the {config.token_env} "
                 f"environment variable"
             )
         return token
@@ -148,16 +142,16 @@ class GitHubChannel(ReportChannel):
         """Determine the repository.
 
         Priority:
-            1. ``GITHUB_REPOSITORY`` env var
+            1. ``BITBUCKET_REPO_FULL_NAME`` env var
             2. ``git remote get-url origin``
 
         Returns:
-            Repository in ``owner/repo`` format.
+            Repository in ``workspace/repo`` format.
 
         Raises:
             ChannelError: If repository cannot be determined.
         """
-        repo = os.environ.get("GITHUB_REPOSITORY")
+        repo = os.environ.get("BITBUCKET_REPO_FULL_NAME")
         if repo:
             return repo
 
@@ -166,7 +160,7 @@ class GitHubChannel(ReportChannel):
             return repo
 
         raise ChannelError(
-            "Cannot determine repository. Set GITHUB_REPOSITORY or "
+            "Cannot determine repository. Set BITBUCKET_REPO_FULL_NAME or "
             "ensure git remote 'origin' is configured"
         )
 
@@ -189,7 +183,6 @@ class GitHubChannel(ReportChannel):
             method="POST",
             headers={
                 "Authorization": f"Bearer {token}",
-                "Accept": "application/vnd.github+json",
                 "Content-Type": "application/json",
             },
         )
@@ -197,10 +190,12 @@ class GitHubChannel(ReportChannel):
             with urllib.request.urlopen(req) as resp:
                 resp.read()
         except HTTPError as exc:
-            raise ChannelError(f"GitHub API returned {exc.code}: {exc.reason}") from exc
+            raise ChannelError(
+                f"Bitbucket API returned {exc.code}: {exc.reason}"
+            ) from exc
         except URLError as exc:
             raise ChannelError(
-                f"Failed to connect to GitHub API: {exc.reason}"
+                f"Failed to connect to Bitbucket API: {exc.reason}"
             ) from exc
 
     @staticmethod
@@ -222,15 +217,16 @@ class GitHubChannel(ReportChannel):
             method="GET",
             headers={
                 "Authorization": f"Bearer {token}",
-                "Accept": "application/vnd.github+json",
             },
         )
         try:
             with urllib.request.urlopen(req) as resp:
                 return json.loads(resp.read())
         except HTTPError as exc:
-            raise ChannelError(f"GitHub API returned {exc.code}: {exc.reason}") from exc
+            raise ChannelError(
+                f"Bitbucket API returned {exc.code}: {exc.reason}"
+            ) from exc
         except URLError as exc:
             raise ChannelError(
-                f"Failed to connect to GitHub API: {exc.reason}"
+                f"Failed to connect to Bitbucket API: {exc.reason}"
             ) from exc

@@ -1,7 +1,7 @@
-"""GitHub ReportChannel — posts check reports as PR comments.
+"""GitLab ReportChannel — posts check reports as MR comments.
 
-Uses the GitHub REST API to create issue comments on pull requests.
-Supports both github.com and self-hosted GitHub Enterprise instances
+Uses the GitLab REST API to create note comments on merge requests.
+Supports both gitlab.com and self-hosted GitLab instances
 via the ``api_url`` configuration.
 """
 
@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 import os
-import re
+import urllib.parse
 import urllib.request
 from typing import TYPE_CHECKING
 from urllib.error import HTTPError, URLError
@@ -20,106 +20,101 @@ from ai_guard.reporter.channel_base import ChannelError, ReportChannel, register
 if TYPE_CHECKING:
     from ai_guard.config.models import PrReportConfig
 
-__all__ = ["GitHubChannel"]
-
-_PR_REF_PATTERN = re.compile(r"^refs/pull/(\d+)/")
-"""Pattern to extract PR number from GITHUB_REF."""
+__all__ = ["GitLabChannel"]
 
 
 @register_channel
-class GitHubChannel(ReportChannel):
-    """Post check reports to GitHub PR comments.
+class GitLabChannel(ReportChannel):
+    """Post check reports to GitLab MR comments.
 
-    Repository and PR number are resolved automatically:
+    Repository and MR number are resolved automatically:
 
     **Repository** (in priority order):
-        1. ``GITHUB_REPOSITORY`` environment variable
-        2. ``git remote get-url origin`` parsed
+        1. ``CI_PROJECT_ID`` environment variable
+        2. ``git remote get-url origin`` parsed and URL-encoded
 
-    **PR number** (in priority order):
+    **MR number** (in priority order):
         1. ``AI_GUARD_PR_NUMBER`` environment variable
-        2. ``GITHUB_REF`` (``refs/pull/<n>/merge``)
-        3. GitHub API query by current branch name
+        2. ``CI_MERGE_REQUEST_IID`` environment variable
+        3. GitLab API query by current branch name
 
     Attributes:
-        DEFAULT_API_URL: Default GitHub API base URL.
+        DEFAULT_API_URL: Default GitLab API base URL.
     """
 
-    DEFAULT_API_URL = "https://api.github.com"
+    DEFAULT_API_URL = "https://gitlab.com"
 
     @property
     def name(self) -> str:
         """Platform identifier."""
-        return "github"
+        return "gitlab"
 
     def send(self, markdown: str, config: PrReportConfig) -> None:
-        """Post markdown as a comment on the associated PR.
+        """Post markdown as a comment on the associated MR.
 
         Args:
             markdown: Rendered Markdown report string.
             config: PR report configuration.
 
         Raises:
-            ChannelError: If token is missing, PR cannot be
+            ChannelError: If token is missing, MR cannot be
                 identified, or the API request fails.
         """
         token = self._get_token(config)
-        repo = self._get_repository()
+        project_id = self._get_project_id()
         api_url = (config.api_url or self.DEFAULT_API_URL).rstrip("/")
-        pr_number = self._get_pr_number(token, repo, api_url)
+        mr_iid = self._get_mr_iid(token, project_id, api_url)
 
-        url = f"{api_url}/repos/{repo}/issues/{pr_number}/comments"
+        url = f"{api_url}/api/v4/projects/{project_id}/merge_requests/{mr_iid}/notes"
         self._post_json(url, {"body": markdown}, token)
 
-    def _get_pr_number(self, token: str, repo: str, api_url: str) -> str:
-        """Determine the PR number.
+    def _get_mr_iid(self, token: str, project_id: str, api_url: str) -> str:
+        """Determine the MR IID.
 
         Priority:
             1. ``AI_GUARD_PR_NUMBER`` env var
-            2. ``GITHUB_REF`` (``refs/pull/<n>/merge``)
+            2. ``CI_MERGE_REQUEST_IID`` env var
             3. API query by current branch
 
         Args:
-            token: GitHub API token for API query fallback.
-            repo: Repository in ``owner/repo`` format.
-            api_url: GitHub API base URL.
+            token: GitLab API token for API query fallback.
+            project_id: Project ID or URL-encoded path.
+            api_url: GitLab API base URL.
 
         Returns:
-            PR number as string.
+            MR IID as string.
 
         Raises:
-            ChannelError: If PR number cannot be determined.
+            ChannelError: If MR IID cannot be determined.
         """
         # 1. Explicit env var
-        pr_number = os.environ.get("AI_GUARD_PR_NUMBER")
-        if pr_number:
-            return pr_number
+        mr_iid = os.environ.get("AI_GUARD_PR_NUMBER")
+        if mr_iid:
+            return mr_iid
 
-        # 2. GITHUB_REF
-        github_ref = os.environ.get("GITHUB_REF", "")
-        match = _PR_REF_PATTERN.match(github_ref)
-        if match:
-            return match.group(1)
+        # 2. CI_MERGE_REQUEST_IID
+        mr_iid = os.environ.get("CI_MERGE_REQUEST_IID")
+        if mr_iid:
+            return mr_iid
 
         # 3. API query by branch
         branch = get_current_branch()
         if branch:
-            owner = repo.split("/")[0] if "/" in repo else repo
             query_url = (
-                f"{api_url}/repos/{repo}/pulls"
-                f"?head={owner}:{branch}&state=open&per_page=1"
+                f"{api_url}/api/v4/projects/{project_id}/merge_requests"
+                f"?source_branch={urllib.parse.quote(branch, safe='')}"
+                f"&state=opened"
             )
             try:
                 data = self._get_json(query_url, token)
                 if data and isinstance(data, list) and len(data) > 0:
-                    return str(data[0]["number"])
+                    return str(data[0]["iid"])
             except ChannelError:
                 pass  # Fall through to error
 
         raise ChannelError(
-            "Cannot determine PR number. Set AI_GUARD_PR_NUMBER, "
-            "GITHUB_REF (refs/pull/<n>/merge), or push your branch "
-            "and open a PR"
+            "Cannot determine MR IID. Set AI_GUARD_PR_NUMBER, "
+            "CI_MERGE_REQUEST_IID, or push your branch and open a MR"
         )
 
     @staticmethod
@@ -138,46 +133,46 @@ class GitHubChannel(ReportChannel):
         token = os.environ.get(config.token_env)
         if not token:
             raise ChannelError(
-                f"GitHub token not found: set the {config.token_env} "
+                f"GitLab token not found: set the {config.token_env} "
                 f"environment variable"
             )
         return token
 
     @staticmethod
-    def _get_repository() -> str:
-        """Determine the repository.
+    def _get_project_id() -> str:
+        """Determine the project ID.
 
         Priority:
-            1. ``GITHUB_REPOSITORY`` env var
-            2. ``git remote get-url origin``
+            1. ``CI_PROJECT_ID`` env var
+            2. ``git remote get-url origin`` URL-encoded
 
         Returns:
-            Repository in ``owner/repo`` format.
+            Project ID or URL-encoded ``owner/repo`` path.
 
         Raises:
-            ChannelError: If repository cannot be determined.
+            ChannelError: If project ID cannot be determined.
         """
-        repo = os.environ.get("GITHUB_REPOSITORY")
-        if repo:
-            return repo
+        project_id = os.environ.get("CI_PROJECT_ID")
+        if project_id:
+            return project_id
 
         repo = get_remote_repo()
         if repo:
-            return repo
+            return urllib.parse.quote(repo, safe="")
 
         raise ChannelError(
-            "Cannot determine repository. Set GITHUB_REPOSITORY or "
+            "Cannot determine project. Set CI_PROJECT_ID or "
             "ensure git remote 'origin' is configured"
         )
 
     @staticmethod
     def _post_json(url: str, body: dict, token: str) -> None:
-        """POST JSON to a URL with Bearer auth.
+        """POST JSON to a URL with PRIVATE-TOKEN auth.
 
         Args:
             url: API endpoint URL.
             body: JSON body dict.
-            token: Bearer token.
+            token: Private token.
 
         Raises:
             ChannelError: On HTTP or connection error.
@@ -188,8 +183,7 @@ class GitHubChannel(ReportChannel):
             data=data,
             method="POST",
             headers={
-                "Authorization": f"Bearer {token}",
-                "Accept": "application/vnd.github+json",
+                "PRIVATE-TOKEN": token,
                 "Content-Type": "application/json",
             },
         )
@@ -197,19 +191,19 @@ class GitHubChannel(ReportChannel):
             with urllib.request.urlopen(req) as resp:
                 resp.read()
         except HTTPError as exc:
-            raise ChannelError(f"GitHub API returned {exc.code}: {exc.reason}") from exc
+            raise ChannelError(f"GitLab API returned {exc.code}: {exc.reason}") from exc
         except URLError as exc:
             raise ChannelError(
-                f"Failed to connect to GitHub API: {exc.reason}"
+                f"Failed to connect to GitLab API: {exc.reason}"
             ) from exc
 
     @staticmethod
     def _get_json(url: str, token: str) -> list | dict | None:
-        """GET JSON from a URL with Bearer auth.
+        """GET JSON from a URL with PRIVATE-TOKEN auth.
 
         Args:
             url: API endpoint URL.
-            token: Bearer token.
+            token: Private token.
 
         Returns:
             Parsed JSON response.
@@ -221,16 +215,15 @@ class GitHubChannel(ReportChannel):
             url,
             method="GET",
             headers={
-                "Authorization": f"Bearer {token}",
-                "Accept": "application/vnd.github+json",
+                "PRIVATE-TOKEN": token,
             },
         )
         try:
             with urllib.request.urlopen(req) as resp:
                 return json.loads(resp.read())
         except HTTPError as exc:
-            raise ChannelError(f"GitHub API returned {exc.code}: {exc.reason}") from exc
+            raise ChannelError(f"GitLab API returned {exc.code}: {exc.reason}") from exc
         except URLError as exc:
             raise ChannelError(
-                f"Failed to connect to GitHub API: {exc.reason}"
+                f"Failed to connect to GitLab API: {exc.reason}"
             ) from exc

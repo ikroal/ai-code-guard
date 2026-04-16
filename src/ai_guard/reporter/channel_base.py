@@ -149,7 +149,10 @@ def post_pr_comment(
 # Ensure built-in channels are registered on import
 def _auto_register() -> None:
     """Import built-in channel modules to trigger registration."""
-    import ai_guard.reporter.channel_github  # noqa: F401
+    import ai_guard.reporter.channel_bitbucket
+    import ai_guard.reporter.channel_gitea
+    import ai_guard.reporter.channel_github
+    import ai_guard.reporter.channel_gitlab  # noqa: F401
 
 
 _auto_register()

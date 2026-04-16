@@ -28,164 +28,172 @@ class TestGitHubChannel:
             token_env=token_env,
         )
 
+    @staticmethod
+    def _mock_urlopen(status: int = 201, body: bytes = b'{"id": 1}') -> MagicMock:
+        mock_response = MagicMock()
+        mock_response.status = status
+        mock_response.read.return_value = body
+        mock_response.__enter__ = MagicMock(return_value=mock_response)
+        mock_response.__exit__ = MagicMock(return_value=False)
+        return mock_response
+
     def test_name_is_github(self) -> None:
-        ch = GitHubChannel()
-        assert ch.name == "github"
+        assert GitHubChannel().name == "github"
 
     def test_send_success(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Successful POST returns 201."""
+        """Successful POST with env vars."""
         monkeypatch.setenv("GITHUB_TOKEN", "ghp_test123")
         monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
         monkeypatch.setenv("GITHUB_REF", "refs/pull/42/merge")
 
-        mock_response = MagicMock()
-        mock_response.status = 201
-        mock_response.read.return_value = b'{"id": 1}'
-        mock_response.__enter__ = MagicMock(return_value=mock_response)
-        mock_response.__exit__ = MagicMock(return_value=False)
-
-        with patch(
-            "urllib.request.urlopen", return_value=mock_response
-        ) as mock_urlopen:
-            ch = GitHubChannel()
-            ch.send("## Report\n- all passed", self._make_config())
-
-            mock_urlopen.assert_called_once()
-            req = mock_urlopen.call_args[0][0]
+        with patch("urllib.request.urlopen", return_value=self._mock_urlopen()) as m:
+            GitHubChannel().send("## Report", self._make_config())
+            req = m.call_args[0][0]
             assert "/repos/owner/repo/issues/42/comments" in req.full_url
-            body = json.loads(req.data)
-            assert "Report" in body["body"]
+            assert "Report" in json.loads(req.data)["body"]
 
-    def test_send_failure_raises_channel_error(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """HTTP error raises ChannelError."""
+    def test_send_failure_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("GITHUB_TOKEN", "ghp_test123")
         monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
         monkeypatch.setenv("GITHUB_REF", "refs/pull/42/merge")
 
         from urllib.error import HTTPError
 
-        with patch(
-            "urllib.request.urlopen",
-            side_effect=HTTPError(
-                url="",
-                code=403,
-                msg="Forbidden",
-                hdrs=None,
-                fp=None,  # type: ignore[arg-type]
+        with (
+            patch(
+                "urllib.request.urlopen",
+                side_effect=HTTPError("", 403, "Forbidden", None, None),  # type: ignore[arg-type]
             ),
+            pytest.raises(ChannelError, match="403"),
         ):
-            ch = GitHubChannel()
-            with pytest.raises(ChannelError, match="403"):
-                ch.send("report", self._make_config())
+            GitHubChannel().send("report", self._make_config())
 
     def test_missing_token_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Missing token raises ChannelError."""
         monkeypatch.delenv("GITHUB_TOKEN", raising=False)
         monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
         monkeypatch.setenv("GITHUB_REF", "refs/pull/1/merge")
 
-        ch = GitHubChannel()
         with pytest.raises(ChannelError, match="token"):
-            ch.send("report", self._make_config())
+            GitHubChannel().send("report", self._make_config())
 
     def test_custom_api_url(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Custom api_url is used instead of default."""
         monkeypatch.setenv("GITHUB_TOKEN", "ghp_test123")
         monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
         monkeypatch.setenv("GITHUB_REF", "refs/pull/5/merge")
 
-        mock_response = MagicMock()
-        mock_response.status = 201
-        mock_response.read.return_value = b'{"id": 1}'
-        mock_response.__enter__ = MagicMock(return_value=mock_response)
-        mock_response.__exit__ = MagicMock(return_value=False)
-
-        with patch(
-            "urllib.request.urlopen", return_value=mock_response
-        ) as mock_urlopen:
-            ch = GitHubChannel()
-            ch.send("report", self._make_config(api_url="https://git.corp.com/api/v3"))
-
-            req = mock_urlopen.call_args[0][0]
-            assert req.full_url.startswith("https://git.corp.com/api/v3/")
+        with patch("urllib.request.urlopen", return_value=self._mock_urlopen()) as m:
+            GitHubChannel().send(
+                "r", self._make_config(api_url="https://git.corp.com/api/v3")
+            )
+            assert m.call_args[0][0].full_url.startswith("https://git.corp.com/api/v3/")
 
     def test_pr_number_from_ai_guard_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """AI_GUARD_PR_NUMBER fallback."""
         monkeypatch.setenv("GITHUB_TOKEN", "ghp_test123")
         monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
         monkeypatch.delenv("GITHUB_REF", raising=False)
         monkeypatch.setenv("AI_GUARD_PR_NUMBER", "99")
 
-        mock_response = MagicMock()
-        mock_response.status = 201
-        mock_response.read.return_value = b'{"id": 1}'
-        mock_response.__enter__ = MagicMock(return_value=mock_response)
-        mock_response.__exit__ = MagicMock(return_value=False)
+        with patch("urllib.request.urlopen", return_value=self._mock_urlopen()) as m:
+            GitHubChannel().send("r", self._make_config())
+            assert "/issues/99/comments" in m.call_args[0][0].full_url
 
-        with patch(
-            "urllib.request.urlopen", return_value=mock_response
-        ) as mock_urlopen:
-            ch = GitHubChannel()
-            ch.send("report", self._make_config())
+    def test_pr_number_from_github_ref(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("GITHUB_TOKEN", "ghp_test123")
+        monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
+        monkeypatch.setenv("GITHUB_REF", "refs/pull/123/merge")
+        monkeypatch.delenv("AI_GUARD_PR_NUMBER", raising=False)
 
-            req = mock_urlopen.call_args[0][0]
-            assert "/issues/99/comments" in req.full_url
+        with patch("urllib.request.urlopen", return_value=self._mock_urlopen()) as m:
+            GitHubChannel().send("r", self._make_config())
+            assert "/issues/123/comments" in m.call_args[0][0].full_url
 
-    def test_missing_pr_number_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """No PR number available raises ChannelError."""
+    def test_pr_number_from_api_query(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Fallback: query GitHub API for PR by branch name."""
         monkeypatch.setenv("GITHUB_TOKEN", "ghp_test123")
         monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
         monkeypatch.delenv("GITHUB_REF", raising=False)
         monkeypatch.delenv("AI_GUARD_PR_NUMBER", raising=False)
 
-        ch = GitHubChannel()
-        with pytest.raises(ChannelError, match="PR number"):
-            ch.send("report", self._make_config())
+        call_count = 0
 
-    def test_missing_repository_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Missing GITHUB_REPOSITORY raises ChannelError."""
+        def urlopen_side_effect(req: MagicMock) -> MagicMock:
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                # GET /pulls?head=... → return PR list
+                return self._mock_urlopen(body=json.dumps([{"number": 77}]).encode())
+            # POST comment
+            return self._mock_urlopen()
+
+        with (
+            patch(
+                "ai_guard.reporter.channel_github.get_current_branch",
+                return_value="feat/test",
+            ),
+            patch("urllib.request.urlopen", side_effect=urlopen_side_effect) as m,
+        ):
+            GitHubChannel().send("r", self._make_config())
+            # Second call (POST) should use PR 77
+            post_req = m.call_args_list[-1][0][0]
+            assert "/issues/77/comments" in post_req.full_url
+
+    def test_repo_from_git_remote(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Fallback: get repo from git remote when env var missing."""
         monkeypatch.setenv("GITHUB_TOKEN", "ghp_test123")
         monkeypatch.delenv("GITHUB_REPOSITORY", raising=False)
         monkeypatch.setenv("GITHUB_REF", "refs/pull/1/merge")
 
-        ch = GitHubChannel()
-        with pytest.raises(ChannelError, match="GITHUB_REPOSITORY"):
-            ch.send("report", self._make_config())
+        with (
+            patch(
+                "ai_guard.reporter.channel_github.get_remote_repo",
+                return_value="org/my-repo",
+            ),
+            patch("urllib.request.urlopen", return_value=self._mock_urlopen()) as m,
+        ):
+            GitHubChannel().send("r", self._make_config())
+            assert "/repos/org/my-repo/" in m.call_args[0][0].full_url
 
-    def test_parse_pr_number_from_github_ref(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """refs/pull/<n>/merge format is parsed correctly."""
+    def test_missing_repo_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("GITHUB_TOKEN", "ghp_test123")
+        monkeypatch.delenv("GITHUB_REPOSITORY", raising=False)
+        monkeypatch.setenv("GITHUB_REF", "refs/pull/1/merge")
+
+        with (
+            patch(
+                "ai_guard.reporter.channel_github.get_remote_repo", return_value=None
+            ),
+            pytest.raises(ChannelError, match="repository"),
+        ):
+            GitHubChannel().send("r", self._make_config())
+
+    def test_missing_pr_number_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """All PR detection methods fail."""
         monkeypatch.setenv("GITHUB_TOKEN", "ghp_test123")
         monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
-        monkeypatch.setenv("GITHUB_REF", "refs/pull/123/merge")
+        monkeypatch.delenv("GITHUB_REF", raising=False)
+        monkeypatch.delenv("AI_GUARD_PR_NUMBER", raising=False)
 
-        mock_response = MagicMock()
-        mock_response.status = 201
-        mock_response.read.return_value = b'{"id": 1}'
-        mock_response.__enter__ = MagicMock(return_value=mock_response)
-        mock_response.__exit__ = MagicMock(return_value=False)
+        with (
+            patch(
+                "ai_guard.reporter.channel_github.get_current_branch", return_value=None
+            ),
+            pytest.raises(ChannelError, match="PR number"),
+        ):
+            GitHubChannel().send("r", self._make_config())
 
-        with patch(
-            "urllib.request.urlopen", return_value=mock_response
-        ) as mock_urlopen:
-            ch = GitHubChannel()
-            ch.send("report", self._make_config())
-
-            req = mock_urlopen.call_args[0][0]
-            assert "/issues/123/comments" in req.full_url
-
-    def test_non_pr_github_ref_falls_back(
+    def test_non_pr_github_ref_falls_to_api(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """refs/heads/main does not contain PR number → raises."""
+        """refs/heads/main triggers API query fallback."""
         monkeypatch.setenv("GITHUB_TOKEN", "ghp_test123")
         monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
         monkeypatch.setenv("GITHUB_REF", "refs/heads/main")
         monkeypatch.delenv("AI_GUARD_PR_NUMBER", raising=False)
 
-        ch = GitHubChannel()
-        with pytest.raises(ChannelError, match="PR number"):
-            ch.send("report", self._make_config())
+        with (
+            patch(
+                "ai_guard.reporter.channel_github.get_current_branch", return_value=None
+            ),
+            pytest.raises(ChannelError, match="PR number"),
+        ):
+            GitHubChannel().send("r", self._make_config())
