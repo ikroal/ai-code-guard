@@ -19,7 +19,7 @@ runner = CliRunner()
 # ---------------------------------------------------------------------------
 
 
-@pytest.fixture()
+@pytest.fixture
 def project_with_config(tmp_path: Path) -> Path:
     """Create a minimal project directory with guard.yaml and .git."""
     config = tmp_path / "guard.yaml"
@@ -34,7 +34,7 @@ def project_with_config(tmp_path: Path) -> Path:
     return tmp_path
 
 
-@pytest.fixture()
+@pytest.fixture
 def installed_project(project_with_config: Path) -> Path:
     """Create a project with an existing installation state."""
     state = GeneratedState(

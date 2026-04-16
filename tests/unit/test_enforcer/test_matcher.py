@@ -52,7 +52,7 @@ class TestParsePattern:
 
     def test_empty_string_raises(self) -> None:
         """Empty string raises ValueError."""
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="separator"):
             parse_pattern("")
 
     def test_empty_body(self) -> None:
@@ -133,7 +133,7 @@ class TestMatches:
     def test_malformed_pattern_raises(self) -> None:
         """Pattern without scheme raises ValueError."""
         rule = Rule(pattern="no_scheme_here")
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="separator"):
             matches("test", rule)
 
     def test_case_sensitive(self) -> None:

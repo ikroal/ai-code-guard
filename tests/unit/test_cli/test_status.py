@@ -54,7 +54,7 @@ def _write_state(
     return state
 
 
-@pytest.fixture()
+@pytest.fixture
 def installed_project(tmp_path: Path) -> Path:
     """Project with guard.yaml, .git, state.json, and artifacts."""
     config = _write_guard_yaml(tmp_path)
