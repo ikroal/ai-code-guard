@@ -1,7 +1,7 @@
 ![CI](https://github.com/ikroal/ai-code-guard/actions/workflows/ci.yml/badge.svg)
 ![Python](https://img.shields.io/badge/python-%3E%3D3.10-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Status](https://img.shields.io/badge/status-alpha-orange)
+![Status](https://img.shields.io/badge/status-beta-brightgreen)
 
 # AI Guard
 
@@ -26,6 +26,7 @@ pip install ai-guard
 guard init --language python          # 创建 guard.yaml
 guard install --agent claude-code     # 生成规则 + hooks
 guard check                           # 运行质量检查
+guard check --format json             # CI 机器可读输出
 guard ruleset fetch <url>#v1.0        # 拉取共享规则集
 ```
 
@@ -87,7 +88,12 @@ code:
 | `guard agents` | Agent 能力矩阵 |
 | `guard ruleset fetch` | 从 Git 仓库拉取规则集 |
 | `guard ruleset list` | 列出已缓存的规则集 |
+| `guard ruleset show <name>` | 显示规则集详情和规则 |
 | `guard ruleset cache clear` | 清空规则集缓存 |
+| `guard validation list` | 按阶段列出已配置的检查项 |
+| `guard validation report` | 检查项配置报告表格 |
+
+所有检查命令（`check`、`verify`、`status`）支持 `--format json` 输出，用于 CI/CD 管道的机器可读格式。
 
 ## 工作原理
 
@@ -97,19 +103,21 @@ Agent 工作时，Hook 脚本加载预构建的策略文件，将每个操作与
 
 提交和推送时，pre-commit Hook 运行格式化、Lint、命名和自定义检查。Agent 无法跳过这些检查，因为 `git commit --no-verify` 本身就是被禁止的模式。
 
+检查结果可通过 `output.pr_report` 配置自动发布到 GitHub、GitLab、Gitea 和 Bitbucket 的 PR 评论。
+
 ## 路线图
 
 - [x] **Phase 1** — Config + Generator + CLI（8 个命令）
 - [x] **Phase 2** — Enforcer + 运行时行为拦截
 - [x] **Phase 3** — Checker + Reporter + 代码质量门禁
-- [ ] **Phase 4** — Ruleset 拉取、缓存与管理
-- [ ] **Phase 5** — PR 报告推送与 CI/CD 集成
+- [x] **Phase 4** — Ruleset 拉取、缓存与管理
+- [x] **Phase 5** — PR 报告推送与 CI/CD 集成
 
 ## 开发
 
 ```bash
 pip install -e ".[dev]"
-pytest                    # 692 个测试
+pytest                    # 816 个测试
 ruff check .
 ```
 

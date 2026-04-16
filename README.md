@@ -1,7 +1,7 @@
 ![CI](https://github.com/ikroal/ai-code-guard/actions/workflows/ci.yml/badge.svg)
 ![Python](https://img.shields.io/badge/python-%3E%3D3.10-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Status](https://img.shields.io/badge/status-alpha-orange)
+![Status](https://img.shields.io/badge/status-beta-brightgreen)
 
 # AI Guard
 
@@ -26,6 +26,7 @@ pip install ai-guard
 guard init --language python          # create guard.yaml
 guard install --agent claude-code     # generate rules + hooks
 guard check                           # run quality checks
+guard check --format json             # machine-readable output for CI
 guard ruleset fetch <url>#v1.0        # fetch shared ruleset
 ```
 
@@ -87,7 +88,12 @@ See [guard.yaml reference](design/AI_GUARD_SYSTEM_DESIGN.md) for full schema.
 | `guard agents` | Agent capability matrix |
 | `guard ruleset fetch` | Fetch a ruleset from a git repository |
 | `guard ruleset list` | List cached rulesets |
+| `guard ruleset show <name>` | Show ruleset details and rules |
 | `guard ruleset cache clear` | Clear the ruleset cache |
+| `guard validation list` | List configured checks by stage |
+| `guard validation report` | Check configuration report table |
+
+All check commands (`check`, `verify`, `status`) support `--format json` for machine-readable output in CI/CD pipelines.
 
 ## How It Works
 
@@ -97,19 +103,21 @@ When the agent runs, its hook script loads the pre-built policy and matches each
 
 At commit and push time, pre-commit hooks run format, lint, naming, and custom checks. The agent cannot skip these because `git commit --no-verify` is itself a forbidden pattern.
 
+Check results can be posted as PR comments on GitHub, GitLab, Gitea, and Bitbucket via the `output.pr_report` configuration.
+
 ## Roadmap
 
 - [x] **Phase 1** — Config + Generator + CLI (8 commands)
 - [x] **Phase 2** — Enforcer + runtime behavior interception
 - [x] **Phase 3** — Checker + Reporter + code quality gates
-- [ ] **Phase 4** — Ruleset fetch, caching, and management
-- [ ] **Phase 5** — PR report posting and CI/CD integration
+- [x] **Phase 4** — Ruleset fetch, caching, and management
+- [x] **Phase 5** — PR report posting and CI/CD integration
 
 ## Development
 
 ```bash
 pip install -e ".[dev]"
-pytest                    # 692 tests
+pytest                    # 816 tests
 ruff check .
 ```
 
