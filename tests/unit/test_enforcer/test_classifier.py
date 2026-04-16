@@ -100,11 +100,11 @@ class TestClassifyUnknown:
 
     def test_unknown_tool(self) -> None:
         """Unknown tool returns unknown operation."""
-        op, scheme, target = classify("SomeFutureTool", {"arg": "value"})
+        op, _scheme, _target = classify("SomeFutureTool", {"arg": "value"})
         assert op == "unknown"
 
     def test_empty_tool_input(self) -> None:
         """Empty tool input doesn't crash."""
-        op, scheme, target = classify("Read", {})
+        op, _scheme, target = classify("Read", {})
         assert op == "read"
         assert target == ""
