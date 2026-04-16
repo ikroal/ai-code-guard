@@ -1,6 +1,7 @@
 """Generator data models for AI Guard.
 
-Defines dataclasses for artifact generation and state tracking.
+Defines dataclasses for artifact generation state tracking.
+FileSpec is defined in shared.types (shared across modules).
 """
 
 from __future__ import annotations
@@ -8,6 +9,8 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 from datetime import datetime
+
+from ai_guard.shared.types import FileSpec  # Import from shared location
 
 __all__ = [
     "FileSpec",
@@ -17,21 +20,6 @@ __all__ = [
 
 # Path to state.json relative to project root
 STATE_FILE: str = ".ai-guard/state.json"
-
-
-@dataclass
-class FileSpec:
-    """A file to be generated and written to disk.
-
-    Attributes:
-        path: File path relative to project root.
-        content: File content as string.
-        executable: Whether the file should have executable permissions.
-    """
-
-    path: str
-    content: str
-    executable: bool = False
 
 
 @dataclass

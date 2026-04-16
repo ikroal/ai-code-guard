@@ -19,11 +19,8 @@ from ai_guard.generator.exceptions import (
     GeneratorError,
     GitDirectoryNotFoundError,
 )
-from ai_guard.generator.models import (
-    STATE_FILE,
-    FileSpec,
-    GeneratedState,
-)
+from ai_guard.generator.models import STATE_FILE, GeneratedState
+from ai_guard.shared.types import FileSpec  # Shared type
 
 __all__ = [
     # Exceptions
