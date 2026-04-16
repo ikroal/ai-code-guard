@@ -15,7 +15,7 @@ class TestGetTemplateDir:
     def test_returns_path(self) -> None:
         result = get_template_dir()
         assert isinstance(result, Path)
-        assert result.name == "templates"
+        assert result.name == "_templates"
 
     def test_template_dir_exists(self) -> None:
         result = get_template_dir()

@@ -1,6 +1,6 @@
 """Shared rendering utilities for Agent adapters.
 
-Uses Jinja2 to load templates from adapters/templates/ directory.
+Uses Jinja2 to load templates from adapters/_templates/ directory.
 Templates are static files, not imported by Python, so they don't
 trigger ALLOWED_DEPS checks.
 
@@ -25,8 +25,8 @@ __all__ = [
     "get_template_dir",
 ]
 
-# Template directory relative to this module
-_TEMPLATE_DIR = Path(__file__).parent / "templates"
+# Template directory relative to this module (internal/private)
+_TEMPLATE_DIR = Path(__file__).parent / "_templates"
 
 # Jinja2 environment (singleton)
 _env: Environment | None = None
