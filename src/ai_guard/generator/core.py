@@ -12,10 +12,13 @@ shared.types (shared across modules).
 
 from __future__ import annotations
 
+import json
 import stat
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
+
+from jinja2 import Environment, FileSystemLoader
 
 from ai_guard import __version__
 from ai_guard.generator.exceptions import ArtifactWriteError
@@ -29,12 +32,23 @@ from ai_guard.shared.types import (
 
 if TYPE_CHECKING:
     from ai_guard.adapters.base import AgentAdapter
-    from ai_guard.config.models import BehaviorConfig
+    from ai_guard.config.models import (
+        BehaviorConfig,
+        CodeConfig,
+        LanguageTools,
+        OperationRules,
+        Rule,
+    )
 
 __all__ = [
     # G1/G2 primitives
     "generate_rule_docs",
     "generate_hook_files",
+    # G3-G6 primitives
+    "generate_policy_cache",
+    "generate_git_hooks",
+    "generate_tool_configs",
+    "generate_precommit_config",
     # State management
     "read_state",
     "write_state",
@@ -46,6 +60,30 @@ __all__ = [
     "write_artifacts",
     "delete_artifacts",
 ]
+
+
+# ---------------------------------------------------------------------------
+# Jinja2 Environment for Generator Templates
+# ---------------------------------------------------------------------------
+
+# Template directory for Generator (internal/private)
+_GENERATOR_TEMPLATE_DIR = Path(__file__).parent / "_templates"
+
+# Jinja2 environment (singleton)
+_generator_env: Environment | None = None
+
+
+def _get_generator_env() -> Environment:
+    """Get or create Generator's Jinja2 environment."""
+    global _generator_env
+    if _generator_env is None:
+        _generator_env = Environment(
+            loader=FileSystemLoader(_GENERATOR_TEMPLATE_DIR),
+            autoescape=False,  # YAML/shell scripts don't need HTML escaping
+            trim_blocks=True,
+            lstrip_blocks=True,
+        )
+    return _generator_env
 
 
 # ---------------------------------------------------------------------------
@@ -327,3 +365,211 @@ def delete_artifacts(
                 # Skip files we can't delete, report later
                 pass
     return deleted
+
+
+# ---------------------------------------------------------------------------
+# G5: Policy Cache Generation
+# ---------------------------------------------------------------------------
+
+
+def generate_policy_cache(
+    behavior: BehaviorConfig,
+    config_hash: str,
+) -> FileSpec:
+    """Generate policy.json for Enforcer runtime (G5).
+
+    The policy cache is consumed by Enforcer at runtime to enforce
+    behavior constraints without re-parsing guard.yaml.
+
+    Args:
+        behavior: BehaviorConfig containing read/write/execute rules.
+        config_hash: SHA hash of guard.yaml for drift detection.
+
+    Returns:
+        FileSpec for .ai-guard/policy.json
+    """
+    policy_data = {
+        "config_hash": config_hash,
+        "behavior": _serialize_behavior(behavior),
+    }
+    return FileSpec(
+        path=".ai-guard/policy.json",
+        content=json.dumps(policy_data, indent=2),
+    )
+
+
+def _serialize_behavior(behavior: BehaviorConfig) -> dict:
+    """Serialize BehaviorConfig to dict for policy.json."""
+    return {
+        "read": _serialize_operation_rules(behavior.read),
+        "write": _serialize_operation_rules(behavior.write),
+        "execute": _serialize_operation_rules(behavior.execute),
+    }
+
+
+def _serialize_operation_rules(rules: OperationRules) -> dict:
+    """Serialize OperationRules to dict for policy.json."""
+    return {
+        "forbidden": [_serialize_rule(r) for r in rules.forbidden],
+        "require_approval": [_serialize_rule(r) for r in rules.require_approval],
+        "allow": [_serialize_rule(r) for r in rules.allow],
+    }
+
+
+def _serialize_rule(rule: Rule) -> dict:
+    """Serialize a single Rule to dict for policy.json.
+
+    Only includes non-default fields to keep the output minimal.
+    """
+    result: dict = {"pattern": rule.pattern, "source": rule.source}
+    if rule.reason is not None:
+        result["reason"] = rule.reason
+    if rule.message is not None:
+        result["message"] = rule.message
+    if rule.regex:
+        result["regex"] = rule.regex
+    return result
+
+
+# ---------------------------------------------------------------------------
+# G6: Git Hooks Generation
+# ---------------------------------------------------------------------------
+
+
+def generate_git_hooks(project_root: Path) -> list[FileSpec]:
+    """Generate Git hook scripts (G6).
+
+    Generates pre-commit and pre-push hooks that invoke
+    'guard gate run --stage <stage>'.
+
+    Args:
+        project_root: Path to project root (to check .git existence).
+
+    Returns:
+        List of FileSpec for Git hooks (executable=True),
+        or empty list if .git directory doesn't exist.
+
+    Note:
+        If .git directory doesn't exist, returns empty list.
+        This is a warning-level condition - caller should log warning
+        but continue generating other artifacts.
+    """
+    git_dir = project_root / ".git"
+    if not git_dir.is_dir():
+        return []
+
+    artifacts: list[FileSpec] = []
+    env = _get_generator_env()
+
+    for hook_name in ["pre-commit", "pre-push"]:
+        template = env.get_template(f"git_hooks/{hook_name}.j2")
+        artifacts.append(
+            FileSpec(
+                path=f".git/hooks/{hook_name}",
+                content=template.render(),
+                executable=True,
+            )
+        )
+    return artifacts
+
+
+# ---------------------------------------------------------------------------
+# G3: Tool Configs Generation
+# ---------------------------------------------------------------------------
+
+
+def generate_tool_configs(
+    project_root: Path,
+    rulesets: list[str],
+) -> list[FileSpec]:
+    """Copy tool config files from ruleset cache (G3).
+
+    Rulesets are cloned to .ai-guard/cache/<ruleset-name>/.
+    Tool config files (like .clang-format, pyproject.toml) are
+    stored in the ruleset's 'files/' subdirectory.
+
+    Args:
+        project_root: Path to project root.
+        rulesets: List of ruleset names installed.
+
+    Returns:
+        List of FileSpec for tool config files to be copied
+        to project root directory.
+    """
+    artifacts: list[FileSpec] = []
+    cache_dir = project_root / ".ai-guard" / "cache"
+
+    for ruleset in rulesets:
+        files_dir = cache_dir / ruleset / "files"
+        if not files_dir.is_dir():
+            continue
+
+        for file_path in files_dir.iterdir():
+            if file_path.is_file():
+                try:
+                    content = file_path.read_text(encoding="utf-8")
+                    artifacts.append(
+                        FileSpec(
+                            path=file_path.name,  # Copy to project root
+                            content=content,
+                        )
+                    )
+                except UnicodeDecodeError:
+                    # Skip binary files
+                    continue
+    return artifacts
+
+
+# ---------------------------------------------------------------------------
+# G4: Pre-commit Config Generation
+# ---------------------------------------------------------------------------
+
+# Language to pre-commit types mapping
+# pre-commit uses specific type identifiers for file matching
+_LANGUAGE_TYPES = {
+    "python": "python",
+    "c": "c",
+    "cpp": "c++",
+    "typescript": "typescript",
+    "javascript": "javascript",
+    "go": "go",
+    "rust": "rust",
+    "java": "java",
+}
+
+
+def generate_precommit_config(
+    code: CodeConfig,
+    languages: dict[str, LanguageTools],
+) -> FileSpec:
+    """Generate .pre-commit-config.yaml (G4).
+
+    Generates a pre-commit configuration with format and lint hooks
+    for each configured language, plus any custom checks defined in
+    CodeConfig.
+
+    Args:
+        code: CodeConfig with commit_format, push_lint, and checks.
+        languages: Per-language tool mappings (format and lint tools).
+
+    Returns:
+        FileSpec for .pre-commit-config.yaml
+    """
+    env = _get_generator_env()
+    template = env.get_template("precommit_config.yaml.j2")
+
+    # Combine commit and push checks for the template
+    all_checks = {**code.commit_checks, **code.push_checks}
+
+    context = {
+        "code": code,
+        "languages": languages,
+        "checks": all_checks,
+        "lang_types": _LANGUAGE_TYPES,
+        "version": __version__,
+    }
+
+    return FileSpec(
+        path=".pre-commit-config.yaml",
+        content=template.render(context),
+    )

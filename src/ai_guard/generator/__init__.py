@@ -13,8 +13,12 @@ G primitives:
 from ai_guard.generator.core import (
     create_state,
     delete_artifacts,
+    generate_git_hooks,
     generate_hook_files,
+    generate_policy_cache,
+    generate_precommit_config,
     generate_rule_docs,
+    generate_tool_configs,
     read_state,
     replace_managed_block,
     wrap_with_managed_block,
@@ -43,6 +47,11 @@ __all__ = [
     # G1/G2 primitives
     "generate_rule_docs",
     "generate_hook_files",
+    # G3-G6 primitives
+    "generate_policy_cache",
+    "generate_git_hooks",
+    "generate_tool_configs",
+    "generate_precommit_config",
     # Core functions
     "create_state",
     "delete_artifacts",
