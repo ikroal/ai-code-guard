@@ -9,11 +9,13 @@ from __future__ import annotations
 import contextlib
 from typing import TYPE_CHECKING
 
+import yaml
+
 from ai_guard.adapters.registry import AdapterNotFoundError, get_adapter, list_adapters
 from ai_guard.config.exceptions import (
     ConfigError,
 )
-from ai_guard.config.loader import load_config
+from ai_guard.config.loader import RawConfig, load_config
 from ai_guard.config.merger import resolve_config
 from ai_guard.generator.core import (
     create_state,
@@ -30,6 +32,7 @@ from ai_guard.generator.core import (
 )
 from ai_guard.generator.exceptions import ArtifactWriteError
 from ai_guard.generator.models import STATE_FILE
+from ai_guard.ruleset.cache import get_cache_dir
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -165,6 +168,49 @@ def _merge_agents(existing: list[str], new: list[str]) -> list[str]:
     return merged
 
 
+def _load_ruleset_configs(
+    project_root: Path,
+    rulesets: list[str],
+) -> list[tuple[str, RawConfig]]:
+    """Load guard.yaml from each cached ruleset.
+
+    For each ruleset name listed in the project config, looks for
+    a cached copy under ``.ai-guard/cache/<name>/guard.yaml``.
+    Warns (but does not fail) if a ruleset is not cached.
+
+    Ruleset guard.yaml files are config fragments (they may lack
+    ``version`` and ``project`` fields), so they are loaded without
+    schema validation — the merger handles partial configs.
+
+    Args:
+        project_root: Path to the project root.
+        rulesets: List of ruleset names from the project config.
+
+    Returns:
+        List of ``(name, raw_config)`` pairs for rulesets that
+        have a cached ``guard.yaml``.
+    """
+    if not rulesets:
+        return []
+
+    cache_dir = get_cache_dir(project_root)
+    pairs: list[tuple[str, RawConfig]] = []
+
+    for name in rulesets:
+        rs_config_path = cache_dir / name / "guard.yaml"
+        if rs_config_path.is_file():
+            with open(rs_config_path, encoding="utf-8") as f:
+                data = yaml.safe_load(f)
+            if isinstance(data, dict):
+                pairs.append((name, data))  # type: ignore[arg-type]
+        else:
+            print(
+                f"Warning: Ruleset '{name}' not cached. Run: guard ruleset fetch <url>"
+            )
+
+    return pairs
+
+
 # ---------------------------------------------------------------------------
 # Public command functions
 # ---------------------------------------------------------------------------
@@ -202,15 +248,15 @@ def install_command(
         )
         raise SystemExit(1)
 
-    # Load and resolve config
+    # Load and resolve config (with ruleset configs from cache)
     try:
         raw_config = load_config(config_path)
-        resolved = resolve_config(config_path)
+        rulesets: list[str] = raw_config.get("rulesets", [])
+        ruleset_pairs = _load_ruleset_configs(project_root, rulesets)
+        resolved = resolve_config(config_path, rulesets=ruleset_pairs)
     except ConfigError as e:
         print(f"Error: {e}")
         raise SystemExit(1) from None
-
-    rulesets: list[str] = raw_config.get("rulesets", [])
 
     # Read existing state for incremental install
     existing_state = read_state(project_root)
@@ -253,15 +299,15 @@ def update_command(
         print("Error: AI Guard is not installed. Run 'guard install' first.")
         raise SystemExit(1)
 
-    # Load and resolve config
+    # Load and resolve config (with ruleset configs from cache)
     try:
         raw_config = load_config(config_path)
-        resolved = resolve_config(config_path)
+        rulesets: list[str] = raw_config.get("rulesets", [])
+        ruleset_pairs = _load_ruleset_configs(project_root, rulesets)
+        resolved = resolve_config(config_path, rulesets=ruleset_pairs)
     except ConfigError as e:
         print(f"Error: {e}")
         raise SystemExit(1) from None
-
-    rulesets: list[str] = raw_config.get("rulesets", [])
 
     # Resolve adapters for installed agents
     try:
