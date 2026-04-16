@@ -90,7 +90,7 @@ class TestClassifyExecuteOps:
 
     def test_web_search(self) -> None:
         """WebSearch classifies as execute/web."""
-        op, scheme, target = classify("WebSearch", {"query": "python docs"})
+        op, scheme, _target = classify("WebSearch", {"query": "python docs"})
         assert op == "execute"
         assert scheme == "web"
 
