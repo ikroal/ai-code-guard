@@ -82,7 +82,7 @@ def _status_text(
     """
     if state is None:
         print("AI Guard is not installed.")
-        print("Run 'guard install --agent <name>' to install.")
+        print("Run 'ai-guard install --agent <name>' to install.")
         return
 
     # Installation info
@@ -97,7 +97,7 @@ def _status_text(
             f"current version {__version__}."
         )
         print(msg)
-        print("Run 'guard update' to sync.")
+        print("Run 'ai-guard update' to sync.")
 
     # Drift detection
     if config_path.is_file():
@@ -105,7 +105,7 @@ def _status_text(
         if current_hash != state.config_hash:
             print(
                 "\nConfiguration drift detected: guard.yaml has changed "
-                "since last install/update. Run 'guard update'."
+                "since last install/update. Run 'ai-guard update'."
             )
         else:
             print("\nConfiguration: up to date (no drift)")
@@ -119,7 +119,7 @@ def _status_text(
         print(f"\nMissing artifacts ({len(missing)}):")
         for path in missing:
             print(f"  {path}")
-        print("Run 'guard update' to regenerate.")
+        print("Run 'ai-guard update' to regenerate.")
     else:
         print(f"\nAll {len(state.artifacts)} artifact(s) present.")
 
@@ -265,7 +265,7 @@ def _check_config(config_path: Path) -> None:
     """
     if not config_path.is_file():
         print(f"  [FAIL] guard.yaml not found at {config_path}")
-        print("         Run 'guard init' to create one.")
+        print("         Run 'ai-guard init' to create one.")
         return
 
     try:
@@ -296,7 +296,7 @@ def _check_file_integrity(project_root: Path) -> None:
         print(f"  [FAIL] {len(missing)} artifact(s) missing:")
         for path in missing:
             print(f"         {path}")
-        print("         Run 'guard update' to regenerate.")
+        print("         Run 'ai-guard update' to regenerate.")
     else:
         print(f"  [ok] All {len(state.artifacts)} artifact(s) present")
 
@@ -320,7 +320,7 @@ def _check_drift(project_root: Path, config_path: Path) -> None:
     current_hash = _compute_config_hash(config_path)
     if current_hash != state.config_hash:
         print("  [WARN] Configuration drift detected")
-        print("         Run 'guard update' to sync.")
+        print("         Run 'ai-guard update' to sync.")
     else:
         print("  [ok] No drift")
 
@@ -359,4 +359,4 @@ def agents_command(project_root: Path) -> None:
     if installed:
         print(f"\n{len(installed)} agent(s) installed.")
     else:
-        print("\nNo agents installed. Run 'guard install --agent <name>'.")
+        print("\nNo agents installed. Run 'ai-guard install --agent <name>'.")

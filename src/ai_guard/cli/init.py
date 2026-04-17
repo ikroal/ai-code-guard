@@ -193,6 +193,6 @@ def init_command(
     # Print next steps
     print("\nNext steps:")
     print("  1. Review and edit the configuration file")
-    print("  2. Run 'guard install --agent <agent>' to generate artifacts")
+    print("  2. Run 'ai-guard install --agent <agent>' to generate artifacts")
     print("\nAvailable agents:")
     print("  claude-code, cursor, opencode, copilot, kilocode")

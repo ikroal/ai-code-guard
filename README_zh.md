@@ -23,11 +23,11 @@ pip install ai-guard
 ## 快速开始
 
 ```bash
-guard init --language python          # 创建 guard.yaml
-guard install --agent claude-code     # 生成规则 + hooks
-guard check                           # 运行质量检查
-guard check --format json             # CI 机器可读输出
-guard ruleset fetch <url>#v1.0        # 拉取共享规则集
+ai-guard init --language python          # 创建 guard.yaml
+ai-guard install --agent claude-code     # 生成规则 + hooks
+ai-guard check                           # 运行质量检查
+ai-guard check --format json             # CI 机器可读输出
+ai-guard ruleset fetch <url>#v1.0        # 拉取共享规则集
 ```
 
 ## 支持的 Agent
@@ -75,29 +75,29 @@ code:
 
 | 命令 | 说明 |
 |------|------|
-| `guard init` | 从预设生成 `guard.yaml` |
-| `guard install --agent <name>` | 生成规则、Hook 和配置 |
-| `guard update` | 配置变更后重新生成 |
-| `guard uninstall` | 移除生成的产物 |
-| `guard check` | 运行提交阶段检查 |
-| `guard verify` | 运行推送阶段验证 |
-| `guard run <name>` | 运行单项检查 |
-| `guard gate run --stage <s>` | Git Hook 入口 |
-| `guard status` | 安装状态与漂移检测 |
-| `guard doctor` | 环境诊断 |
-| `guard agents` | Agent 能力矩阵 |
-| `guard ruleset fetch` | 从 Git 仓库拉取规则集 |
-| `guard ruleset list` | 列出已缓存的规则集 |
-| `guard ruleset show <name>` | 显示规则集详情和规则 |
-| `guard ruleset cache clear` | 清空规则集缓存 |
-| `guard validation list` | 按阶段列出已配置的检查项 |
-| `guard validation report` | 检查项配置报告表格 |
+| `ai-guard init` | 从预设生成 `guard.yaml` |
+| `ai-guard install --agent <name>` | 生成规则、Hook 和配置 |
+| `ai-guard update` | 配置变更后重新生成 |
+| `ai-guard uninstall` | 移除生成的产物 |
+| `ai-guard check` | 运行提交阶段检查 |
+| `ai-guard verify` | 运行推送阶段验证 |
+| `ai-guard run <name>` | 运行单项检查 |
+| `ai-guard gate run --stage <s>` | Git Hook 入口 |
+| `ai-guard status` | 安装状态与漂移检测 |
+| `ai-guard doctor` | 环境诊断 |
+| `ai-guard agents` | Agent 能力矩阵 |
+| `ai-guard ruleset fetch` | 从 Git 仓库拉取规则集 |
+| `ai-guard ruleset list` | 列出已缓存的规则集 |
+| `ai-guard ruleset show <name>` | 显示规则集详情和规则 |
+| `ai-guard ruleset cache clear` | 清空规则集缓存 |
+| `ai-guard validation list` | 按阶段列出已配置的检查项 |
+| `ai-guard validation report` | 检查项配置报告表格 |
 
 所有检查命令（`check`、`verify`、`status`）支持 `--format json` 输出，用于 CI/CD 管道的机器可读格式。
 
 ## 工作原理
 
-`guard install` 读取 `guard.yaml` 并一次性生成所有产物 — 规则文档、Hook 脚本、`.pre-commit-config.yaml` 和 `.ai-guard/policy.json`。运行时不做配置解析。
+`ai-guard install` 读取 `guard.yaml` 并一次性生成所有产物 — 规则文档、Hook 脚本、`.pre-commit-config.yaml` 和 `.ai-guard/policy.json`。运行时不做配置解析。
 
 Agent 工作时，Hook 脚本加载预构建的策略文件，将每个操作与规则匹配。禁止的操作被阻止，需要审批的操作提示用户确认，其余放行。每次决策记录到 `.ai-guard/audit.jsonl`。
 

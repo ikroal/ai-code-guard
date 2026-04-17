@@ -24,7 +24,7 @@ from ai_guard.cli.status import agents_command, doctor_command, status_command
 from ai_guard.cli.validation import validation_list_command, validation_report_command
 
 app = typer.Typer(
-    name="guard",
+    name="ai-guard",
     help="AI Guard - Guardian system for AI coding agents.",
     invoke_without_command=True,
 )
