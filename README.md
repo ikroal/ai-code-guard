@@ -20,6 +20,8 @@ A single config file replaces per-agent rule documents, scattered hook scripts, 
 pip install ac-guard
 ```
 
+> The CLI command `ac-guard` abbreviates **AI Code Guard** (ac = AI Code).
+
 ## Quick Start
 
 ```bash
@@ -107,11 +109,22 @@ Check results can be posted as PR comments on GitHub, GitLab, Gitea, and Bitbuck
 
 ## Roadmap
 
-- [x] **Phase 1** — Config + Generator + CLI (8 commands)
-- [x] **Phase 2** — Enforcer + runtime behavior interception
-- [x] **Phase 3** — Checker + Reporter + code quality gates
-- [x] **Phase 4** — Ruleset fetch, caching, and management
-- [x] **Phase 5** — PR report posting and CI/CD integration
+```mermaid
+flowchart LR
+    P1[✅ Phase 1<br/>Config + Generator + CLI] --> P2[✅ Phase 2<br/>Enforcer]
+    P2 --> P3[✅ Phase 3<br/>Checker + Reporter]
+    P3 --> P4[✅ Phase 4<br/>Ruleset Management]
+    P4 --> P5[✅ Phase 5<br/>PR Report + CI/CD]
+    P5 --> M6[🚧 M6<br/>Production Readiness]
+    M6 --> M7[📋 M7<br/>Examples + Ecosystem]
+
+    classDef done fill:#90EE90,stroke:#2d7a2d,color:#000
+    classDef active fill:#FFE4B5,stroke:#b8860b,color:#000
+    classDef planned fill:#D3D3D3,stroke:#666,color:#000
+    class P1,P2,P3,P4,P5 done
+    class M6 active
+    class M7 planned
+```
 
 ## Development
 
