@@ -219,6 +219,44 @@ class TestVerifyCommand:
         assert r.exit_code == 0
         assert "build" in r.output.lower()
 
+    def test_build_failure_skips_lint_and_custom_push_checks(
+        self, tmp_path: Path
+    ) -> None:
+        """#77: a failing build must short-circuit push stage with skips."""
+        import json as json_mod
+
+        config = _write_config(
+            tmp_path,
+            {
+                "build": {"command": "false"},  # always fails
+                "languages": {
+                    "python": {"tools": {"format": "black", "lint": "ruff"}},
+                },
+                "code": {
+                    "commit": {"format": False, "naming": False},
+                    "push": {
+                        "lint": True,
+                        "checks": {
+                            "custom": {
+                                "command": "echo should-not-run",
+                                "pass_filenames": False,
+                            }
+                        },
+                    },
+                },
+            },
+        )
+        with patch("ac_guard.checker.core.get_changed_files", return_value=["a.py"]):
+            r = runner.invoke(app, ["verify", "-c", str(config), "--format", "json"])
+        assert r.exit_code == 1
+        data = json_mod.loads(r.output)
+        names = {item["name"]: item for item in data["results"]}
+        assert names["build"]["passed"] is False
+        assert names["pre-commit:lint-python"]["skipped"] is True
+        assert "build failed" in names["pre-commit:lint-python"]["output"].lower()
+        assert names["custom"]["skipped"] is True
+        assert "build failed" in names["custom"]["output"].lower()
+
 
 # ===========================================================================
 # D. run Command

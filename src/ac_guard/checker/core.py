@@ -407,6 +407,9 @@ def _run_commit_checks(
     return results
 
 
+_BUILD_FAILED_SKIP_REASON = "Skipped: build failed"
+
+
 def _run_push_checks(
     config: CodeConfig,
     files: list[str],
@@ -414,11 +417,21 @@ def _run_push_checks(
     build_command: str | None,
     languages: list[str],
 ) -> list[CheckResult]:
-    """Run push-stage checks."""
+    """Run push-stage checks.
+
+    Build is a precondition: if it fails, lint and custom push checks
+    are not executed and are instead appended as ``skipped`` results
+    with a ``Skipped: build failed`` marker. This mirrors the existing
+    commit→push fail-fast pattern in :func:`run_stage`.
+    """
     results: list[CheckResult] = []
 
     if build_command:
-        results.append(run_build(build_command, project_root))
+        build_result = run_build(build_command, project_root)
+        results.append(build_result)
+        if not build_result.passed:
+            _append_skipped_downstream(results, config, languages)
+            return results
 
     if config.push_lint:
         results.extend(
@@ -429,3 +442,30 @@ def _run_push_checks(
         results.append(run_check(name, check_item, files, project_root))
 
     return results
+
+
+def _append_skipped_downstream(
+    results: list[CheckResult],
+    config: CodeConfig,
+    languages: list[str],
+) -> None:
+    """Mark lint + push.checks as skipped when build has already failed."""
+    if config.push_lint:
+        results.extend(
+            CheckResult(
+                name=f"pre-commit:lint-{lang}",
+                passed=True,
+                skipped=True,
+                output=_BUILD_FAILED_SKIP_REASON,
+            )
+            for lang in languages
+        )
+    results.extend(
+        CheckResult(
+            name=name,
+            passed=True,
+            skipped=True,
+            output=_BUILD_FAILED_SKIP_REASON,
+        )
+        for name in config.push_checks
+    )
