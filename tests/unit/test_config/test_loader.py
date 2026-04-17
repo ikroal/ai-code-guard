@@ -104,7 +104,7 @@ class TestLoadConfigFileNotFound:
         with pytest.raises(ConfigFileNotFoundError) as exc_info:
             load_config(path)
         assert "nonexistent.yaml" in str(exc_info.value)
-        assert "guard init" in str(exc_info.value)
+        assert "ai-guard init" in str(exc_info.value)
 
     def test_error_has_path_attribute(self, tmp_path: Path) -> None:
         path = tmp_path / "missing.yaml"

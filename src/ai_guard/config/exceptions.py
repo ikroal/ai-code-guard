@@ -64,7 +64,7 @@ class ConfigFileNotFoundError(ConfigError):
         """
         self.path = Path(path)
         super().__init__(
-            f"Config file not found: {self.path}. Run 'guard init' to generate one."
+            f"Config file not found: {self.path}. Run 'ai-guard init' to generate one."
         )
 
 

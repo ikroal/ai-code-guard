@@ -498,7 +498,7 @@ class TestGenerateGitHooks:
         (tmp_path / ".git" / "hooks").mkdir()
         result = generate_git_hooks(tmp_path)
         for hook in result:
-            assert "guard gate run" in hook.content
+            assert "ai-guard gate run" in hook.content
 
     def test_pre_commit_has_correct_stage(self, tmp_path: Path) -> None:
         (tmp_path / ".git").mkdir()

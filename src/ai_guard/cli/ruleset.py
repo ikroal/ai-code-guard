@@ -118,7 +118,7 @@ def ruleset_show_command(
 
     if not ruleset_dir.is_dir():
         print(f"Error: Ruleset '{name}' not found in cache.")
-        print("Run 'guard ruleset fetch <url>' to download it.")
+        print("Run 'ai-guard ruleset fetch <url>' to download it.")
         raise SystemExit(1)
 
     _print_meta(root, name)

@@ -137,7 +137,7 @@ def _print_available_agents() -> None:
         if not cap_desc:
             cap_desc.append("rule docs only")
         print(f"  {name:<15} ({' + '.join(cap_desc)})")
-    print("\nUsage: guard install --agent <name>[,<name>,...]")
+    print("\nUsage: ai-guard install --agent <name>[,<name>,...]")
 
 
 def _print_install_summary(
@@ -212,7 +212,7 @@ def _load_ruleset_configs(
                 pairs.append((name, data))  # type: ignore[arg-type]
         else:
             print(
-                f"Warning: Ruleset '{name}' not cached. Run: guard ruleset fetch <url>"
+                f"Warning: Ruleset '{name}' not cached. Run: ai-guard ruleset fetch <url>"
             )
 
     return pairs
@@ -309,7 +309,7 @@ def update_command(
     """
     existing_state = read_state(project_root)
     if existing_state is None:
-        print("Error: AI Guard is not installed. Run 'guard install' first.")
+        print("Error: AI Guard is not installed. Run 'ai-guard install' first.")
         raise SystemExit(1)
 
     # Load and resolve config (with ruleset configs from cache)
@@ -327,7 +327,7 @@ def update_command(
         adapters = _resolve_adapters(existing_state.installed_agents)
     except AdapterNotFoundError as e:
         print(f"Error: {e}")
-        print("Consider reinstalling with 'guard install --agent <agents>'.")
+        print("Consider reinstalling with 'ai-guard install --agent <agents>'.")
         raise SystemExit(1) from None
 
     # Run generator pipeline

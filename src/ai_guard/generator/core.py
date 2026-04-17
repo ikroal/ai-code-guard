@@ -440,7 +440,7 @@ def generate_git_hooks(project_root: Path) -> list[FileSpec]:
     """Generate Git hook scripts (G6).
 
     Generates pre-commit and pre-push hooks that invoke
-    'guard gate run --stage <stage>'.
+    'ai-guard gate run --stage <stage>'.
 
     Args:
         project_root: Path to project root (to check .git existence).

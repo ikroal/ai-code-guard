@@ -23,11 +23,11 @@ pip install ai-guard
 ## Quick Start
 
 ```bash
-guard init --language python          # create guard.yaml
-guard install --agent claude-code     # generate rules + hooks
-guard check                           # run quality checks
-guard check --format json             # machine-readable output for CI
-guard ruleset fetch <url>#v1.0        # fetch shared ruleset
+ai-guard init --language python          # create guard.yaml
+ai-guard install --agent claude-code     # generate rules + hooks
+ai-guard check                           # run quality checks
+ai-guard check --format json             # machine-readable output for CI
+ai-guard ruleset fetch <url>#v1.0        # fetch shared ruleset
 ```
 
 ## Supported Agents
@@ -75,29 +75,29 @@ See [guard.yaml reference](design/AI_GUARD_SYSTEM_DESIGN.md) for full schema.
 
 | Command | Description |
 |---------|-------------|
-| `guard init` | Generate `guard.yaml` from presets |
-| `guard install --agent <name>` | Generate rules, hooks, and configs |
-| `guard update` | Regenerate after config changes |
-| `guard uninstall` | Remove generated artifacts |
-| `guard check` | Run commit-stage checks |
-| `guard verify` | Run push-stage validation |
-| `guard run <name>` | Run a single check |
-| `guard gate run --stage <s>` | Git hook entry point |
-| `guard status` | Installation state and drift detection |
-| `guard doctor` | Environment diagnostics |
-| `guard agents` | Agent capability matrix |
-| `guard ruleset fetch` | Fetch a ruleset from a git repository |
-| `guard ruleset list` | List cached rulesets |
-| `guard ruleset show <name>` | Show ruleset details and rules |
-| `guard ruleset cache clear` | Clear the ruleset cache |
-| `guard validation list` | List configured checks by stage |
-| `guard validation report` | Check configuration report table |
+| `ai-guard init` | Generate `guard.yaml` from presets |
+| `ai-guard install --agent <name>` | Generate rules, hooks, and configs |
+| `ai-guard update` | Regenerate after config changes |
+| `ai-guard uninstall` | Remove generated artifacts |
+| `ai-guard check` | Run commit-stage checks |
+| `ai-guard verify` | Run push-stage validation |
+| `ai-guard run <name>` | Run a single check |
+| `ai-guard gate run --stage <s>` | Git hook entry point |
+| `ai-guard status` | Installation state and drift detection |
+| `ai-guard doctor` | Environment diagnostics |
+| `ai-guard agents` | Agent capability matrix |
+| `ai-guard ruleset fetch` | Fetch a ruleset from a git repository |
+| `ai-guard ruleset list` | List cached rulesets |
+| `ai-guard ruleset show <name>` | Show ruleset details and rules |
+| `ai-guard ruleset cache clear` | Clear the ruleset cache |
+| `ai-guard validation list` | List configured checks by stage |
+| `ai-guard validation report` | Check configuration report table |
 
 All check commands (`check`, `verify`, `status`) support `--format json` for machine-readable output in CI/CD pipelines.
 
 ## How It Works
 
-`guard install` reads `guard.yaml` and generates all artifacts at once — rule documents, hook scripts, `.pre-commit-config.yaml`, and `.ai-guard/policy.json`. No config parsing happens at runtime.
+`ai-guard install` reads `guard.yaml` and generates all artifacts at once — rule documents, hook scripts, `.pre-commit-config.yaml`, and `.ai-guard/policy.json`. No config parsing happens at runtime.
 
 When the agent runs, its hook script loads the pre-built policy and matches each operation against the rules. Forbidden operations are blocked. Operations requiring approval prompt the user. Everything else is allowed. Every decision is logged to `.ai-guard/audit.jsonl`.
 

@@ -65,7 +65,7 @@ class TestConfigFileNotFoundError:
 
     def test_message_suggests_init(self) -> None:
         err = ConfigFileNotFoundError("missing.yaml")
-        assert "guard init" in str(err)
+        assert "ai-guard init" in str(err)
 
 
 class TestConfigSyntaxError:
