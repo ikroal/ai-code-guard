@@ -20,6 +20,8 @@ AI 编码 Agent 的看护系统。一份 `guard.yaml` 约束行为并保障代�
 pip install ac-guard
 ```
 
+> 命令 `ac-guard` 是 **AI Code Guard** 的缩写（ac = AI Code）。
+
 ## 快速开始
 
 ```bash
@@ -107,11 +109,22 @@ Agent 工作时，Hook 脚本加载预构建的策略文件，将每个操作与
 
 ## 路线图
 
-- [x] **Phase 1** — Config + Generator + CLI（8 个命令）
-- [x] **Phase 2** — Enforcer + 运行时行为拦截
-- [x] **Phase 3** — Checker + Reporter + 代码质量门禁
-- [x] **Phase 4** — Ruleset 拉取、缓存与管理
-- [x] **Phase 5** — PR 报告推送与 CI/CD 集成
+```mermaid
+flowchart LR
+    P1[✅ Phase 1<br/>Config + Generator + CLI] --> P2[✅ Phase 2<br/>Enforcer]
+    P2 --> P3[✅ Phase 3<br/>Checker + Reporter]
+    P3 --> P4[✅ Phase 4<br/>Ruleset Management]
+    P4 --> P5[✅ Phase 5<br/>PR Report + CI/CD]
+    P5 --> M6[🚧 M6<br/>Production Readiness]
+    M6 --> M7[📋 M7<br/>Examples + Ecosystem]
+
+    classDef done fill:#90EE90,stroke:#2d7a2d,color:#000
+    classDef active fill:#FFE4B5,stroke:#b8860b,color:#000
+    classDef planned fill:#D3D3D3,stroke:#666,color:#000
+    class P1,P2,P3,P4,P5 done
+    class M6 active
+    class M7 planned
+```
 
 ## 开发
 
