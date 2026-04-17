@@ -40,12 +40,13 @@ class TestCursorAdapterProperties:
 
 
 class TestCursorAdapterRenderRuleDoc:
-    def test_output_has_managed_block_markers(self) -> None:
+    def test_output_is_raw_content_without_markers(self) -> None:
+        """Adapter returns plain .mdc content; writer layer adds markers."""
         adapter = CursorAdapter()
         behavior = BehaviorConfig.empty()
         result = adapter.render_rule_doc(behavior)
-        assert MARKER_BEGIN in result
-        assert MARKER_END in result
+        assert MARKER_BEGIN not in result
+        assert MARKER_END not in result
 
     def test_output_structure_with_rules(self) -> None:
         adapter = CursorAdapter()
@@ -65,9 +66,9 @@ class TestCursorAdapterRenderRuleDoc:
         adapter = CursorAdapter()
         behavior = BehaviorConfig.empty()
         result = adapter.render_rule_doc(behavior)
-        assert MARKER_BEGIN in result
-        assert MARKER_END in result
         assert len(result) > 0
+        assert MARKER_BEGIN not in result
+        assert MARKER_END not in result
 
 
 # ---------------------------------------------------------------------------

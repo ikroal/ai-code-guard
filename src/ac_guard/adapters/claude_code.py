@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 
 from ac_guard.adapters._render import render_hook, render_rule_doc
 from ac_guard.adapters.base import AgentAdapter, AgentCapabilities
-from ac_guard.shared.types import FileSpec, wrap_with_managed_block
+from ac_guard.shared.types import FileSpec
 
 if TYPE_CHECKING:
     from ac_guard.config.models import BehaviorConfig
@@ -39,11 +39,12 @@ class ClaudeCodeAdapter(AgentAdapter):
     def render_rule_doc(self, behavior: BehaviorConfig) -> str:
         """Render behavior rules as Claude Code rule document.
 
-        Uses Jinja2 template (claude_code.md.j2) for formatting.
-        Output is wrapped with managed block markers.
+        Returns raw Markdown content without managed-block markers.
+        The writer layer (``write_artifacts`` / ``replace_managed_block``)
+        owns wrapping so we do not accumulate duplicate markers across
+        ``install`` / ``update`` cycles.
         """
-        content = render_rule_doc("claude_code", behavior)
-        return wrap_with_managed_block(content)
+        return render_rule_doc("claude_code", behavior)
 
     def hook_files(self, behavior: BehaviorConfig) -> list[FileSpec]:
         """Generate Claude Code Hook script.

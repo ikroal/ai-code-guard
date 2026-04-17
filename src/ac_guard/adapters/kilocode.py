@@ -15,10 +15,10 @@ from typing import TYPE_CHECKING
 
 from ac_guard.adapters._render import render_rule_doc
 from ac_guard.adapters.base import AgentAdapter, AgentCapabilities
-from ac_guard.shared.types import FileSpec, wrap_with_managed_block
 
 if TYPE_CHECKING:
     from ac_guard.config.models import BehaviorConfig
+    from ac_guard.shared.types import FileSpec
 
 __all__ = ["KiloCodeAdapter"]
 
@@ -41,12 +41,10 @@ class KiloCodeAdapter(AgentAdapter):
     def render_rule_doc(self, behavior: BehaviorConfig) -> str:
         """Render behavior rules as KiloCode rule document.
 
-        Uses Jinja2 template (kilocode.md.j2) for formatting.
-        KiloCode uses .kilocode/rules/ directory for rule documents.
-        Output is wrapped with managed block markers.
+        Returns raw Markdown content without managed block markers;
+        the writer layer owns marker wrapping.
         """
-        content = render_rule_doc("kilocode", behavior)
-        return wrap_with_managed_block(content)
+        return render_rule_doc("kilocode", behavior)
 
     def hook_files(self, behavior: BehaviorConfig) -> list[FileSpec]:
         """KiloCode has no Hook capability — returns empty list."""

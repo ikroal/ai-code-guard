@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 
 from ac_guard.adapters._render import render_hook, render_rule_doc
 from ac_guard.adapters.base import AgentAdapter, AgentCapabilities
-from ac_guard.shared.types import FileSpec, wrap_with_managed_block
+from ac_guard.shared.types import FileSpec
 
 if TYPE_CHECKING:
     from ac_guard.config.models import BehaviorConfig
@@ -39,11 +39,10 @@ class OpenCodeAdapter(AgentAdapter):
     def render_rule_doc(self, behavior: BehaviorConfig) -> str:
         """Render behavior rules as OpenCode rule document.
 
-        Uses Jinja2 template (opencode.md.j2) for formatting.
-        Output is wrapped with managed block markers.
+        Returns raw Markdown content without managed block markers;
+        the writer layer owns marker wrapping.
         """
-        content = render_rule_doc("opencode", behavior)
-        return wrap_with_managed_block(content)
+        return render_rule_doc("opencode", behavior)
 
     def hook_files(self, behavior: BehaviorConfig) -> list[FileSpec]:
         """Generate OpenCode TypeScript plugin.

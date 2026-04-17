@@ -338,6 +338,58 @@ class TestWriteArtifacts:
             readonly_dir.chmod(0o755)
 
 
+class TestMarkerDuplication:
+    """Regression: install + repeated updates must not accumulate markers."""
+
+    @staticmethod
+    def _count(content: str, marker: str) -> int:
+        return content.count(marker)
+
+    def test_install_produces_single_marker_pair(self, tmp_path: Path) -> None:
+        """First-time write of a .md artifact yields exactly one BEGIN/END pair."""
+        artifact = FileSpec(path="CLAUDE.md", content="# Rules\n\nDo this.")
+        write_artifacts(tmp_path, [artifact])
+        content = (tmp_path / "CLAUDE.md").read_text()
+        assert self._count(content, MARKER_BEGIN) == 1
+        assert self._count(content, MARKER_END) == 1
+        assert "# Rules" in content
+
+    def test_update_preserves_single_marker_pair(self, tmp_path: Path) -> None:
+        """A second write (update) still leaves exactly one BEGIN/END pair."""
+        write_artifacts(tmp_path, [FileSpec(path="CLAUDE.md", content="v1")])
+        write_artifacts(tmp_path, [FileSpec(path="CLAUDE.md", content="v2")])
+        content = (tmp_path / "CLAUDE.md").read_text()
+        assert self._count(content, MARKER_BEGIN) == 1
+        assert self._count(content, MARKER_END) == 1
+        assert "v2" in content
+        assert "v1" not in content
+
+    def test_install_wraps_mdc_rule_docs_too(self, tmp_path: Path) -> None:
+        """Cursor uses .mdc; it must be wrapped like .md."""
+        write_artifacts(
+            tmp_path,
+            [FileSpec(path=".cursor/rules/behavior.mdc", content="raw")],
+        )
+        content = (tmp_path / ".cursor" / "rules" / "behavior.mdc").read_text()
+        assert self._count(content, MARKER_BEGIN) == 1
+        assert self._count(content, MARKER_END) == 1
+
+    def test_update_preserves_user_content_outside_markers(
+        self, tmp_path: Path
+    ) -> None:
+        """User content added outside markers survives the next update."""
+        write_artifacts(tmp_path, [FileSpec(path="CLAUDE.md", content="v1")])
+        md = tmp_path / "CLAUDE.md"
+        md.write_text(md.read_text() + "\n\n## My Custom Section\nuser notes\n")
+        write_artifacts(tmp_path, [FileSpec(path="CLAUDE.md", content="v2")])
+        content = md.read_text()
+        assert self._count(content, MARKER_BEGIN) == 1
+        assert self._count(content, MARKER_END) == 1
+        assert "My Custom Section" in content
+        assert "user notes" in content
+        assert "v2" in content
+
+
 class TestDeleteArtifacts:
     """delete_artifacts function tests."""
 
