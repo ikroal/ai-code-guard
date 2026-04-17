@@ -134,6 +134,10 @@ pytest                    # 816 个测试
 ruff check .
 ```
 
+## 版本记录
+
+发布说明与已知限制见 [CHANGELOG.md](CHANGELOG.md)。
+
 ## 许可证
 
 [MIT](LICENSE)
