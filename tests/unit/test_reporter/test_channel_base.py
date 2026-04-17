@@ -7,6 +7,7 @@ import pytest
 from ac_guard.config.models import PrReportConfig
 from ac_guard.reporter.channel_base import (
     ChannelError,
+    NoPrContextError,
     ReportChannel,
     get_channel,
     post_pr_comment,
@@ -91,3 +92,67 @@ class TestPostPrComment:
 
         # Should not raise — catches internally
         post_pr_comment(report=report, config=config, locale="en")
+
+
+class TestNoPrContextError:
+    """NoPrContextError signals 'no PR in context' — silent-skip semantics."""
+
+    def test_is_channel_error_subclass(self) -> None:
+        """NoPrContextError must inherit ChannelError for backward compat."""
+        assert issubclass(NoPrContextError, ChannelError)
+
+    def test_post_pr_comment_silent_on_no_pr_context(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """NoPrContextError from channel.send => no stderr output, normal return."""
+        from ac_guard.checker.models import CheckReport
+        from ac_guard.reporter import channel_base
+
+        config = PrReportConfig(enabled=True, platform="fake-no-pr")
+        report = CheckReport(stage="commit", passed=True)
+
+        class _NoPrChannel(ReportChannel):
+            @property
+            def name(self) -> str:
+                return "fake-no-pr"
+
+            def send(self, markdown: str, config: PrReportConfig) -> None:
+                raise NoPrContextError("no PR in context")
+
+        monkeypatch.setitem(channel_base._CHANNELS, "fake-no-pr", _NoPrChannel)
+
+        post_pr_comment(report=report, config=config, locale="en")
+
+        captured = capsys.readouterr()
+        assert captured.err == ""
+        assert captured.out == ""
+
+    def test_post_pr_comment_warns_on_other_channel_error(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """ChannelError (not NoPrContextError) => stderr warning."""
+        from ac_guard.checker.models import CheckReport
+        from ac_guard.reporter import channel_base
+
+        config = PrReportConfig(enabled=True, platform="fake-api-500")
+        report = CheckReport(stage="commit", passed=True)
+
+        class _ApiFailChannel(ReportChannel):
+            @property
+            def name(self) -> str:
+                return "fake-api-500"
+
+            def send(self, markdown: str, config: PrReportConfig) -> None:
+                raise ChannelError("API 500")
+
+        monkeypatch.setitem(channel_base._CHANNELS, "fake-api-500", _ApiFailChannel)
+
+        post_pr_comment(report=report, config=config, locale="en")
+
+        captured = capsys.readouterr()
+        assert "Warning: PR comment not posted" in captured.err
+        assert "API 500" in captured.err

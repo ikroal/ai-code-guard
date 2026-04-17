@@ -15,7 +15,12 @@ from typing import TYPE_CHECKING
 from urllib.error import HTTPError, URLError
 
 from ac_guard.reporter._git_info import get_current_branch, get_remote_repo
-from ac_guard.reporter.channel_base import ChannelError, ReportChannel, register_channel
+from ac_guard.reporter.channel_base import (
+    ChannelError,
+    NoPrContextError,
+    ReportChannel,
+    register_channel,
+)
 
 if TYPE_CHECKING:
     from ac_guard.config.models import PrReportConfig
@@ -112,7 +117,7 @@ class GitLabChannel(ReportChannel):
             except ChannelError:
                 pass  # Fall through to error
 
-        raise ChannelError(
+        raise NoPrContextError(
             "Cannot determine MR IID. Set AI_GUARD_PR_NUMBER, "
             "CI_MERGE_REQUEST_IID, or push your branch and open a MR"
         )

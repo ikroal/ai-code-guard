@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `check`, `verify`, and `gate run` now auto-dispatch `post_pr_comment`
+  when `output.pr_report.enabled: true`, closing the last mile of the
+  PR-report feature (previously callers had to invoke the primitive by
+  hand). A new `NoPrContextError` (subclass of `ChannelError`) is raised
+  by every channel when no PR/MR can be identified; `post_pr_comment`
+  silently skips in that case, so enabling `pr_report` in a shared
+  `guard.yaml` does not produce warnings on local branches. Real
+  failures (missing token, HTTP 5xx, unresolvable repo) continue to log
+  a stderr warning without affecting exit code.
+  ([#66](https://github.com/ikroal/ai-code-guard/issues/66))
+
 ### Fixed
 
 - Default system `execute.forbidden` now covers four additional

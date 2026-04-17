@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from ac_guard.config.models import PrReportConfig
-from ac_guard.reporter.channel_base import ChannelError
+from ac_guard.reporter.channel_base import ChannelError, NoPrContextError
 from ac_guard.reporter.channel_bitbucket import BitbucketChannel
 
 
@@ -160,5 +160,23 @@ class TestBitbucketChannel:
                 return_value=None,
             ),
             pytest.raises(ChannelError, match="PR ID"),
+        ):
+            BitbucketChannel().send("r", self._make_config())
+
+    def test_no_pr_raises_no_pr_context_error(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """No PR discoverable => NoPrContextError (silent-skip contract)."""
+        monkeypatch.setenv("BITBUCKET_TOKEN", "bb_test123")
+        monkeypatch.setenv("BITBUCKET_REPO_FULL_NAME", "workspace/repo")
+        monkeypatch.delenv("BITBUCKET_PR_ID", raising=False)
+        monkeypatch.delenv("AI_GUARD_PR_NUMBER", raising=False)
+
+        with (
+            patch(
+                "ac_guard.reporter.channel_bitbucket.get_current_branch",
+                return_value=None,
+            ),
+            pytest.raises(NoPrContextError, match="PR ID"),
         ):
             BitbucketChannel().send("r", self._make_config())

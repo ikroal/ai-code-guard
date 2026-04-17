@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from ac_guard.config.models import PrReportConfig
-from ac_guard.reporter.channel_base import ChannelError
+from ac_guard.reporter.channel_base import ChannelError, NoPrContextError
 from ac_guard.reporter.channel_gitlab import GitLabChannel
 
 
@@ -146,5 +146,22 @@ class TestGitLabChannel:
                 "ac_guard.reporter.channel_gitlab.get_current_branch", return_value=None
             ),
             pytest.raises(ChannelError, match="MR IID"),
+        ):
+            GitLabChannel().send("r", self._make_config())
+
+    def test_no_mr_raises_no_pr_context_error(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """No MR discoverable => NoPrContextError (silent-skip contract)."""
+        monkeypatch.setenv("GITLAB_TOKEN", "glpat-test123")
+        monkeypatch.setenv("CI_PROJECT_ID", "12345")
+        monkeypatch.delenv("CI_MERGE_REQUEST_IID", raising=False)
+        monkeypatch.delenv("AI_GUARD_PR_NUMBER", raising=False)
+
+        with (
+            patch(
+                "ac_guard.reporter.channel_gitlab.get_current_branch", return_value=None
+            ),
+            pytest.raises(NoPrContextError, match="MR IID"),
         ):
             GitLabChannel().send("r", self._make_config())

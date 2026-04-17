@@ -108,7 +108,7 @@ Agent 工作时，Hook 脚本加载预构建的策略文件，将每个操作与
 
 提交和推送时，pre-commit Hook 运行格式化、Lint、命名和自定义检查。Agent 无法跳过这些检查，因为 `git commit --no-verify` 本身就是被禁止的模式。
 
-检查结果可通过 `output.pr_report` 配置自动发布到 GitHub、GitLab、Gitea 和 Bitbucket 的 PR 评论。
+检查结果可通过 `output.pr_report` 配置自动发布到 GitHub、GitLab、Gitea 和 Bitbucket 的 PR 评论。开启 `enabled: true` 后，`check`、`verify`、`gate run` 执行结束会自动在关联 PR 上评论；当前环境识别不到 PR 时（例如本地分支、尚未开 PR），会静默跳过——本地开发无噪声。
 
 ## 路线图
 
