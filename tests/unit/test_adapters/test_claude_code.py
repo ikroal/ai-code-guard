@@ -33,12 +33,13 @@ class TestClaudeCodeAdapterProperties:
 
 
 class TestClaudeCodeAdapterRenderRuleDoc:
-    def test_output_has_managed_block_markers(self) -> None:
+    def test_output_is_raw_content_without_markers(self) -> None:
+        """Adapter returns plain Markdown; writer layer adds markers."""
         adapter = ClaudeCodeAdapter()
         behavior = BehaviorConfig.empty()
         result = adapter.render_rule_doc(behavior)
-        assert MARKER_BEGIN in result
-        assert MARKER_END in result
+        assert MARKER_BEGIN not in result
+        assert MARKER_END not in result
 
     def test_output_structure_with_rules(self) -> None:
         adapter = ClaudeCodeAdapter()
@@ -61,10 +62,10 @@ class TestClaudeCodeAdapterRenderRuleDoc:
         adapter = ClaudeCodeAdapter()
         behavior = BehaviorConfig.empty()
         result = adapter.render_rule_doc(behavior)
-        # Should still have markers and basic structure
-        assert MARKER_BEGIN in result
-        assert MARKER_END in result
+        # Should still render non-empty markdown (markers added by writer)
         assert len(result) > 0
+        assert MARKER_BEGIN not in result
+        assert MARKER_END not in result
 
 
 # ---------------------------------------------------------------------------

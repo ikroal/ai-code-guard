@@ -302,3 +302,46 @@ class TestErrorRecovery:
         assert result.exit_code == 0
         assert "warning" in result.output.lower()
         assert (tmp_path / STATE_FILE).is_file()
+
+
+class TestRuleDocMarkers:
+    """Regression for #94: install/update must not accumulate markers."""
+
+    _BEGIN = "<!-- AI-GUARD:BEGIN -->"
+    _END = "<!-- AI-GUARD:END -->"
+
+    def _bump_config(self, config: Path) -> None:
+        """Mutate guard.yaml so `update` has something to regenerate."""
+        data = yaml.safe_load(config.read_text())
+        data.setdefault("behavior", {}).setdefault("write", {}).setdefault(
+            "forbidden", []
+        ).append({"pattern": "file:marker-bump/**", "reason": "test"})
+        config.write_text(yaml.dump(data, default_flow_style=False))
+
+    def test_install_and_update_keep_single_marker_pair(self, tmp_path: Path) -> None:
+        config = tmp_path / "guard.yaml"
+        (tmp_path / ".git").mkdir()
+        runner.invoke(app, ["init", "--language", "python", "--output", str(config)])
+        runner.invoke(
+            app, ["install", "--agent", "claude-code", "--config", str(config)]
+        )
+
+        claude = tmp_path / "CLAUDE.md"
+        assert claude.read_text().count(self._BEGIN) == 1
+        assert claude.read_text().count(self._END) == 1
+
+        # Add a user section outside the managed block
+        claude.write_text(
+            claude.read_text() + "\n\n## My Custom Section\nuser content\n"
+        )
+
+        # Two updates in a row — markers must stay at 1+1 each time
+        for _ in range(2):
+            self._bump_config(config)
+            r = runner.invoke(app, ["update", "--config", str(config)])
+            assert r.exit_code == 0, r.output
+            text = claude.read_text()
+            assert text.count(self._BEGIN) == 1, text
+            assert text.count(self._END) == 1, text
+            assert "My Custom Section" in text
+            assert "user content" in text

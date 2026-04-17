@@ -306,7 +306,7 @@ def write_artifacts(  # noqa: C901
             else:
                 # New file — wrap with managed block for rule docs
                 # (hook scripts and configs don't need managed blocks)
-                if artifact.path.endswith(".md"):
+                if artifact.path.endswith((".md", ".mdc")):
                     content = wrap_with_managed_block(artifact.content)
                 else:
                     content = artifact.content

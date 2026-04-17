@@ -19,6 +19,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `execute.forbidden` as system rules, matching the README's "the agent
   cannot skip the gate" promise.
   ([#93](https://github.com/ikroal/ai-code-guard/issues/93))
+- Rule-document files (`CLAUDE.md`, `AGENTS.md`,
+  `.cursor/rules/behavior.mdc`, `.kilocode/rules/behavior.md`,
+  `.github/copilot-instructions.md`) no longer accumulate duplicate
+  `<!-- AI-GUARD:BEGIN -->` / `<!-- AI-GUARD:END -->` markers on each
+  `ac-guard update`. Adapters now return raw Markdown and the writer
+  layer owns wrapping. `.mdc` files are wrapped alongside `.md`.
+  ([#94](https://github.com/ikroal/ai-code-guard/issues/94))
 
 ### Changed
 

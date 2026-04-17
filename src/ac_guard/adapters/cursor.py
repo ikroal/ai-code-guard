@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 
 from ac_guard.adapters._render import render_hook, render_rule_doc
 from ac_guard.adapters.base import AgentAdapter, AgentCapabilities
-from ac_guard.shared.types import FileSpec, wrap_with_managed_block
+from ac_guard.shared.types import FileSpec
 
 if TYPE_CHECKING:
     from ac_guard.config.models import BehaviorConfig
@@ -40,12 +40,10 @@ class CursorAdapter(AgentAdapter):
     def render_rule_doc(self, behavior: BehaviorConfig) -> str:
         """Render behavior rules as Cursor rule document.
 
-        Uses Jinja2 template (cursor.mdc.j2) for formatting.
-        Cursor uses .mdc format with frontmatter.
-        Output is wrapped with managed block markers.
+        Returns raw ``.mdc`` content (with frontmatter) without managed
+        block markers. The writer layer owns marker wrapping.
         """
-        content = render_rule_doc("cursor", behavior)
-        return wrap_with_managed_block(content)
+        return render_rule_doc("cursor", behavior)
 
     def hook_files(self, behavior: BehaviorConfig) -> list[FileSpec]:
         """Generate Cursor Hook script.
