@@ -11,10 +11,10 @@
 
 - Python **3.10 及以上**（`python --version`）
 - 已初始化的 git 仓库（`git init` 过即可）
-- 任一 [支持的 Agent](../README_zh.md#支持的-agent) —— 本教程使用
-  **Claude Code**
-- 可选：`PATH` 中可用的 [`ruff`](https://docs.astral.sh/ruff/)
-  （`pip install ruff`），示例中作为检查器
+- `PATH` 中可用的 [`ruff`](https://docs.astral.sh/ruff/)（`pip install ruff`）
+  —— 第 3 步作为示例 check 用到
+- 一个目标 Agent —— 本教程的目标是 **Claude Code**。你本机**不必**实际装
+  Claude Code：`ac-guard install` 只生成 Agent 会读取的规则文件
 
 ## 1. 安装 CLI
 
@@ -92,8 +92,11 @@ output:
 四个顶层段落：
 
 - **`project`**：项目身份，init 会从当前目录自动填充
-- **`behavior`**：运行时行为规则，由 Agent 的 hook 求值。minimal 预设没有，
-  第 6 步我们会加一条
+- **`behavior`**：运行时行为规则，由 Agent 的 hook 求值。minimal 预设里
+  **没有用户规则**，但 ac-guard 总会为你注入 **4 条系统保护规则**，避免
+  Agent 悄悄改掉自己的护栏（`guard.yaml` / `.ac-guard/**` /
+  `.pre-commit-config.yaml` / `.git/hooks/**`，均为 `require_approval`）。
+  这几条会出现在第 4 步生成的 `CLAUDE.md` 里；你自己的规则会在第 6 步添加
 - **`code`**：代码质量门禁，按 `commit` / `push` 阶段划分。每个阶段支持
   内置快捷开关（`format`、`naming`、`lint`）**与** 自定义 `checks` 两种方式
 - **`output`**：结果去向（终端、audit 日志、PR 评论）
@@ -162,8 +165,14 @@ your-python-project/
 ```
 
 上面每个文件都是 **由工具管理** 的：重跑 `ac-guard install` 或
-`ac-guard update` 会从 `guard.yaml` 重新生成。不要手工编辑 —— 改
-`guard.yaml`，再 regen。
+`ac-guard update` 会从 `guard.yaml` 重新生成。建议改 `guard.yaml` 再 regen，
+别直接动生成文件。（例外：`CLAUDE.md` 有
+`<!-- AI-GUARD:BEGIN -->` / `<!-- AI-GUARD:END -->` 标记块，只有标记之间
+的内容会被重新生成。标记之外你可以自由写东西，会被保留。）
+
+打开 `CLAUDE.md` 看一眼：即便你当前的 `guard.yaml` 没写 `behavior` 段，
+managed block 里已经有一条 **Require Approval** 列表，包含 4 条 ——
+就是第 3 步提到的系统保护规则，用来保护护栏本身不被误改。
 
 想换 Agent？`ac-guard agents` 列出各自的能力：
 
@@ -245,8 +254,11 @@ ac-guard check --format json
 
 删掉 `src/bad.py` 再 check —— 又变绿了。你 `git commit` 时这套
 `ac-guard check` 会自动运行，因为生成的 `.git/hooks/pre-commit` 会调用
-它。Agent 也绕不过去 —— `git commit --no-verify` 在生成的 `CLAUDE.md`
-里就是禁止模式。
+它。
+
+想不让 Agent 用 `git commit --no-verify` 绕过门禁？按第 6 步的写法加一条
+execute 规则即可。注意：当前几个内置预设都**没有**自带这条，需要你显式
+开启。
 
 ## 6. 添加自定义行为规则
 
@@ -280,6 +292,17 @@ Updated 6 artifact(s) for agents: claude-code
 当 Claude Code 下次尝试写 `terraform/prod/` 下的文件，它的
 `pre_tool_use` hook 会查策略、匹上你的模式，返回 `deny`，并把
 `reason` 字段告诉用户。
+
+同一套结构走 `behavior.execute.forbidden` 就能拦命令 —— 比如封掉第 5 步
+提到的绕过技巧：
+
+```yaml
+behavior:
+  execute:
+    forbidden:
+      - pattern: "shell:git commit --no-verify*"
+        reason: "Bypassing the guard hook is not allowed"
+```
 
 关于 pattern 的几点要知道：
 
