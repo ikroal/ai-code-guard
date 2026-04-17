@@ -10,7 +10,7 @@ class EnforcerError(Exception):
 
 
 class PolicyCorruptError(EnforcerError):
-    """Raised when policy.json cannot be parsed.
+    """Raised when runtime.json cannot be parsed.
 
     Attributes:
         path: Path to the corrupted policy file.

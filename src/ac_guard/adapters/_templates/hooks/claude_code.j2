@@ -33,7 +33,7 @@ def main():
     tool_input = input_data.get("tool_input", {})
 
     # Evaluate policy via Enforcer
-    result = evaluate(tool_name, tool_input, Path("."))
+    result = evaluate(tool_name, tool_input, Path("."), agent="claude-code")
 
     # Build reason string for deny/ask decisions
     reason = ""

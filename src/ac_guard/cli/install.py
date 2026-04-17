@@ -33,7 +33,10 @@ from ac_guard.generator.core import (
 )
 from ac_guard.generator.exceptions import ArtifactWriteError
 from ac_guard.generator.models import STATE_FILE
+from ac_guard.reporter.audit import apply_retention
 from ac_guard.ruleset.cache import get_cache_dir
+
+_LEGACY_RUNTIME_CACHE = ".ac-guard/policy.json"
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -108,9 +111,13 @@ def _run_generator_pipeline(
         generate_precommit_config(resolved_config.code, resolved_config.languages)
     )
 
-    # G5: Policy cache
+    # G5: Policy cache (runtime.json — behavior + audit config)
     artifacts.append(
-        generate_policy_cache(resolved_config.behavior, resolved_config.config_hash)
+        generate_policy_cache(
+            resolved_config.behavior,
+            resolved_config.config_hash,
+            audit=resolved_config.output.audit,
+        )
     )
 
     # G6: Git hooks
@@ -223,6 +230,26 @@ def _load_ruleset_configs(
 # ---------------------------------------------------------------------------
 
 
+def _run_post_install_audit_maintenance(
+    project_root: Path, resolved: ResolvedConfig
+) -> None:
+    """Clean up legacy artifacts and apply audit retention.
+
+    Idempotent; safe to call at the end of both install and update.
+    Silent on I/O failure so it never blocks the pipeline.
+    """
+    # One-time removal of the legacy `.ac-guard/policy.json` (renamed to
+    # runtime.json in v0.1.0). No-op once the file is gone.
+    legacy = project_root / _LEGACY_RUNTIME_CACHE
+    with contextlib.suppress(OSError):
+        if legacy.is_file():
+            legacy.unlink()
+
+    audit_cfg = resolved.output.audit
+    if audit_cfg.enabled and audit_cfg.retention > 0:
+        apply_retention(project_root, audit_cfg.path, audit_cfg.retention)
+
+
 def install_command(
     agents: list[str],
     project_root: Path,
@@ -289,6 +316,8 @@ def install_command(
     state = create_state(all_agents, resolved.config_hash, written_paths)
     write_state(project_root, state)
 
+    _run_post_install_audit_maintenance(project_root, resolved)
+
     _print_install_summary(written_paths, all_agents)
 
 
@@ -344,6 +373,8 @@ def update_command(
         existing_state.installed_agents, resolved.config_hash, written_paths
     )
     write_state(project_root, state)
+
+    _run_post_install_audit_maintenance(project_root, resolved)
 
     agents_str = ", ".join(existing_state.installed_agents)
     print(f"Updated {len(written_paths)} artifact(s) for agents: {agents_str}")

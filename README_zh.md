@@ -102,7 +102,7 @@ code:
 
 ## 工作原理
 
-`ac-guard install` 读取 `guard.yaml` 并一次性生成所有产物 — 规则文档、Hook 脚本、`.pre-commit-config.yaml` 和 `.ac-guard/policy.json`。运行时不做配置解析。
+`ac-guard install` 读取 `guard.yaml` 并一次性生成所有产物 — 规则文档、Hook 脚本、`.pre-commit-config.yaml` 和 `.ac-guard/runtime.json`。运行时不做配置解析。
 
 Agent 工作时，Hook 脚本加载预构建的策略文件，将每个操作与规则匹配。禁止的操作被阻止，需要审批的操作提示用户确认，其余放行。每次决策记录到 `.ac-guard/audit.jsonl`。
 

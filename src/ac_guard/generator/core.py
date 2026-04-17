@@ -33,6 +33,7 @@ from ac_guard.shared.types import (
 if TYPE_CHECKING:
     from ac_guard.adapters.base import AgentAdapter
     from ac_guard.config.models import (
+        AuditConfig,
         BehaviorConfig,
         CodeConfig,
         LanguageTools,
@@ -133,7 +134,7 @@ def generate_hook_files(
     Args:
         adapters: List of AgentAdapter instances.
         behavior: BehaviorConfig (Hook scripts may embed rules or
-            reference policy.json).
+            reference runtime.json).
 
     Returns:
         List of FileSpec objects for Hook scripts and configs.
@@ -375,31 +376,46 @@ def delete_artifacts(
 def generate_policy_cache(
     behavior: BehaviorConfig,
     config_hash: str,
+    audit: AuditConfig | None = None,
 ) -> FileSpec:
-    """Generate policy.json for Enforcer runtime (G5).
+    """Generate ``.ac-guard/runtime.json`` for Enforcer runtime (G5).
 
-    The policy cache is consumed by Enforcer at runtime to enforce
-    behavior constraints without re-parsing guard.yaml.
+    This file is the Enforcer runtime cache read by hook subprocesses.
+    It holds everything the hook-side needs to make decisions without
+    re-parsing guard.yaml: behavior rules, policy hash, and audit
+    configuration. The historical filename ``policy.json`` was
+    retired in v0.1.0 — ``runtime.json`` better reflects that the
+    cache now carries more than just policy data.
 
     Args:
         behavior: BehaviorConfig containing read/write/execute rules.
         config_hash: SHA hash of guard.yaml for drift detection.
+        audit: AuditConfig controlling whether ``evaluate()`` writes
+            an audit record per decision. ``None`` is equivalent to
+            omitting the audit section (kept for callsite backward
+            compatibility during tests).
 
     Returns:
-        FileSpec for .ac-guard/policy.json
+        FileSpec for ``.ac-guard/runtime.json``.
     """
-    policy_data = {
+    runtime_data: dict[str, object] = {
         "config_hash": config_hash,
         "behavior": _serialize_behavior(behavior),
     }
+    if audit is not None:
+        runtime_data["audit"] = {
+            "enabled": audit.enabled,
+            "path": audit.path,
+            "retention_days": audit.retention,
+        }
     return FileSpec(
-        path=".ac-guard/policy.json",
-        content=json.dumps(policy_data, indent=2),
+        path=".ac-guard/runtime.json",
+        content=json.dumps(runtime_data, indent=2),
     )
 
 
 def _serialize_behavior(behavior: BehaviorConfig) -> dict:
-    """Serialize BehaviorConfig to dict for policy.json."""
+    """Serialize BehaviorConfig to dict for runtime.json."""
     return {
         "read": _serialize_operation_rules(behavior.read),
         "write": _serialize_operation_rules(behavior.write),
@@ -408,7 +424,7 @@ def _serialize_behavior(behavior: BehaviorConfig) -> dict:
 
 
 def _serialize_operation_rules(rules: OperationRules) -> dict:
-    """Serialize OperationRules to dict for policy.json."""
+    """Serialize OperationRules to dict for runtime.json."""
     return {
         "forbidden": [_serialize_rule(r) for r in rules.forbidden],
         "require_approval": [_serialize_rule(r) for r in rules.require_approval],
@@ -417,7 +433,7 @@ def _serialize_operation_rules(rules: OperationRules) -> dict:
 
 
 def _serialize_rule(rule: Rule) -> dict:
-    """Serialize a single Rule to dict for policy.json.
+    """Serialize a single Rule to dict for runtime.json.
 
     Only includes non-default fields to keep the output minimal.
     """

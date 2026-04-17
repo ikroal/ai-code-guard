@@ -10,10 +10,10 @@ from ac_guard.enforcer.matcher import Decision, PolicyDecision
 
 
 def _write_policy(project_root: Path, policy_data: dict) -> None:
-    """Write a policy.json file."""
+    """Write a runtime.json file."""
     policy_dir = project_root / ".ac-guard"
     policy_dir.mkdir(parents=True, exist_ok=True)
-    (policy_dir / "policy.json").write_text(
+    (policy_dir / "runtime.json").write_text(
         json.dumps(policy_data, indent=2), encoding="utf-8"
     )
 
@@ -74,16 +74,16 @@ class TestEvaluateNoPolicy:
     """Tests when no policy is installed."""
 
     def test_no_policy_allows_all(self, tmp_path: Path) -> None:
-        """Without policy.json, all operations are allowed."""
+        """Without runtime.json, all operations are allowed."""
         result = evaluate("Write", {"file_path": ".git/config"}, tmp_path)
         assert result.decision == Decision.ALLOW
         assert result.tier == "no_policy"
 
     def test_corrupt_policy_denies(self, tmp_path: Path) -> None:
-        """Corrupt policy.json results in deny."""
+        """Corrupt runtime.json results in deny."""
         policy_dir = tmp_path / ".ac-guard"
         policy_dir.mkdir(parents=True)
-        (policy_dir / "policy.json").write_text("{{invalid json")
+        (policy_dir / "runtime.json").write_text("{{invalid json")
         result = evaluate("Write", {"file_path": "test.py"}, tmp_path)
         assert result.decision == Decision.DENY
         assert result.tier == "error"
@@ -161,3 +161,71 @@ class TestEvaluateUnknownTool:
         result = evaluate("SomeFutureTool", {"arg": "val"}, tmp_path)
         assert result.decision == Decision.ALLOW
         assert result.tier == "unknown_tool"
+
+
+def _policy_with_audit(enabled: bool) -> dict:
+    policy = _standard_policy()
+    policy["audit"] = {
+        "enabled": enabled,
+        "path": ".ac-guard/audit.jsonl",
+        "retention_days": 30,
+    }
+    return policy
+
+
+class TestEvaluateAuditWiring:
+    """Regression for #75: evaluate() writes audit when enabled."""
+
+    def test_writes_audit_when_enabled(self, tmp_path: Path) -> None:
+        _write_policy(tmp_path, _policy_with_audit(enabled=True))
+        evaluate(
+            "Write",
+            {"file_path": "guard.yaml"},
+            tmp_path,
+            agent="claude-code",
+        )
+        audit_path = tmp_path / ".ac-guard" / "audit.jsonl"
+        assert audit_path.is_file()
+        lines = audit_path.read_text().strip().split("\n")
+        assert len(lines) == 1
+        record = json.loads(lines[0])
+        assert record["agent"] == "claude-code"
+        assert record["tool"] == "Write"
+        assert record["decision"] == "ask"
+
+    def test_does_not_audit_when_disabled(self, tmp_path: Path) -> None:
+        _write_policy(tmp_path, _policy_with_audit(enabled=False))
+        evaluate(
+            "Write",
+            {"file_path": "guard.yaml"},
+            tmp_path,
+            agent="claude-code",
+        )
+        audit_path = tmp_path / ".ac-guard" / "audit.jsonl"
+        assert not audit_path.exists()
+
+    def test_missing_audit_section_defaults_disabled(self, tmp_path: Path) -> None:
+        """Legacy runtime.json without an audit section is treated as off."""
+        _write_policy(tmp_path, _standard_policy())
+        evaluate(
+            "Write",
+            {"file_path": "guard.yaml"},
+            tmp_path,
+            agent="claude-code",
+        )
+        audit_path = tmp_path / ".ac-guard" / "audit.jsonl"
+        assert not audit_path.exists()
+
+    def test_unknown_tool_skips_audit(self, tmp_path: Path) -> None:
+        """Early return on unknown_tool must not write audit."""
+        _write_policy(tmp_path, _policy_with_audit(enabled=True))
+        evaluate("SomeFutureTool", {"arg": "val"}, tmp_path, agent="claude-code")
+        audit_path = tmp_path / ".ac-guard" / "audit.jsonl"
+        assert not audit_path.exists()
+
+    def test_passes_agent_to_record(self, tmp_path: Path) -> None:
+        _write_policy(tmp_path, _policy_with_audit(enabled=True))
+        evaluate("Write", {"file_path": "guard.yaml"}, tmp_path, agent="cursor")
+        audit_path = tmp_path / ".ac-guard" / "audit.jsonl"
+        record = json.loads(audit_path.read_text().strip().split("\n")[0])
+        assert record["agent"] == "cursor"

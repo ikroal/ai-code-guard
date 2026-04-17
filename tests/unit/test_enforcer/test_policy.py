@@ -13,10 +13,10 @@ from ac_guard.enforcer.policy import load_policy
 
 
 def _write_policy(project_root: Path, policy_data: dict) -> None:
-    """Write a policy.json file."""
+    """Write a runtime.json file."""
     policy_dir = project_root / ".ac-guard"
     policy_dir.mkdir(parents=True, exist_ok=True)
-    (policy_dir / "policy.json").write_text(
+    (policy_dir / "runtime.json").write_text(
         json.dumps(policy_data, indent=2), encoding="utf-8"
     )
 
@@ -25,7 +25,7 @@ class TestLoadPolicy:
     """Tests for load_policy function."""
 
     def test_no_policy_returns_none(self, tmp_path: Path) -> None:
-        """Missing policy.json returns None."""
+        """Missing runtime.json returns None."""
         result = load_policy(tmp_path)
         assert result is None
 
@@ -33,12 +33,12 @@ class TestLoadPolicy:
         """Corrupted JSON raises PolicyCorruptError."""
         policy_dir = tmp_path / ".ac-guard"
         policy_dir.mkdir(parents=True)
-        (policy_dir / "policy.json").write_text("not valid json{{{")
+        (policy_dir / "runtime.json").write_text("not valid json{{{")
         with pytest.raises(PolicyCorruptError):
             load_policy(tmp_path)
 
     def test_loads_valid_policy(self, tmp_path: Path) -> None:
-        """Valid policy.json returns (BehaviorConfig, config_hash)."""
+        """Valid runtime.json returns (BehaviorConfig, config_hash)."""
         _write_policy(
             tmp_path,
             {
@@ -52,7 +52,7 @@ class TestLoadPolicy:
         )
         result = load_policy(tmp_path)
         assert result is not None
-        behavior, config_hash = result
+        behavior, config_hash, _audit = result
         assert isinstance(behavior, BehaviorConfig)
         assert config_hash == "abcd1234"
 
@@ -89,7 +89,7 @@ class TestLoadPolicy:
         )
         result = load_policy(tmp_path)
         assert result is not None
-        behavior, _ = result
+        behavior, _, _audit = result
         assert len(behavior.write.forbidden) == 1
         assert behavior.write.forbidden[0].pattern == "file:.git/**"
         assert behavior.write.forbidden[0].reason == "Git internals"
@@ -121,7 +121,7 @@ class TestLoadPolicy:
         )
         result = load_policy(tmp_path)
         assert result is not None
-        behavior, _ = result
+        behavior, _, _audit = result
         assert behavior.execute.forbidden[0].regex is True
 
     def test_empty_behavior(self, tmp_path: Path) -> None:
@@ -139,5 +139,39 @@ class TestLoadPolicy:
         )
         result = load_policy(tmp_path)
         assert result is not None
-        behavior, _ = result
+        behavior, _, _audit = result
         assert behavior.read.forbidden == []
+
+    def test_audit_section_parsed(self, tmp_path: Path) -> None:
+        _write_policy(
+            tmp_path,
+            {
+                "config_hash": "h",
+                "behavior": {"read": {}, "write": {}, "execute": {}},
+                "audit": {
+                    "enabled": True,
+                    "path": ".ac-guard/audit.jsonl",
+                    "retention_days": 90,
+                },
+            },
+        )
+        result = load_policy(tmp_path)
+        assert result is not None
+        _, _, audit = result
+        assert audit.enabled is True
+        assert audit.path == ".ac-guard/audit.jsonl"
+        assert audit.retention == 90
+
+    def test_missing_audit_section_defaults_disabled(self, tmp_path: Path) -> None:
+        """Legacy cache without audit section is loaded as disabled."""
+        _write_policy(
+            tmp_path,
+            {
+                "config_hash": "h",
+                "behavior": {"read": {}, "write": {}, "execute": {}},
+            },
+        )
+        result = load_policy(tmp_path)
+        assert result is not None
+        _, _, audit = result
+        assert audit.enabled is False

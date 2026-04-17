@@ -27,11 +27,11 @@ input=$(cat)
 # Parse tool call (Cursor uses different formats for different hooks)
 tool_name=$(echo "$input" | jq -r '.tool // .command // .name // "unknown"' 2>/dev/null || echo "unknown")
 
-# Build Enforcer input JSON
+# Build Enforcer input JSON (agent identifies the caller in audit records)
 enforcer_input=$(jq -n \
     --arg tn "$tool_name" \
     --argjson ti "$(echo "$input" | jq '.args // .arguments // {}' 2>/dev/null || echo '{}')" \
-    '{tool_name: $tn, tool_input: $ti}')
+    '{tool_name: $tn, tool_input: $ti, agent: "cursor"}')
 
 # Call Enforcer via Python subprocess
 enforcer_output=$(echo "$enforcer_input" | python3 -m ac_guard.enforcer 2>/dev/null || echo '{"decision": "deny"}')

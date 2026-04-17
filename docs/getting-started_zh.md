@@ -138,7 +138,7 @@ ac-guard install --agent claude-code
 AI Code Guard installed for: claude-code
 
 Generated 6 artifact(s):
-  .ac-guard/policy.json
+  .ac-guard/runtime.json
   .claude/hooks/interceptor.py
   .git/hooks/pre-commit
   .git/hooks/pre-push
@@ -155,7 +155,7 @@ your-python-project/
 ├── .pre-commit-config.yaml       # 生成的钩子清单
 ├── .ac-guard/
 │   ├── state.json                # 安装状态（agents、工件清单）
-│   └── policy.json               # 运行时策略缓存
+│   └── runtime.json               # 运行时策略缓存
 ├── .claude/hooks/interceptor.py  # Claude Code pre_tool_use hook
 └── .git/hooks/
     ├── pre-commit                # → ac-guard gate run --stage commit
@@ -284,7 +284,7 @@ Updated 6 artifact(s) for agents: claude-code
 
 背后发生了两件事：
 
-1. `.ac-guard/policy.json`（运行时策略）里新增你的 forbidden 模式
+1. `.ac-guard/runtime.json`（运行时策略）里新增你的 forbidden 模式
 2. `CLAUDE.md` 在 **Write Operations — Forbidden** 一节多了一行自然语言
    描述
 

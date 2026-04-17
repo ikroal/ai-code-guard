@@ -145,7 +145,7 @@ You should see:
 AI Code Guard installed for: claude-code
 
 Generated 6 artifact(s):
-  .ac-guard/policy.json
+  .ac-guard/runtime.json
   .claude/hooks/interceptor.py
   .git/hooks/pre-commit
   .git/hooks/pre-push
@@ -162,7 +162,7 @@ your-python-project/
 ├── .pre-commit-config.yaml     # generated hook manifest
 ├── .ac-guard/
 │   ├── state.json              # install state (agents, artifacts)
-│   └── policy.json             # runtime policy cache
+│   └── runtime.json             # runtime policy cache
 ├── .claude/hooks/interceptor.py  # Claude Code pre_tool_use hook
 └── .git/hooks/
     ├── pre-commit              # → ac-guard gate run --stage commit
@@ -296,7 +296,7 @@ Updated 6 artifact(s) for agents: claude-code
 
 Two things happen under the hood:
 
-1. `.ac-guard/policy.json` (the runtime policy) now contains your new
+1. `.ac-guard/runtime.json` (the runtime policy) now contains your new
    forbidden pattern.
 2. `CLAUDE.md` gains a line under **Write Operations — Forbidden** describing
    the rule in natural language.

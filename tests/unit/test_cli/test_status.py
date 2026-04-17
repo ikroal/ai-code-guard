@@ -46,7 +46,7 @@ def _write_state(
         ac_guard_version="0.1.0",
         installed_agents=agents or ["claude-code"],
         config_hash=config_hash,
-        artifacts=artifacts or ["CLAUDE.md", ".ac-guard/policy.json"],
+        artifacts=artifacts or ["CLAUDE.md", ".ac-guard/runtime.json"],
     )
     state_path = project_root / STATE_FILE
     state_path.parent.mkdir(parents=True, exist_ok=True)
@@ -64,11 +64,11 @@ def installed_project(tmp_path: Path) -> Path:
         tmp_path,
         agents=["claude-code"],
         config_hash=config_hash,
-        artifacts=["CLAUDE.md", ".ac-guard/policy.json", ".pre-commit-config.yaml"],
+        artifacts=["CLAUDE.md", ".ac-guard/runtime.json", ".pre-commit-config.yaml"],
     )
     # Create actual artifact files
     (tmp_path / "CLAUDE.md").write_text("# Rules\n")
-    (tmp_path / ".ac-guard" / "policy.json").write_text(
+    (tmp_path / ".ac-guard" / "runtime.json").write_text(
         json.dumps({"config_hash": config_hash})
     )
     (tmp_path / ".pre-commit-config.yaml").write_text("repos: []\n")

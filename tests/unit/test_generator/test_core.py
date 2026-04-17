@@ -444,7 +444,7 @@ class TestGeneratePolicyCache:
         behavior = BehaviorConfig.empty()
         result = generate_policy_cache(behavior, "abc123")
         assert isinstance(result, FileSpec)
-        assert result.path == ".ac-guard/policy.json"
+        assert result.path == ".ac-guard/runtime.json"
 
     def test_includes_config_hash(self) -> None:
         behavior = BehaviorConfig.empty()
@@ -495,6 +495,25 @@ class TestGeneratePolicyCache:
         assert "reason" not in rule
         assert "message" not in rule
         assert "regex" not in rule
+
+    def test_runtime_cache_includes_audit_section(self) -> None:
+        from ac_guard.config.models import AuditConfig
+
+        behavior = BehaviorConfig.empty()
+        audit = AuditConfig(enabled=True, path=".ac-guard/audit.jsonl", retention=60)
+        result = generate_policy_cache(behavior, "hash", audit=audit)
+        data = json.loads(result.content)
+        assert data["audit"] == {
+            "enabled": True,
+            "path": ".ac-guard/audit.jsonl",
+            "retention_days": 60,
+        }
+
+    def test_runtime_cache_omits_audit_when_none(self) -> None:
+        behavior = BehaviorConfig.empty()
+        result = generate_policy_cache(behavior, "hash")
+        data = json.loads(result.content)
+        assert "audit" not in data
 
     def test_includes_regex_flag(self) -> None:
         behavior = BehaviorConfig(
