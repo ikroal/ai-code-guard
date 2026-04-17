@@ -32,6 +32,9 @@ ac-guard check --format json             # machine-readable output for CI
 ac-guard ruleset fetch <url>#v1.0        # fetch shared ruleset
 ```
 
+New here? Walk through the full flow in the
+[15-minute Getting Started guide](docs/getting-started.md).
+
 ## Supported Agents
 
 | Agent | Runtime Hook | Code Quality | Rule Document |
