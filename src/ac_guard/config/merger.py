@@ -15,8 +15,11 @@ from __future__ import annotations
 import copy
 import hashlib
 import warnings
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
+
+import yaml
 
 from ac_guard.config.exceptions import ConfigWarning
 from ac_guard.config.loader import (
@@ -51,7 +54,7 @@ _BUILTIN_DEFAULTS: RawConfig = {  # type: ignore[typeddict-unknown-key]
         "execute": {},
     },
     "code": {
-        "commit": {"format": True, "naming": True, "checks": {}},
+        "commit": {"format": True, "naming": False, "checks": {}},
         "push": {"lint": True, "checks": {}},
     },
     "output": {
@@ -72,6 +75,24 @@ _SYSTEM_PROTECTION_PATTERNS: list[str] = [
     "file:.pre-commit-config.yaml",
     "file:.git/hooks/**",
 ]
+
+_SYSTEM_EXECUTE_FORBIDDEN: list[str] = [
+    "shell:git commit --no-verify*",
+    "shell:git push --no-verify*",
+]
+
+_DEFAULT_LANGUAGES_YAML = Path(__file__).parent / "defaults" / "languages.yaml"
+
+
+@lru_cache(maxsize=1)
+def _load_default_language_tools() -> dict[str, dict[str, str]]:
+    """Read defaults/languages.yaml into a ``{lang: {format, lint}}`` map."""
+    data = yaml.safe_load(_DEFAULT_LANGUAGES_YAML.read_text()) or {}
+    return {
+        lang: {"format": entry.get("format", ""), "lint": entry.get("lint", "")}
+        for lang, entry in data.items()
+    }
+
 
 # ---------------------------------------------------------------------------
 # Low-level merge helpers (pure functions — never mutate inputs)
@@ -197,16 +218,52 @@ def _tag_rules(raw_config: dict[str, Any], source: str) -> None:
 
 
 def _inject_system_rules(merged: dict[str, Any]) -> None:
-    """Add system protection rules into ``write.require_approval``.
+    """Add non-removable system-protection rules to *merged*.
+
+    Injects two disjoint sets:
+
+    * ``write.require_approval`` — paths that guard the guardrails
+      themselves (``_SYSTEM_PROTECTION_PATTERNS``).
+    * ``execute.forbidden`` — commands that would bypass the guard
+      (``_SYSTEM_EXECUTE_FORBIDDEN``).
 
     Mutates *merged* in place.
     """
     behavior = merged.setdefault("behavior", {})
+
     write = behavior.setdefault("write", {})
     ra = write.setdefault("require_approval", [])
-
     for pattern in _SYSTEM_PROTECTION_PATTERNS:
         ra.append({"pattern": pattern, "_source": "system"})
+
+    execute = behavior.setdefault("execute", {})
+    forbidden = execute.setdefault("forbidden", [])
+    for pattern in _SYSTEM_EXECUTE_FORBIDDEN:
+        forbidden.append({"pattern": pattern, "_source": "system"})
+
+
+def _auto_populate_languages(merged: dict[str, Any]) -> None:
+    """Fill ``languages`` from ``project.language`` when user left it empty.
+
+    When a user writes ``project.language: python`` without an explicit
+    ``languages`` section, ``format`` / ``lint`` shortcuts would otherwise
+    have no tools to invoke. We look the language up in
+    ``defaults/languages.yaml`` and, if present, inject the built-in tool
+    mapping so the commit / push checks work out of the box.
+
+    Mutates *merged* in place.
+    """
+    existing = merged.get("languages")
+    if existing:
+        return
+    lang = (merged.get("project") or {}).get("language")
+    if not lang:
+        return
+    defaults = _load_default_language_tools()
+    tools = defaults.get(lang)
+    if tools is None:
+        return
+    merged["languages"] = {lang: {"tools": dict(tools)}}
 
 
 # ---------------------------------------------------------------------------
@@ -313,7 +370,7 @@ def _to_code(raw: dict[str, Any]) -> CodeConfig:
     push = raw.get("push", {})
     return CodeConfig(
         commit_format=commit.get("format", True),
-        commit_naming=commit.get("naming", True),
+        commit_naming=commit.get("naming", False),
         commit_checks={
             name: _to_check_item(item)
             for name, item in commit.get("checks", {}).items()
@@ -428,13 +485,16 @@ def resolve_config(
     _tag_rules(user_copy, "user")
     merged = _merge_raw_configs(merged, user_copy)
 
-    # 6. Inject system protection rules
+    # 6. Auto-populate languages from project.language + defaults when empty
+    _auto_populate_languages(merged)
+
+    # 7. Inject system protection rules
     _inject_system_rules(merged)
 
-    # 7. Process remove lists
+    # 8. Process remove lists
     _process_removes(merged.get("behavior", {}))
 
-    # 8. Convert to dataclasses
+    # 9. Convert to dataclasses
     default_project_name = resolved_path.parent.name
     return _to_resolved_config(
         merged,

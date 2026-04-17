@@ -41,6 +41,9 @@ def _get_env() -> Environment:
             autoescape=False,  # Markdown/shell scripts don't need HTML escaping
             trim_blocks=True,
             lstrip_blocks=True,
+            # Preserve the final newline so generated Python hooks pass
+            # ``black`` / ``ruff format`` out of the box.
+            keep_trailing_newline=True,
         )
     return _env
 

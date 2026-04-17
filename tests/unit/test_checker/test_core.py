@@ -180,3 +180,67 @@ class TestRunStage:
             report = run_stage("push", config, tmp_path, build_command="echo build")
         assert report.passed is True
         assert any(r.name == "build" for r in report.results)
+
+    def test_format_iterates_per_language(self, tmp_path: Path) -> None:
+        """commit_format=True emits one pre-commit call per configured language."""
+        config = CodeConfig(commit_format=True, commit_naming=False)
+        with patch("ac_guard.checker.core.run_precommit") as mock_run:
+            mock_run.return_value.passed = True
+            mock_run.return_value.name = "stub"
+            mock_run.return_value.duration_ms = 0
+            mock_run.return_value.skipped = False
+            mock_run.return_value.violations = []
+            mock_run.return_value.output = ""
+            run_stage(
+                "commit",
+                config,
+                tmp_path,
+                files=["a.py"],
+                languages=["python", "typescript"],
+            )
+        hook_ids = [call.args[0] for call in mock_run.call_args_list]
+        assert "format-python" in hook_ids
+        assert "format-typescript" in hook_ids
+
+    def test_lint_iterates_per_language(self, tmp_path: Path) -> None:
+        """push_lint=True emits one pre-commit call per configured language."""
+        config = CodeConfig(commit_format=False, commit_naming=False, push_lint=True)
+        with patch("ac_guard.checker.core.run_precommit") as mock_run:
+            mock_run.return_value.passed = True
+            mock_run.return_value.name = "stub"
+            mock_run.return_value.duration_ms = 0
+            mock_run.return_value.skipped = False
+            mock_run.return_value.violations = []
+            mock_run.return_value.output = ""
+            with patch(
+                "ac_guard.checker.core.get_changed_files", return_value=["a.py"]
+            ):
+                run_stage(
+                    "push",
+                    config,
+                    tmp_path,
+                    languages=["python", "typescript"],
+                )
+        hook_ids = [call.args[0] for call in mock_run.call_args_list]
+        assert "lint-python" in hook_ids
+        assert "lint-typescript" in hook_ids
+
+    def test_naming_returns_skipped_when_enabled(self, tmp_path: Path) -> None:
+        """commit_naming=True returns a skipped CheckResult (not a pre-commit call)."""
+        config = CodeConfig(commit_format=False, commit_naming=True)
+        with patch("ac_guard.checker.core.get_changed_files", return_value=["a.py"]):
+            report = run_stage("commit", config, tmp_path, languages=["python"])
+        naming_results = [r for r in report.results if r.name == "naming"]
+        assert len(naming_results) == 1
+        assert naming_results[0].skipped is True
+        assert "not yet implemented" in naming_results[0].output.lower()
+
+    def test_no_languages_skips_format_and_lint(self, tmp_path: Path) -> None:
+        """Empty languages list silently skips format/lint shortcuts."""
+        config = CodeConfig(commit_format=True, commit_naming=False, push_lint=True)
+        with (
+            patch("ac_guard.checker.core.run_precommit") as mock_run,
+            patch("ac_guard.checker.core.get_changed_files", return_value=["a.py"]),
+        ):
+            run_stage("push", config, tmp_path, languages=[])
+        mock_run.assert_not_called()

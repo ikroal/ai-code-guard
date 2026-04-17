@@ -54,11 +54,13 @@ Next steps:
 
 | 预设 | 提交检查 | 推送检查 | 行为规则 | Audit log |
 |---|---|---|---|---|
-| `minimal` | format | `pytest` | 仅内置 | 关 |
-| `standard` | format + naming | lint + `pytest --cov` | 仅内置 | 开 |
-| `strict` | format + naming | lint + 含阈值的 `pytest --cov` + `bandit` | 阻止 `.env*`、credentials | 开 + PR 评论 |
+| `minimal` | format | `pytest` | 仅系统规则 | 关 |
+| `standard` | format | lint + `pytest --cov` | 仅系统规则 | 开 |
+| `strict` | format | lint + 含阈值的 `pytest --cov` + `bandit` | 阻止 `.env*`、credentials | 开 + PR 评论 |
 
-本教程从 `minimal` 出发，逐步手动增补，方便你看清每一部分的作用。
+`naming` 约定检查是保留给后续版本的功能（跟踪见
+[issue #95](https://github.com/ikroal/ai-code-guard/issues/95)） — 本教程
+用 `minimal` 出发并加一个 custom check 演示扩展模式。
 
 ## 3. 理解 guard.yaml
 
@@ -98,30 +100,24 @@ output:
   内置快捷开关（`format`、`naming`、`lint`）**与** 自定义 `checks` 两种方式
 - **`output`**：结果去向（终端、audit 日志、PR 评论）
 - **`behavior`**（*可选，当前文件里还没有*）：运行时行为规则，由 Agent
-  的 hook 求值。即便你没写这个段落，ac-guard 也会注入 **4 条系统保护
-  规则**，避免 Agent 悄悄改掉自己的护栏（`guard.yaml` / `.ac-guard/**` /
-  `.pre-commit-config.yaml` / `.git/hooks/**`，均为 `require_approval`）。
-  这几条会出现在第 4 步生成的 `CLAUDE.md` 里
+  的 hook 求值。即便你没写这个段落，ac-guard 也会注入若干 **系统保护
+  规则**，避免 Agent 悄悄改掉自己的护栏或绕过门禁（4 条
+  `write.require_approval` 路径，外加 `git commit/push --no-verify` 纳入
+  `execute.forbidden`）。这些规则会出现在第 4 步生成的 `CLAUDE.md` 里。
 
-> **0.1.0 提示**：`format` / `naming` / `lint` 三个内置快捷开关当前依赖的
-> 语言特定钩子接线将在后续版本补齐。为了让你拿到开箱即用的体验，本教程
-> 关掉这三个快捷开关，显式定义一个 `ruff` check。你学到的"自定义
-> `checks`"模式才是长期稳定的用法。
-
-把 `code:` 一段替换为：
+在 `code.commit` 下加一个 `checks` 段，让教程同时演示"内置快捷开关"和
+"自定义 check"两种写法。加完以后 `code` 段长这样：
 
 ```yaml
 code:
   commit:
-    format: false
-    naming: false
+    format: true            # 预设默认：通过 pre-commit 跑 black
     checks:
       ruff:
         command: "ruff check src/"
         pass_filenames: false
         types: ["python"]
   push:
-    lint: false
     checks:
       test:
         command: pytest
@@ -205,10 +201,10 @@ ac-guard check
 ```
 Stage: commit — PASSED
 
+  [PASS] pre-commit:format-python (295ms)
   [PASS] ruff (37ms)
 
-1/1 checks passed, 0 failed
-Total time: 54ms
+2/2 checks passed, 0 failed
 ```
 
 故意造一个错误：新建 `src/bad.py`
@@ -229,8 +225,7 @@ Stage: commit — FAILED
 
   [FAIL] ruff (19ms)
 
-0/1 checks passed, 1 failed
-Total time: 58ms
+1/2 checks passed, 1 failed
 ```
 
 想看具体违规，用机器可读格式：
@@ -245,6 +240,11 @@ ac-guard check --format json
   "passed": false,
   "results": [
     {
+      "name": "pre-commit:format-python",
+      "passed": true,
+      "duration_ms": 295
+    },
+    {
       "name": "ruff",
       "passed": false,
       "duration_ms": 11,
@@ -256,11 +256,8 @@ ac-guard check --format json
 
 删掉 `src/bad.py` 再 check —— 又变绿了。你 `git commit` 时这套
 `ac-guard check` 会自动运行，因为生成的 `.git/hooks/pre-commit` 会调用
-它。
-
-想不让 Agent 用 `git commit --no-verify` 绕过门禁？按第 6 步的写法加一条
-execute 规则即可。注意：当前几个内置预设都**没有**自带这条，需要你显式
-开启。
+它。Agent 也没法用 `git commit --no-verify` 偷跑：ac-guard 默认把这条
+（以及 `git push` 版本）注入 `execute.forbidden`，拦截器 hook 会把它挡下。
 
 ## 6. 添加自定义行为规则
 
@@ -355,9 +352,8 @@ rulesets:
 **某次 check 显示 `pre-commit not installed`** —— 装一下 pre-commit
 （`pip install pre-commit`），或者像本教程这样用 custom `checks`。
 
-**check 里出现 `[FAIL] pre-commit:format`** —— 即第 3 步提到的 0.1.0 快捷
-开关限制。把 `format: false` / `naming: false` / `lint: false` 并改用显式
-`checks`。
+**第一次 install 后 check 看到 `[FAIL] pre-commit:format-<lang>`** ——
+pre-commit 把文件重新格式化了。`git add -A` 重新暂存再跑一次即可。
 
 **`ac-guard status` 报 drift** —— 你手工改了生成的文件。`ac-guard update`
 一键回到同步。

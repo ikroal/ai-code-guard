@@ -1,5 +1,5 @@
 # Strict preset - 企业安全/合规要求
-# 完整行为约束 + 全部检查 + 安全扫描 + PR报告
+# 完整行为约束 + 代码检查 + 安全扫描 + PR报告
 
 behavior:
   write:
@@ -12,7 +12,6 @@ behavior:
 code:
   commit:
     format: true
-    naming: true
   push:
     lint: true
     checks:

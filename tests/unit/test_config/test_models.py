@@ -166,7 +166,8 @@ class TestCodeConfig:
     def test_defaults_values(self):
         cfg = CodeConfig()
         assert cfg.commit_format is True
-        assert cfg.commit_naming is True
+        # naming defaults to False — shortcut unimplemented (issue #95)
+        assert cfg.commit_naming is False
         assert cfg.commit_checks == {}
         assert cfg.push_lint is True
         assert cfg.push_checks == {}

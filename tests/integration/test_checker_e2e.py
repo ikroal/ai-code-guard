@@ -297,6 +297,82 @@ class TestGateCommand:
 # ===========================================================================
 
 
+class TestMultiLanguageE2E:
+    """G: Multi-language projects dispatch format/lint per language."""
+
+    def test_format_and_lint_iterate_languages(self, tmp_path: Path) -> None:
+        """Explicit languages dict produces one hook invocation per language."""
+        config = tmp_path / "guard.yaml"
+        config.write_text(
+            yaml.dump(
+                {
+                    "version": 1,
+                    "project": {"name": "multi", "language": "python"},
+                    "languages": {
+                        "python": {"tools": {"format": "black", "lint": "ruff"}},
+                        "typescript": {
+                            "tools": {"format": "prettier", "lint": "eslint"}
+                        },
+                    },
+                    "code": {
+                        "commit": {"format": True, "naming": False},
+                        "push": {"lint": True},
+                    },
+                },
+                default_flow_style=False,
+            )
+        )
+        with patch("ac_guard.checker.core.run_precommit") as mock_run:
+            stub = CheckResult(name="stub", passed=True, duration_ms=0)
+            mock_run.return_value = stub
+            with patch(
+                "ac_guard.checker.core.get_changed_files", return_value=["a.py"]
+            ):
+                r = runner.invoke(app, ["verify", "-c", str(config)])
+        assert r.exit_code == 0
+        hook_ids = {call.args[0] for call in mock_run.call_args_list}
+        assert {
+            "format-python",
+            "format-typescript",
+            "lint-python",
+            "lint-typescript",
+        }.issubset(hook_ids)
+
+    def test_single_language_auto_populated(self, tmp_path: Path) -> None:
+        """Only project.language configured → auto-populate fills defaults."""
+        config = _write_config(tmp_path)  # project.language: python, no languages
+        with patch("ac_guard.checker.core.run_precommit") as mock_run:
+            mock_run.return_value = CheckResult(name="stub", passed=True, duration_ms=0)
+            with patch(
+                "ac_guard.checker.core.get_changed_files", return_value=["a.py"]
+            ):
+                r = runner.invoke(app, ["check", "-c", str(config)])
+        assert r.exit_code == 0
+        hook_ids = [call.args[0] for call in mock_run.call_args_list]
+        assert "format-python" in hook_ids
+
+
+class TestSystemExecuteRulesE2E:
+    """H: --no-verify family is auto-blocked in execute.forbidden."""
+
+    def test_install_populates_policy_with_no_verify_rules(
+        self, tmp_path: Path
+    ) -> None:
+        config = _write_config(tmp_path)
+        (tmp_path / ".git").mkdir()
+        r = runner.invoke(app, ["install", "-a", "claude-code", "-c", str(config)])
+        assert r.exit_code == 0
+
+        import json
+
+        policy = json.loads((tmp_path / ".ac-guard" / "policy.json").read_text())
+        patterns = {
+            rule["pattern"] for rule in policy["behavior"]["execute"]["forbidden"]
+        }
+        assert "shell:git commit --no-verify*" in patterns
+        assert "shell:git push --no-verify*" in patterns
+
+
 class TestReportFormats:
     """F1-F2: Report formatting integration."""
 

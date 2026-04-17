@@ -28,7 +28,8 @@ class TestLoadPreset:
         assert isinstance(config, dict)
         assert "code" in config
         assert config["code"]["commit"]["format"] is True
-        assert config["code"]["commit"]["naming"] is True
+        # naming shortcut is not shipped in presets (see issue #95)
+        assert "naming" not in config["code"]["commit"]
         assert config["code"]["push"]["lint"] is True
         assert config["output"]["audit"]["enabled"] is True
 
