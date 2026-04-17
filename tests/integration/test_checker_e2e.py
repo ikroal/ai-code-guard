@@ -411,6 +411,49 @@ class TestSystemExecuteRulesE2E:
         assert "shell:git push --no-verify*" in patterns
 
 
+class TestLocalePropagation:
+    """#76: output.locale reaches the terminal formatter."""
+
+    def test_zh_cn_locale_propagates_to_check_output(self, tmp_path: Path) -> None:
+        config = _write_config(
+            tmp_path,
+            {
+                "output": {"locale": "zh-CN"},
+                "languages": {
+                    "python": {"tools": {"format": "black", "lint": "ruff"}},
+                },
+                "code": {
+                    "commit": {
+                        "format": False,
+                        "naming": False,
+                        "checks": {
+                            "demo": {
+                                "command": "echo ok",
+                                "pass_filenames": False,
+                            }
+                        },
+                    },
+                    "push": {"lint": False},
+                },
+            },
+        )
+        with patch("ac_guard.checker.core.get_changed_files", return_value=[]):
+            r = runner.invoke(app, ["check", "-c", str(config)])
+        assert r.exit_code == 0
+        assert "阶段: commit — 通过" in r.output
+        assert "项检查通过" in r.output
+        assert "PASSED" not in r.output
+
+    def test_default_locale_keeps_english_output(self, tmp_path: Path) -> None:
+        config = _write_config(tmp_path)  # no locale → defaults to en
+        with patch("ac_guard.checker.core.get_changed_files", return_value=[]):
+            r = runner.invoke(app, ["check", "-c", str(config)])
+        assert r.exit_code == 0
+        assert "PASSED" in r.output
+        assert "checks passed" in r.output
+        assert "阶段" not in r.output
+
+
 class TestReportFormats:
     """F1-F2: Report formatting integration."""
 

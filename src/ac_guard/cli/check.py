@@ -61,7 +61,14 @@ def check_command(
         languages=list(resolved.languages),
     )
 
-    print(_format_report(report, output_format, resolved.output.verbosity))
+    print(
+        _format_report(
+            report,
+            output_format,
+            resolved.output.verbosity,
+            resolved.output.locale,
+        )
+    )
     raise SystemExit(0 if report.passed else 1)
 
 
@@ -90,7 +97,14 @@ def verify_command(
         languages=list(resolved.languages),
     )
 
-    print(_format_report(report, output_format, resolved.output.verbosity))
+    print(
+        _format_report(
+            report,
+            output_format,
+            resolved.output.verbosity,
+            resolved.output.locale,
+        )
+    )
     raise SystemExit(0 if report.passed else 1)
 
 
@@ -163,7 +177,11 @@ def run_command(
         duration_ms=duration,
     )
 
-    print(_format_report(report, "text", resolved.output.verbosity))
+    print(
+        _format_report(
+            report, "text", resolved.output.verbosity, resolved.output.locale
+        )
+    )
     raise SystemExit(0 if report.passed else 1)
 
 
@@ -194,20 +212,27 @@ def gate_run_command(
     raise SystemExit(exit_code)
 
 
-def _format_report(report: CheckReport, output_format: str, verbosity: str) -> str:
+def _format_report(
+    report: CheckReport,
+    output_format: str,
+    verbosity: str,
+    locale: str = "en",
+) -> str:
     """Format a CheckReport for output.
 
     Args:
         report: The check report to format.
         output_format: ``"text"`` or ``"json"``.
         verbosity: Verbosity level for text output.
+        locale: Label locale for terminal output (``"en"`` or
+            ``"zh-CN"``). Ignored for JSON.
 
     Returns:
         Formatted string.
     """
     if output_format == "json":
         return format_json(report)
-    return format_terminal(report, verbosity=verbosity)
+    return format_terminal(report, verbosity=verbosity, locale=locale)
 
 
 def _load_config(config_path: Path):
