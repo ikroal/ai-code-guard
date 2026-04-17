@@ -26,6 +26,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `ac-guard update`. Adapters now return raw Markdown and the writer
   layer owns wrapping. `.mdc` files are wrapped alongside `.md`.
   ([#94](https://github.com/ikroal/ai-code-guard/issues/94))
+- Push-stage build is now a precondition: when `build` fails, `lint`
+  and `push.checks` are no longer executed — they are reported as
+  `skipped` with `Skipped: build failed`. Prevents wasted CI time and
+  matches the design doc §6.5.3 intent.
+  ([#77](https://github.com/ikroal/ai-code-guard/issues/77))
 
 ### Changed
 
@@ -100,7 +105,6 @@ and **code-quality gates** (`pre-commit` / `pre-push` Checker).
 
 - Audit logging is not yet wired into every Enforcer call path. ([#75](https://github.com/ikroal/ai-code-guard/issues/75))
 - `output.locale` is not propagated to every formatter. ([#76](https://github.com/ikroal/ai-code-guard/issues/76))
-- Push-stage build failure does not fail-fast as aggressively as commit-stage. ([#77](https://github.com/ikroal/ai-code-guard/issues/77))
 - `post_pr_comment` is not yet invoked automatically by the CLI; call it manually from CI for now. ([#66](https://github.com/ikroal/ai-code-guard/issues/66))
 - HTTP requests have no retry/backoff; transient network failures surface directly. ([#67](https://github.com/ikroal/ai-code-guard/issues/67))
 - `code.commit.naming: true` is accepted but produces a `[SKIP]` result — a concrete naming check implementation is planned in a follow-up. ([#95](https://github.com/ikroal/ai-code-guard/issues/95))

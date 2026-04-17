@@ -244,3 +244,79 @@ class TestRunStage:
         ):
             run_stage("push", config, tmp_path, languages=[])
         mock_run.assert_not_called()
+
+    def test_push_build_failure_skips_lint_and_checks(self, tmp_path: Path) -> None:
+        """#77: a failing build must mark lint + push.checks as skipped."""
+        from ac_guard.checker.models import CheckResult
+
+        config = CodeConfig(
+            commit_format=False,
+            commit_naming=False,
+            push_lint=True,
+            push_checks={"custom": CheckItem(command="echo should-not-run")},
+        )
+        failing_build = CheckResult(
+            name="build", passed=False, duration_ms=10, output="build broke"
+        )
+        with (
+            patch(
+                "ac_guard.checker.core.run_build", return_value=failing_build
+            ) as build_mock,
+            patch("ac_guard.checker.core.run_precommit") as precommit_mock,
+            patch("ac_guard.checker.core.run_check") as check_mock,
+            patch("ac_guard.checker.core.get_changed_files", return_value=["a.py"]),
+        ):
+            report = run_stage(
+                "push",
+                config,
+                tmp_path,
+                build_command="make build",
+                languages=["python"],
+            )
+
+        # Build ran once, downstream checkers never invoked
+        assert build_mock.call_count == 1
+        precommit_mock.assert_not_called()
+        check_mock.assert_not_called()
+
+        # Report is failed because build failed
+        assert report.passed is False
+        names = {r.name: r for r in report.results}
+        assert names["build"].passed is False
+        assert names["pre-commit:lint-python"].skipped is True
+        assert "build failed" in names["pre-commit:lint-python"].output.lower()
+        assert names["custom"].skipped is True
+        assert "build failed" in names["custom"].output.lower()
+
+    def test_push_build_success_runs_downstream(self, tmp_path: Path) -> None:
+        """Build success preserves the existing downstream execution path."""
+        from ac_guard.checker.models import CheckResult
+
+        config = CodeConfig(
+            commit_format=False,
+            commit_naming=False,
+            push_lint=True,
+            push_checks={"custom": CheckItem(command="echo ok")},
+        )
+        passing_build = CheckResult(name="build", passed=True, duration_ms=10)
+        with (
+            patch("ac_guard.checker.core.run_build", return_value=passing_build),
+            patch("ac_guard.checker.core.run_precommit") as precommit_mock,
+            patch("ac_guard.checker.core.run_check") as check_mock,
+            patch("ac_guard.checker.core.get_changed_files", return_value=["a.py"]),
+        ):
+            precommit_mock.return_value = CheckResult(
+                name="pre-commit:lint-python", passed=True, duration_ms=1
+            )
+            check_mock.return_value = CheckResult(
+                name="custom", passed=True, duration_ms=1
+            )
+            run_stage(
+                "push",
+                config,
+                tmp_path,
+                build_command="make build",
+                languages=["python"],
+            )
+        precommit_mock.assert_called()
+        check_mock.assert_called()
