@@ -76,9 +76,47 @@ _SYSTEM_PROTECTION_PATTERNS: list[str] = [
     "file:.git/hooks/**",
 ]
 
-_SYSTEM_EXECUTE_FORBIDDEN: list[str] = [
-    "shell:git commit --no-verify*",
-    "shell:git push --no-verify*",
+_SYSTEM_EXECUTE_FORBIDDEN: list[dict[str, Any]] = [
+    {
+        "pattern": "shell:git commit --no-verify*",
+        "reason": "--no-verify skips pre-commit checks / --no-verify 跳过 pre-commit 检查",
+    },
+    {
+        "pattern": "shell:git push --no-verify*",
+        "reason": "--no-verify skips pre-push checks / --no-verify 跳过 pre-push 检查",
+    },
+    {
+        "pattern": r"shell:SKIP=\S+\s+git\s+(?:commit|push)\b.*",
+        "regex": True,
+        "reason": (
+            "SKIP= env-var bypasses pre-commit hooks / "
+            "SKIP= 环境变量前缀绕过 pre-commit hooks"
+        ),
+    },
+    {
+        "pattern": r"shell:git\s+.*-c\s+core\.hooks[Pp]ath=\S+.*",
+        "regex": True,
+        "reason": (
+            "git -c core.hooksPath overrides the hook path / "
+            "git -c core.hooksPath 一次性覆盖 hook 路径绕过门禁"
+        ),
+    },
+    {
+        "pattern": r"shell:(?i)git\s+config\s.*core\.hookspath\s+\S+.*",
+        "regex": True,
+        "reason": (
+            "git config core.hooksPath permanently overrides the hook path / "
+            "git config core.hooksPath 永久覆盖 hook 路径"
+        ),
+    },
+    {
+        "pattern": r"shell:git\s+rebase\s+.*(?:--exec|-x\s+).*",
+        "regex": True,
+        "reason": (
+            "git rebase --exec can run arbitrary commands bypassing per-commit "
+            "hooks / git rebase --exec 可在 rebase 过程执行任意命令绕过 hook"
+        ),
+    },
 ]
 
 _DEFAULT_LANGUAGES_YAML = Path(__file__).parent / "defaults" / "languages.yaml"
@@ -238,8 +276,8 @@ def _inject_system_rules(merged: dict[str, Any]) -> None:
 
     execute = behavior.setdefault("execute", {})
     forbidden = execute.setdefault("forbidden", [])
-    for pattern in _SYSTEM_EXECUTE_FORBIDDEN:
-        forbidden.append({"pattern": pattern, "_source": "system"})
+    for entry in _SYSTEM_EXECUTE_FORBIDDEN:
+        forbidden.append({**entry, "_source": "system"})
 
 
 def _auto_populate_languages(merged: dict[str, Any]) -> None:

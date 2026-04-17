@@ -391,11 +391,9 @@ class TestMultiLanguageE2E:
 
 
 class TestSystemExecuteRulesE2E:
-    """H: --no-verify family is auto-blocked in execute.forbidden."""
+    """H: hook-bypass family is auto-blocked in execute.forbidden."""
 
-    def test_install_populates_policy_with_no_verify_rules(
-        self, tmp_path: Path
-    ) -> None:
+    def test_install_populates_policy_with_bypass_rules(self, tmp_path: Path) -> None:
         config = _write_config(tmp_path)
         (tmp_path / ".git").mkdir()
         r = runner.invoke(app, ["install", "-a", "claude-code", "-c", str(config)])
@@ -404,11 +402,18 @@ class TestSystemExecuteRulesE2E:
         import json
 
         policy = json.loads((tmp_path / ".ac-guard" / "runtime.json").read_text())
-        patterns = {
-            rule["pattern"] for rule in policy["behavior"]["execute"]["forbidden"]
-        }
+        rules = policy["behavior"]["execute"]["forbidden"]
+        patterns = {rule["pattern"] for rule in rules}
         assert "shell:git commit --no-verify*" in patterns
         assert "shell:git push --no-verify*" in patterns
+        # #104: 4 hook-bypass patterns (regex)
+        assert any("SKIP=" in p for p in patterns)
+        assert any("-c" in p and "hooks" in p for p in patterns)
+        assert any("config" in p and "hookspath" in p.lower() for p in patterns)
+        assert any("rebase" in p and "exec" in p for p in patterns)
+        # Regex flag persists to runtime cache
+        regex_rules = [r for r in rules if r.get("regex")]
+        assert len(regex_rules) == 4
 
 
 class TestLocalePropagation:
