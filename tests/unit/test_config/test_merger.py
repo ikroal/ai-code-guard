@@ -7,12 +7,12 @@ from pathlib import Path
 import pytest
 import yaml
 
-from ai_guard.config.exceptions import (
+from ac_guard.config.exceptions import (
     ConfigFileNotFoundError,
     ConfigSyntaxError,
     ConfigWarning,
 )
-from ai_guard.config.merger import (
+from ac_guard.config.merger import (
     _SYSTEM_PROTECTION_PATTERNS,
     resolve_config,
 )
@@ -160,7 +160,7 @@ class TestScalarOverride:
         assert result.output.audit.retention == 90
         # Other audit fields should keep defaults
         assert result.output.audit.enabled is True
-        assert result.output.audit.path == ".ai-guard/audit.jsonl"
+        assert result.output.audit.path == ".ac-guard/audit.jsonl"
 
 
 # ---------------------------------------------------------------------------

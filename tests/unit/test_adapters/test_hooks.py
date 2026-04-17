@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from ai_guard.adapters._render import render_hook
-from ai_guard.config.models import BehaviorConfig
+from ac_guard.adapters._render import render_hook
+from ac_guard.config.models import BehaviorConfig
 
 
 class TestClaudeCodeHook:
@@ -12,7 +12,7 @@ class TestClaudeCodeHook:
     def test_renders_python_script(self) -> None:
         """Claude Code hook renders a Python script."""
         content = render_hook("claude_code", BehaviorConfig.empty())
-        assert "from ai_guard.enforcer.engine import evaluate" in content
+        assert "from ac_guard.enforcer.engine import evaluate" in content
 
     def test_contains_main_entry(self) -> None:
         """Claude Code hook has main() entry point."""
@@ -42,7 +42,7 @@ class TestCursorHook:
     def test_calls_enforcer_subprocess(self) -> None:
         """Cursor hook calls Python enforcer via subprocess."""
         content = render_hook("cursor", BehaviorConfig.empty())
-        assert "python3 -m ai_guard.enforcer" in content
+        assert "python3 -m ac_guard.enforcer" in content
 
     def test_outputs_permission_format(self) -> None:
         """Cursor hook outputs permission JSON."""
@@ -66,7 +66,7 @@ class TestOpenCodeHook:
     def test_calls_enforcer_subprocess(self) -> None:
         """OpenCode hook calls Python enforcer via subprocess."""
         content = render_hook("opencode", BehaviorConfig.empty())
-        assert "python3 -m ai_guard.enforcer" in content
+        assert "python3 -m ac_guard.enforcer" in content
 
     def test_throws_on_deny(self) -> None:
         """OpenCode hook throws Error on deny."""

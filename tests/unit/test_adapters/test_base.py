@@ -1,12 +1,12 @@
-"""Tests for ai_guard.adapters.base — AgentAdapter ABC and AgentCapabilities."""
+"""Tests for ac_guard.adapters.base — AgentAdapter ABC and AgentCapabilities."""
 
 from __future__ import annotations
 
 import pytest
 
-from ai_guard.adapters.base import AgentAdapter, AgentCapabilities
-from ai_guard.config.models import BehaviorConfig
-from ai_guard.shared.types import FileSpec
+from ac_guard.adapters.base import AgentAdapter, AgentCapabilities
+from ac_guard.config.models import BehaviorConfig
+from ac_guard.shared.types import FileSpec
 
 # ---------------------------------------------------------------------------
 # A. AgentCapabilities
@@ -144,13 +144,13 @@ class TestAgentAdapterABC:
 
 class TestModuleExports:
     def test_base_exports(self) -> None:
-        from ai_guard.adapters.base import (  # noqa: F401
+        from ac_guard.adapters.base import (  # noqa: F401
             AgentAdapter,
             AgentCapabilities,
         )
 
     def test_all_list(self) -> None:
-        import ai_guard.adapters.base as base
+        import ac_guard.adapters.base as base
 
         assert set(base.__all__) == {
             "AgentAdapter",

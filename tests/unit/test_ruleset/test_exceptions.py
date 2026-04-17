@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ai_guard.ruleset.exceptions import (
+from ac_guard.ruleset.exceptions import (
     RulesetError,
     RulesetFetchError,
     RulesetURLError,

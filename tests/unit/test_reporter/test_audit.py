@@ -6,9 +6,9 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-from ai_guard.config.models import Rule
-from ai_guard.enforcer.matcher import Decision, PolicyDecision
-from ai_guard.reporter.audit import append_audit_log, apply_retention
+from ac_guard.config.models import Rule
+from ac_guard.enforcer.matcher import Decision, PolicyDecision
+from ac_guard.reporter.audit import append_audit_log, apply_retention
 
 
 def _make_record(
@@ -38,12 +38,12 @@ class TestAppendAuditLog:
     def test_creates_file(self, tmp_path: Path) -> None:
         """Creates audit log file if it doesn't exist."""
         append_audit_log(_make_record(), tmp_path)
-        assert (tmp_path / ".ai-guard" / "audit.jsonl").is_file()
+        assert (tmp_path / ".ac-guard" / "audit.jsonl").is_file()
 
     def test_appends_record(self, tmp_path: Path) -> None:
         """Appends a JSON record to audit log."""
         append_audit_log(_make_record(), tmp_path)
-        content = (tmp_path / ".ai-guard" / "audit.jsonl").read_text()
+        content = (tmp_path / ".ac-guard" / "audit.jsonl").read_text()
         records = [json.loads(line) for line in content.strip().split("\n")]
         assert len(records) == 1
 
@@ -51,14 +51,14 @@ class TestAppendAuditLog:
         """Multiple calls append multiple records."""
         for _ in range(3):
             append_audit_log(_make_record(), tmp_path)
-        content = (tmp_path / ".ai-guard" / "audit.jsonl").read_text()
+        content = (tmp_path / ".ac-guard" / "audit.jsonl").read_text()
         records = [json.loads(line) for line in content.strip().split("\n")]
         assert len(records) == 3
 
     def test_record_fields(self, tmp_path: Path) -> None:
         """Audit record contains all expected fields."""
         append_audit_log(_make_record(), tmp_path)
-        content = (tmp_path / ".ai-guard" / "audit.jsonl").read_text()
+        content = (tmp_path / ".ac-guard" / "audit.jsonl").read_text()
         record = json.loads(content.strip())
         assert record["agent"] == "claude-code"
         assert record["tool"] == "Write"
@@ -75,7 +75,7 @@ class TestAppendAuditLog:
         """Allow decision with no matched rule has null reason."""
         record = _make_record(decision="allow", reason=None)
         append_audit_log(record, tmp_path)
-        content = (tmp_path / ".ai-guard" / "audit.jsonl").read_text()
+        content = (tmp_path / ".ac-guard" / "audit.jsonl").read_text()
         parsed = json.loads(content.strip())
         assert parsed["decision"] == "allow"
         assert parsed["reason"] is None
@@ -138,7 +138,7 @@ class TestApplyRetention:
 
     def test_removes_old_records(self, tmp_path: Path) -> None:
         """Records older than retention period are removed."""
-        audit_path = tmp_path / ".ai-guard" / "audit.jsonl"
+        audit_path = tmp_path / ".ac-guard" / "audit.jsonl"
         audit_path.parent.mkdir(parents=True)
 
         old_ts = "2020-01-01T00:00:00+00:00"
@@ -160,7 +160,7 @@ class TestApplyRetention:
 
     def test_retention_zero_keeps_all(self, tmp_path: Path) -> None:
         """retention_days=0 means keep forever."""
-        audit_path = tmp_path / ".ai-guard" / "audit.jsonl"
+        audit_path = tmp_path / ".ac-guard" / "audit.jsonl"
         audit_path.parent.mkdir(parents=True)
 
         old_ts = "2020-01-01T00:00:00+00:00"

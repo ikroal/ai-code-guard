@@ -1,1 +1,1 @@
-"""Tests for ai_guard.shared module."""
+"""Tests for ac_guard.shared module."""

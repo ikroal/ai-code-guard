@@ -12,10 +12,10 @@ from pathlib import Path
 import yaml
 from typer.testing import CliRunner
 
-from ai_guard.cli.main import app
-from ai_guard.enforcer.engine import evaluate
-from ai_guard.enforcer.matcher import Decision
-from ai_guard.reporter.audit import append_audit_log, apply_retention
+from ac_guard.cli.main import app
+from ac_guard.enforcer.engine import evaluate
+from ac_guard.enforcer.matcher import Decision
+from ac_guard.reporter.audit import append_audit_log, apply_retention
 
 runner = CliRunner()
 
@@ -35,7 +35,7 @@ class TestEnforcerPipeline:
         """install generates policy.json that evaluate() can use."""
         _init_and_install(tmp_path)
         # policy.json should exist
-        assert (tmp_path / ".ai-guard" / "policy.json").is_file()
+        assert (tmp_path / ".ac-guard" / "policy.json").is_file()
         # Evaluate should work (system protection rules present)
         result = evaluate("Write", {"file_path": "src/main.py"}, tmp_path)
         assert result.decision in (Decision.ALLOW, Decision.ASK, Decision.DENY)
@@ -95,15 +95,15 @@ class TestHookEnforcerIntegration:
         hook_path = tmp_path / ".claude" / "hooks" / "interceptor.py"
         assert hook_path.is_file()
         content = hook_path.read_text()
-        assert "from ai_guard.enforcer.engine import evaluate" in content
+        assert "from ac_guard.enforcer.engine import evaluate" in content
 
     def test_cursor_hook_calls_enforcer(self, tmp_path: Path) -> None:
-        """Cursor hook script calls python3 -m ai_guard.enforcer."""
+        """Cursor hook script calls python3 -m ac_guard.enforcer."""
         _init_and_install(tmp_path, agents="cursor")
         hook_path = tmp_path / ".cursor" / "hooks" / "check.sh"
         assert hook_path.is_file()
         content = hook_path.read_text()
-        assert "python3 -m ai_guard.enforcer" in content
+        assert "python3 -m ac_guard.enforcer" in content
 
     def test_multi_agent_hooks(self, tmp_path: Path) -> None:
         """Multi-agent install generates hooks for each agent."""
@@ -123,7 +123,7 @@ class TestAuditLoggingE2E:
         record = result.to_audit_record("Write", "claude-code")
         append_audit_log(record, tmp_path)
 
-        audit_path = tmp_path / ".ai-guard" / "audit.jsonl"
+        audit_path = tmp_path / ".ac-guard" / "audit.jsonl"
         assert audit_path.is_file()
         content = audit_path.read_text()
         parsed = json.loads(content.strip())
@@ -146,7 +146,7 @@ class TestAuditLoggingE2E:
             record = result.to_audit_record(tool_name, "claude-code")
             append_audit_log(record, tmp_path)
 
-        audit_path = tmp_path / ".ai-guard" / "audit.jsonl"
+        audit_path = tmp_path / ".ac-guard" / "audit.jsonl"
         lines = audit_path.read_text().strip().split("\n")
         assert len(lines) == 3
 
@@ -155,7 +155,7 @@ class TestAuditLoggingE2E:
         _init_and_install(tmp_path)
 
         # Write an old record manually
-        audit_path = tmp_path / ".ai-guard" / "audit.jsonl"
+        audit_path = tmp_path / ".ac-guard" / "audit.jsonl"
         old_record = json.dumps(
             {
                 "timestamp": "2020-01-01T00:00:00+00:00",
@@ -188,7 +188,7 @@ class TestErrorRecovery:
 
     def test_corrupt_policy_denies(self, tmp_path: Path) -> None:
         """Corrupt policy.json results in deny (fail-closed)."""
-        policy_dir = tmp_path / ".ai-guard"
+        policy_dir = tmp_path / ".ac-guard"
         policy_dir.mkdir(parents=True)
         (policy_dir / "policy.json").write_text("{{{bad json")
         result = evaluate("Write", {"file_path": "test.py"}, tmp_path)
@@ -202,7 +202,7 @@ class TestErrorRecovery:
         result = evaluate("Write", {"file_path": "src/main.py"}, tmp_path)
         original_decision = result.decision
 
-        # Write audit to a read-only subdirectory (not .ai-guard itself)
+        # Write audit to a read-only subdirectory (not .ac-guard itself)
         readonly_dir = tmp_path / "readonly"
         readonly_dir.mkdir()
         readonly_dir.chmod(0o444)

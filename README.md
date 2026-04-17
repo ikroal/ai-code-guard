@@ -3,7 +3,7 @@
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Status](https://img.shields.io/badge/status-beta-brightgreen)
 
-# AI Guard
+# AI Code Guard
 
 Guardrails for AI coding agents. One `guard.yaml` constrains behavior and enforces code quality across Claude Code, Cursor, OpenCode, Copilot, and KiloCode.
 
@@ -17,17 +17,17 @@ A single config file replaces per-agent rule documents, scattered hook scripts, 
 ## Installation
 
 ```bash
-pip install ai-guard
+pip install ac-guard
 ```
 
 ## Quick Start
 
 ```bash
-ai-guard init --language python          # create guard.yaml
-ai-guard install --agent claude-code     # generate rules + hooks
-ai-guard check                           # run quality checks
-ai-guard check --format json             # machine-readable output for CI
-ai-guard ruleset fetch <url>#v1.0        # fetch shared ruleset
+ac-guard init --language python          # create guard.yaml
+ac-guard install --agent claude-code     # generate rules + hooks
+ac-guard check                           # run quality checks
+ac-guard check --format json             # machine-readable output for CI
+ac-guard ruleset fetch <url>#v1.0        # fetch shared ruleset
 ```
 
 ## Supported Agents
@@ -75,31 +75,31 @@ See [guard.yaml reference](design/AI_GUARD_SYSTEM_DESIGN.md) for full schema.
 
 | Command | Description |
 |---------|-------------|
-| `ai-guard init` | Generate `guard.yaml` from presets |
-| `ai-guard install --agent <name>` | Generate rules, hooks, and configs |
-| `ai-guard update` | Regenerate after config changes |
-| `ai-guard uninstall` | Remove generated artifacts |
-| `ai-guard check` | Run commit-stage checks |
-| `ai-guard verify` | Run push-stage validation |
-| `ai-guard run <name>` | Run a single check |
-| `ai-guard gate run --stage <s>` | Git hook entry point |
-| `ai-guard status` | Installation state and drift detection |
-| `ai-guard doctor` | Environment diagnostics |
-| `ai-guard agents` | Agent capability matrix |
-| `ai-guard ruleset fetch` | Fetch a ruleset from a git repository |
-| `ai-guard ruleset list` | List cached rulesets |
-| `ai-guard ruleset show <name>` | Show ruleset details and rules |
-| `ai-guard ruleset cache clear` | Clear the ruleset cache |
-| `ai-guard validation list` | List configured checks by stage |
-| `ai-guard validation report` | Check configuration report table |
+| `ac-guard init` | Generate `guard.yaml` from presets |
+| `ac-guard install --agent <name>` | Generate rules, hooks, and configs |
+| `ac-guard update` | Regenerate after config changes |
+| `ac-guard uninstall` | Remove generated artifacts |
+| `ac-guard check` | Run commit-stage checks |
+| `ac-guard verify` | Run push-stage validation |
+| `ac-guard run <name>` | Run a single check |
+| `ac-guard gate run --stage <s>` | Git hook entry point |
+| `ac-guard status` | Installation state and drift detection |
+| `ac-guard doctor` | Environment diagnostics |
+| `ac-guard agents` | Agent capability matrix |
+| `ac-guard ruleset fetch` | Fetch a ruleset from a git repository |
+| `ac-guard ruleset list` | List cached rulesets |
+| `ac-guard ruleset show <name>` | Show ruleset details and rules |
+| `ac-guard ruleset cache clear` | Clear the ruleset cache |
+| `ac-guard validation list` | List configured checks by stage |
+| `ac-guard validation report` | Check configuration report table |
 
 All check commands (`check`, `verify`, `status`) support `--format json` for machine-readable output in CI/CD pipelines.
 
 ## How It Works
 
-`ai-guard install` reads `guard.yaml` and generates all artifacts at once — rule documents, hook scripts, `.pre-commit-config.yaml`, and `.ai-guard/policy.json`. No config parsing happens at runtime.
+`ac-guard install` reads `guard.yaml` and generates all artifacts at once — rule documents, hook scripts, `.pre-commit-config.yaml`, and `.ac-guard/policy.json`. No config parsing happens at runtime.
 
-When the agent runs, its hook script loads the pre-built policy and matches each operation against the rules. Forbidden operations are blocked. Operations requiring approval prompt the user. Everything else is allowed. Every decision is logged to `.ai-guard/audit.jsonl`.
+When the agent runs, its hook script loads the pre-built policy and matches each operation against the rules. Forbidden operations are blocked. Operations requiring approval prompt the user. Everything else is allowed. Every decision is logged to `.ac-guard/audit.jsonl`.
 
 At commit and push time, pre-commit hooks run format, lint, naming, and custom checks. The agent cannot skip these because `git commit --no-verify` is itself a forbidden pattern.
 

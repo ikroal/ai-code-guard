@@ -8,7 +8,7 @@ from unittest.mock import patch
 import yaml
 from typer.testing import CliRunner
 
-from ai_guard.cli.main import app
+from ac_guard.cli.main import app
 
 runner = CliRunner()
 
@@ -66,7 +66,7 @@ class TestCheckCommand:
     def test_check_passed(self, tmp_path: Path) -> None:
         """Passing checks return exit 0 and PASSED."""
         config = _write_config(tmp_path)
-        with patch("ai_guard.checker.core.get_changed_files", return_value=[]):
+        with patch("ac_guard.checker.core.get_changed_files", return_value=[]):
             result = runner.invoke(app, ["check", "--config", str(config)])
         assert result.exit_code == 0
         assert "PASSED" in result.output
@@ -91,7 +91,7 @@ class TestCheckCommand:
                 default_flow_style=False,
             ),
         )
-        with patch("ai_guard.checker.core.get_changed_files", return_value=[]):
+        with patch("ac_guard.checker.core.get_changed_files", return_value=[]):
             result = runner.invoke(app, ["check", "--config", str(config)])
         assert result.exit_code == 1
         assert "FAILED" in result.output
@@ -107,7 +107,7 @@ class TestCheckCommand:
         config = _write_config(tmp_path)
         # With format/naming enabled and explicit files, pre-commit will
         # be called but skip (no pre-commit config in tmp_path)
-        with patch("ai_guard.checker.core.shutil.which", return_value=None):
+        with patch("ac_guard.checker.core.shutil.which", return_value=None):
             result = runner.invoke(
                 app,
                 [
@@ -134,7 +134,7 @@ class TestVerifyCommand:
     def test_verify_passed(self, tmp_path: Path) -> None:
         """Passing verify returns exit 0."""
         config = _write_config(tmp_path)
-        with patch("ai_guard.checker.core.get_changed_files", return_value=[]):
+        with patch("ac_guard.checker.core.get_changed_files", return_value=[]):
             result = runner.invoke(app, ["verify", "--config", str(config)])
         assert result.exit_code == 0
         assert "PASSED" in result.output
@@ -142,7 +142,7 @@ class TestVerifyCommand:
     def test_verify_skip_build(self, tmp_path: Path) -> None:
         """--skip-build skips build step."""
         config = _write_config(tmp_path)
-        with patch("ai_guard.checker.core.get_changed_files", return_value=[]):
+        with patch("ac_guard.checker.core.get_changed_files", return_value=[]):
             result = runner.invoke(
                 app, ["verify", "--skip-build", "--config", str(config)]
             )
@@ -160,7 +160,7 @@ class TestRunCommand:
     def test_run_builtin_format(self, tmp_path: Path) -> None:
         """Running built-in format check."""
         config = _write_config(tmp_path)
-        with patch("ai_guard.checker.core.get_changed_files", return_value=[]):
+        with patch("ac_guard.checker.core.get_changed_files", return_value=[]):
             result = runner.invoke(app, ["run", "format", "--config", str(config)])
         # pre-commit skipped (no files) → passed
         assert result.exit_code == 0
@@ -168,7 +168,7 @@ class TestRunCommand:
     def test_run_custom_check(self, tmp_path: Path) -> None:
         """Running a custom check by name."""
         config = _write_config_with_checks(tmp_path)
-        with patch("ai_guard.checker.core.get_changed_files", return_value=[]):
+        with patch("ac_guard.checker.core.get_changed_files", return_value=[]):
             result = runner.invoke(app, ["run", "echo-test", "--config", str(config)])
         assert result.exit_code == 0
 
@@ -191,7 +191,7 @@ class TestGateRunCommand:
     def test_gate_commit_passed(self, tmp_path: Path) -> None:
         """Gate run with passing checks outputs minimal text."""
         config = _write_config(tmp_path)
-        with patch("ai_guard.checker.core.get_changed_files", return_value=[]):
+        with patch("ac_guard.checker.core.get_changed_files", return_value=[]):
             result = runner.invoke(
                 app, ["gate", "run", "--stage", "commit", "--config", str(config)]
             )
@@ -217,7 +217,7 @@ class TestGateRunCommand:
                 default_flow_style=False,
             ),
         )
-        with patch("ai_guard.checker.core.get_changed_files", return_value=[]):
+        with patch("ac_guard.checker.core.get_changed_files", return_value=[]):
             result = runner.invoke(
                 app, ["gate", "run", "--stage", "commit", "--config", str(config)]
             )
@@ -227,7 +227,7 @@ class TestGateRunCommand:
     def test_gate_push(self, tmp_path: Path) -> None:
         """Gate run push stage works."""
         config = _write_config(tmp_path)
-        with patch("ai_guard.checker.core.get_changed_files", return_value=[]):
+        with patch("ac_guard.checker.core.get_changed_files", return_value=[]):
             result = runner.invoke(
                 app, ["gate", "run", "--stage", "push", "--config", str(config)]
             )
@@ -243,7 +243,7 @@ class TestJsonOutput:
         import json
 
         config = _write_config(tmp_path)
-        with patch("ai_guard.checker.core.get_changed_files", return_value=[]):
+        with patch("ac_guard.checker.core.get_changed_files", return_value=[]):
             result = runner.invoke(
                 app, ["check", "--config", str(config), "--format", "json"]
             )
@@ -258,7 +258,7 @@ class TestJsonOutput:
         import json
 
         config = _write_config(tmp_path)
-        with patch("ai_guard.checker.core.get_changed_files", return_value=[]):
+        with patch("ac_guard.checker.core.get_changed_files", return_value=[]):
             result = runner.invoke(
                 app,
                 [

@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from ai_guard.cli.ruleset import (
+from ac_guard.cli.ruleset import (
     ruleset_cache_clear_command,
     ruleset_list_command,
     ruleset_show_command,
@@ -26,7 +26,7 @@ def _create_cached_ruleset(
     checks: list[str] | None = None,
 ) -> Path:
     """Create a mock cached ruleset directory."""
-    cache = tmp_path / ".ai-guard" / "cache" / name
+    cache = tmp_path / ".ac-guard" / "cache" / name
     cache.mkdir(parents=True, exist_ok=True)
 
     # Write meta
@@ -175,7 +175,7 @@ class TestRulesetCacheClearCommand:
     def test_clears_cache(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        cache = tmp_path / ".ai-guard" / "cache"
+        cache = tmp_path / ".ac-guard" / "cache"
         cache.mkdir(parents=True)
         (cache / "rules-a").mkdir()
         (cache / "rules-b").mkdir()

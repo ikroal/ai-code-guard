@@ -7,9 +7,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from ai_guard.config.models import PrReportConfig
-from ai_guard.reporter.channel_base import ChannelError
-from ai_guard.reporter.channel_bitbucket import BitbucketChannel
+from ac_guard.config.models import PrReportConfig
+from ac_guard.reporter.channel_base import ChannelError
+from ac_guard.reporter.channel_bitbucket import BitbucketChannel
 
 
 class TestBitbucketChannel:
@@ -98,7 +98,7 @@ class TestBitbucketChannel:
 
         with (
             patch(
-                "ai_guard.reporter.channel_bitbucket.get_remote_repo",
+                "ac_guard.reporter.channel_bitbucket.get_remote_repo",
                 return_value="org/my-repo",
             ),
             patch("urllib.request.urlopen", return_value=self._mock_urlopen()) as m,
@@ -137,7 +137,7 @@ class TestBitbucketChannel:
 
         with (
             patch(
-                "ai_guard.reporter.channel_bitbucket.get_current_branch",
+                "ac_guard.reporter.channel_bitbucket.get_current_branch",
                 return_value="feat/test",
             ),
             patch("urllib.request.urlopen", side_effect=urlopen_side_effect) as m,
@@ -156,7 +156,7 @@ class TestBitbucketChannel:
 
         with (
             patch(
-                "ai_guard.reporter.channel_bitbucket.get_current_branch",
+                "ac_guard.reporter.channel_bitbucket.get_current_branch",
                 return_value=None,
             ),
             pytest.raises(ChannelError, match="PR ID"),

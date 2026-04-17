@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ai_guard.ruleset.models import CACHE_DIR, RulesetRef
+from ac_guard.ruleset.models import CACHE_DIR, RulesetRef
 
 
 class TestRulesetRef:
@@ -29,7 +29,7 @@ class TestCacheDir:
     """Test CACHE_DIR constant."""
 
     def test_value(self) -> None:
-        assert CACHE_DIR == ".ai-guard/cache"
+        assert CACHE_DIR == ".ac-guard/cache"
 
     def test_is_string(self) -> None:
         assert isinstance(CACHE_DIR, str)

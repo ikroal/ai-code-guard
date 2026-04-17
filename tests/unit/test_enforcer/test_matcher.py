@@ -6,8 +6,8 @@ import re
 
 import pytest
 
-from ai_guard.config.models import OperationRules, Rule
-from ai_guard.enforcer.matcher import (
+from ac_guard.config.models import OperationRules, Rule
+from ac_guard.enforcer.matcher import (
     VALID_SCHEMES,
     Decision,
     evaluate_rules,

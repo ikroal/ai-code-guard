@@ -8,15 +8,15 @@ from typing import Any
 import yaml
 from typer.testing import CliRunner
 
-from ai_guard import __version__
-from ai_guard.cli.init import (
+from ac_guard import __version__
+from ac_guard.cli.init import (
     _get_jinja_env,
     _get_project_name,
     _merge_config,
     _render_guard_yaml,
 )
-from ai_guard.cli.main import app
-from ai_guard.cli.presets import load_preset
+from ac_guard.cli.main import app
+from ac_guard.cli.presets import load_preset
 
 runner = CliRunner()
 
@@ -127,7 +127,7 @@ class TestInitCommand:
         assert result.exit_code == 0
         content = output.read_text()
         assert "existing content" not in content
-        assert "AI Guard configuration" in content
+        assert "AI Code Guard configuration" in content
 
     def test_init_custom_output_path(self, tmp_path: Path) -> None:
         """init command with custom output path."""

@@ -1,0 +1,36 @@
+## AI Code Guard Check Report
+
+**Stage**: {{ report.stage }} | **Result**: {{ "✅ PASSED" if report.passed else "❌ FAILED" }}
+
+| Check | Status | Time |
+|-------|--------|------|
+{% for r in report.results %}
+{% if r.skipped %}
+| {{ r.name }} | ⏭️ Skip | - |
+{% elif r.passed %}
+| {{ r.name }} | ✅ Pass | {{ r.duration_ms }}ms |
+{% else %}
+| {{ r.name }} | ❌ Fail | {{ r.duration_ms }}ms |
+{% endif %}
+{% endfor %}
+
+{% if violations %}
+<details>
+<summary>Violations</summary>
+
+```
+{% for v in violations %}
+{% if v.line is not none %}
+{{ v.file }}:{{ v.line }}: {{ v.message }}{% if v.code %} [{{ v.code }}]{% endif %}
+
+{% else %}
+{{ v.file }}: {{ v.message }}{% if v.code %} [{{ v.code }}]{% endif %}
+
+{% endif %}
+{% endfor %}
+```
+
+</details>
+{% endif %}
+
+**{{ passed }}/{{ total }}** checks passed

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from ai_guard.config.exceptions import ConfigValidationError, ValidationIssue
-from ai_guard.config.validator import validate_raw_config
+from ac_guard.config.exceptions import ConfigValidationError, ValidationIssue
+from ac_guard.config.validator import validate_raw_config
 
 
 def _minimal_config(**overrides: object) -> dict:
@@ -89,7 +89,7 @@ class TestValidMinimalConfig:
                 "locale": "zh-CN",
                 "audit": {
                     "enabled": True,
-                    "path": ".ai-guard/audit.jsonl",
+                    "path": ".ac-guard/audit.jsonl",
                     "retention": 30,
                 },
                 "pr_report": {

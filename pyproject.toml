@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "ai-guard"
+name = "ac-guard"
 version = "0.1.0"
 description = "Guardian system for AI coding agents — behavior constraints and code quality gates"
 readme = "README.md"
@@ -34,7 +34,7 @@ dependencies = [
 ]
 
 [project.scripts]
-ai-guard = "ai_guard.cli.main:app"
+ac-guard = "ac_guard.cli.main:app"
 
 [project.urls]
 Homepage = "https://github.com/ikroal/ai-code-guard"
@@ -52,7 +52,7 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/ai_guard"]
+packages = ["src/ac_guard"]
 
 [tool.ruff]
 target-version = "py310"
@@ -104,7 +104,7 @@ max-complexity = 10
 max-args = 5
 
 [tool.ruff.lint.isort]
-known-first-party = ["ai_guard"]
+known-first-party = ["ac_guard"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["D", "ANN", "ARG", "PLR0913", "C408", "TC"]  # relax requirements for tests

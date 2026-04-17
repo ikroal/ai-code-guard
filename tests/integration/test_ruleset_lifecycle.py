@@ -16,10 +16,10 @@ import pytest
 import yaml
 from typer.testing import CliRunner
 
-from ai_guard.cli.main import app
-from ai_guard.enforcer.engine import evaluate
-from ai_guard.enforcer.matcher import Decision
-from ai_guard.generator.models import STATE_FILE
+from ac_guard.cli.main import app
+from ac_guard.enforcer.engine import evaluate
+from ac_guard.enforcer.matcher import Decision
+from ac_guard.generator.models import STATE_FILE
 
 runner = CliRunner()
 
@@ -149,7 +149,7 @@ class TestLifecycleStages:
         # fetch
         _fetch(tmp_path, url)
         assert (
-            tmp_path / ".ai-guard" / "cache" / "test-rules" / "guard.yaml"
+            tmp_path / ".ac-guard" / "cache" / "test-rules" / "guard.yaml"
         ).is_file()
 
         # install
@@ -160,7 +160,7 @@ class TestLifecycleStages:
         assert result.exit_code == 0, f"install failed: {result.output}"
         assert (tmp_path / STATE_FILE).is_file()
         assert (tmp_path / ".editorconfig").is_file()
-        assert (tmp_path / ".ai-guard" / "checks" / "check_header.py").is_file()
+        assert (tmp_path / ".ac-guard" / "checks" / "check_header.py").is_file()
 
         # update
         result = runner.invoke(app, ["update", "--config", str(config)])
@@ -182,16 +182,16 @@ class TestLifecycleStages:
 
         # fetch
         _fetch(tmp_path, url)
-        assert (tmp_path / ".ai-guard" / "cache" / "test-rules").is_dir()
+        assert (tmp_path / ".ac-guard" / "cache" / "test-rules").is_dir()
 
         # clear
         result = runner.invoke(app, ["ruleset", "cache", "clear", "--project-root", pr])
         assert result.exit_code == 0
-        assert not (tmp_path / ".ai-guard" / "cache" / "test-rules").is_dir()
+        assert not (tmp_path / ".ac-guard" / "cache" / "test-rules").is_dir()
 
         # re-fetch
         _fetch(tmp_path, url)
-        assert (tmp_path / ".ai-guard" / "cache" / "test-rules").is_dir()
+        assert (tmp_path / ".ac-guard" / "cache" / "test-rules").is_dir()
 
         # install should work after re-fetch
         config = _init_config(tmp_path, rulesets=["test-rules"])
@@ -304,7 +304,7 @@ class TestFileCopyCompleteness:
             app, ["install", "--agent", "claude-code", "--config", str(config)]
         )
         assert (tmp_path / ".editorconfig").is_file()
-        assert (tmp_path / ".ai-guard" / "checks" / "lint.py").is_file()
+        assert (tmp_path / ".ac-guard" / "checks" / "lint.py").is_file()
 
         # Update
         result = runner.invoke(app, ["update", "--config", str(config)])
@@ -312,7 +312,7 @@ class TestFileCopyCompleteness:
 
         # Files should still be there
         assert (tmp_path / ".editorconfig").is_file()
-        assert (tmp_path / ".ai-guard" / "checks" / "lint.py").is_file()
+        assert (tmp_path / ".ac-guard" / "checks" / "lint.py").is_file()
 
     def test_uninstall_cleans_artifacts(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -425,4 +425,4 @@ class TestMultiRulesetInteraction:
 
         assert (tmp_path / "a.cfg").is_file()
         assert (tmp_path / "b.cfg").is_file()
-        assert (tmp_path / ".ai-guard" / "checks" / "check_b.py").is_file()
+        assert (tmp_path / ".ac-guard" / "checks" / "check_b.py").is_file()

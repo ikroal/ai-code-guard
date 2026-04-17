@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from ai_guard.checker.models import CheckReport, CheckResult, Violation
-from ai_guard.reporter.formatting import (
+from ac_guard.checker.models import CheckReport, CheckResult, Violation
+from ac_guard.reporter.formatting import (
     format_gate,
     format_json,
     format_markdown,

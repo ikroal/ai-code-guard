@@ -7,14 +7,14 @@ from pathlib import Path
 
 import pytest
 
-from ai_guard.config.models import BehaviorConfig
-from ai_guard.enforcer.exceptions import PolicyCorruptError
-from ai_guard.enforcer.policy import load_policy
+from ac_guard.config.models import BehaviorConfig
+from ac_guard.enforcer.exceptions import PolicyCorruptError
+from ac_guard.enforcer.policy import load_policy
 
 
 def _write_policy(project_root: Path, policy_data: dict) -> None:
     """Write a policy.json file."""
-    policy_dir = project_root / ".ai-guard"
+    policy_dir = project_root / ".ac-guard"
     policy_dir.mkdir(parents=True, exist_ok=True)
     (policy_dir / "policy.json").write_text(
         json.dumps(policy_data, indent=2), encoding="utf-8"
@@ -31,7 +31,7 @@ class TestLoadPolicy:
 
     def test_corrupt_json_raises(self, tmp_path: Path) -> None:
         """Corrupted JSON raises PolicyCorruptError."""
-        policy_dir = tmp_path / ".ai-guard"
+        policy_dir = tmp_path / ".ac-guard"
         policy_dir.mkdir(parents=True)
         (policy_dir / "policy.json").write_text("not valid json{{{")
         with pytest.raises(PolicyCorruptError):

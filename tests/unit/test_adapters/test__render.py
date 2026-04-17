@@ -1,12 +1,12 @@
-"""Tests for ai_guard.adapters._render — Shared rendering utilities."""
+"""Tests for ac_guard.adapters._render — Shared rendering utilities."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
-from ai_guard.adapters._render import get_template_dir, render_hook, render_rule_doc
-from ai_guard.config.models import BehaviorConfig, OperationRules, Rule
-from ai_guard.shared.types import MARKER_BEGIN, MARKER_END
+from ac_guard.adapters._render import get_template_dir, render_hook, render_rule_doc
+from ac_guard.config.models import BehaviorConfig, OperationRules, Rule
+from ac_guard.shared.types import MARKER_BEGIN, MARKER_END
 
 
 class TestGetTemplateDir:

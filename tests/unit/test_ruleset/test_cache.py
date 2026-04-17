@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from ai_guard.ruleset.cache import clear_cache, get_cache_dir, list_cached, read_meta
+from ac_guard.ruleset.cache import clear_cache, get_cache_dir, list_cached, read_meta
 
 
 class TestGetCacheDir:
@@ -13,7 +13,7 @@ class TestGetCacheDir:
 
     def test_creates_directory(self, tmp_path: Path) -> None:
         result = get_cache_dir(tmp_path)
-        assert result == tmp_path / ".ai-guard" / "cache"
+        assert result == tmp_path / ".ac-guard" / "cache"
         assert result.is_dir()
 
     def test_idempotent(self, tmp_path: Path) -> None:
@@ -23,7 +23,7 @@ class TestGetCacheDir:
         assert result1.is_dir()
 
     def test_preserves_existing_content(self, tmp_path: Path) -> None:
-        cache = tmp_path / ".ai-guard" / "cache"
+        cache = tmp_path / ".ac-guard" / "cache"
         cache.mkdir(parents=True)
         (cache / "existing").mkdir()
         result = get_cache_dir(tmp_path)
@@ -37,11 +37,11 @@ class TestListCached:
         assert list_cached(tmp_path) == []
 
     def test_no_cache_dir(self, tmp_path: Path) -> None:
-        """No .ai-guard/cache/ directory at all."""
+        """No .ac-guard/cache/ directory at all."""
         assert list_cached(tmp_path) == []
 
     def test_lists_directories(self, tmp_path: Path) -> None:
-        cache = tmp_path / ".ai-guard" / "cache"
+        cache = tmp_path / ".ac-guard" / "cache"
         cache.mkdir(parents=True)
         (cache / "alpha-rules").mkdir()
         (cache / "beta-rules").mkdir()
@@ -49,7 +49,7 @@ class TestListCached:
         assert result == ["alpha-rules", "beta-rules"]
 
     def test_ignores_files(self, tmp_path: Path) -> None:
-        cache = tmp_path / ".ai-guard" / "cache"
+        cache = tmp_path / ".ac-guard" / "cache"
         cache.mkdir(parents=True)
         (cache / "real-rules").mkdir()
         (cache / "stray-file.txt").write_text("oops", encoding="utf-8")
@@ -57,7 +57,7 @@ class TestListCached:
         assert result == ["real-rules"]
 
     def test_sorted_output(self, tmp_path: Path) -> None:
-        cache = tmp_path / ".ai-guard" / "cache"
+        cache = tmp_path / ".ac-guard" / "cache"
         cache.mkdir(parents=True)
         (cache / "zebra").mkdir()
         (cache / "alpha").mkdir()
@@ -70,7 +70,7 @@ class TestClearCache:
     """Test clear_cache."""
 
     def test_clears_all(self, tmp_path: Path) -> None:
-        cache = tmp_path / ".ai-guard" / "cache"
+        cache = tmp_path / ".ac-guard" / "cache"
         cache.mkdir(parents=True)
         (cache / "rules-a").mkdir()
         (cache / "rules-b").mkdir()
@@ -79,7 +79,7 @@ class TestClearCache:
         assert list_cached(tmp_path) == []
 
     def test_empty_cache_returns_zero(self, tmp_path: Path) -> None:
-        cache = tmp_path / ".ai-guard" / "cache"
+        cache = tmp_path / ".ac-guard" / "cache"
         cache.mkdir(parents=True)
         assert clear_cache(tmp_path) == 0
 
@@ -90,7 +90,7 @@ class TestClearCache:
         """Regression: clear must handle read-only files (Windows .git packs)."""
         import stat
 
-        cache = tmp_path / ".ai-guard" / "cache"
+        cache = tmp_path / ".ac-guard" / "cache"
         ruleset = cache / "rules"
         ruleset.mkdir(parents=True)
         readonly_file = ruleset / "readonly.pack"
@@ -103,29 +103,29 @@ class TestClearCache:
 
     def test_preserves_cache_dir(self, tmp_path: Path) -> None:
         """Cache directory itself should remain after clearing."""
-        cache = tmp_path / ".ai-guard" / "cache"
+        cache = tmp_path / ".ac-guard" / "cache"
         cache.mkdir(parents=True)
         (cache / "rules").mkdir()
         clear_cache(tmp_path)
         assert cache.is_dir()
 
-    def test_preserves_non_cache_ai_guard_files(self, tmp_path: Path) -> None:
-        """Other files in .ai-guard/ should not be touched."""
-        ai_guard = tmp_path / ".ai-guard"
-        ai_guard.mkdir()
-        (ai_guard / "state.json").write_text("{}", encoding="utf-8")
-        cache = ai_guard / "cache"
+    def test_preserves_non_cache_ac_guard_files(self, tmp_path: Path) -> None:
+        """Other files in .ac-guard/ should not be touched."""
+        ac_guard = tmp_path / ".ac-guard"
+        ac_guard.mkdir()
+        (ac_guard / "state.json").write_text("{}", encoding="utf-8")
+        cache = ac_guard / "cache"
         cache.mkdir()
         (cache / "rules").mkdir()
         clear_cache(tmp_path)
-        assert (ai_guard / "state.json").is_file()
+        assert (ac_guard / "state.json").is_file()
 
 
 class TestReadMeta:
     """Test read_meta."""
 
     def test_reads_meta_json(self, tmp_path: Path) -> None:
-        cache = tmp_path / ".ai-guard" / "cache" / "my-rules"
+        cache = tmp_path / ".ac-guard" / "cache" / "my-rules"
         cache.mkdir(parents=True)
         meta = {
             "url": "https://example.com/repo.git",
@@ -140,7 +140,7 @@ class TestReadMeta:
         assert result["version"] == "v1.0"
 
     def test_returns_none_when_no_meta(self, tmp_path: Path) -> None:
-        cache = tmp_path / ".ai-guard" / "cache" / "my-rules"
+        cache = tmp_path / ".ac-guard" / "cache" / "my-rules"
         cache.mkdir(parents=True)
         assert read_meta(tmp_path, "my-rules") is None
 

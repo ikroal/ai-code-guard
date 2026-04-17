@@ -16,11 +16,11 @@ from unittest.mock import MagicMock, patch
 import yaml
 from typer.testing import CliRunner
 
-from ai_guard.checker.core import run_stage
-from ai_guard.cli.main import app
-from ai_guard.config.models import PrReportConfig
-from ai_guard.reporter.channel_base import post_pr_comment
-from ai_guard.reporter.formatting import format_markdown
+from ac_guard.checker.core import run_stage
+from ac_guard.cli.main import app
+from ac_guard.config.models import PrReportConfig
+from ac_guard.reporter.channel_base import post_pr_comment
+from ac_guard.reporter.formatting import format_markdown
 
 runner = CliRunner()
 
@@ -281,6 +281,6 @@ class TestValidationDiscovery:
 
 def _resolve(config_path: Path):
     """Load and resolve config."""
-    from ai_guard.config.merger import resolve_config
+    from ac_guard.config.merger import resolve_config
 
     return resolve_config(config_path)

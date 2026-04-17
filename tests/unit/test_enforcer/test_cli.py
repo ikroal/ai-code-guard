@@ -12,7 +12,7 @@ def _run_enforcer(input_data: dict, project_root: Path) -> dict:
     """Run enforcer CLI via subprocess and return parsed output."""
     input_data["project_root"] = str(project_root)
     result = subprocess.run(
-        [sys.executable, "-m", "ai_guard.enforcer"],
+        [sys.executable, "-m", "ac_guard.enforcer"],
         input=json.dumps(input_data),
         capture_output=True,
         text=True,
@@ -25,7 +25,7 @@ def _run_enforcer(input_data: dict, project_root: Path) -> dict:
 
 def _write_policy(project_root: Path, policy_data: dict) -> None:
     """Write a policy.json file."""
-    policy_dir = project_root / ".ai-guard"
+    policy_dir = project_root / ".ac-guard"
     policy_dir.mkdir(parents=True, exist_ok=True)
     (policy_dir / "policy.json").write_text(
         json.dumps(policy_data, indent=2), encoding="utf-8"
@@ -57,7 +57,7 @@ def _standard_policy() -> dict:
 
 
 class TestEnforcerCli:
-    """Tests for python3 -m ai_guard.enforcer."""
+    """Tests for python3 -m ac_guard.enforcer."""
 
     def test_no_policy_allows(self, tmp_path: Path) -> None:
         """No policy.json returns allow."""
@@ -89,7 +89,7 @@ class TestEnforcerCli:
     def test_invalid_json_denies(self, tmp_path: Path) -> None:
         """Invalid JSON input returns deny (fail-closed)."""
         result = subprocess.run(
-            [sys.executable, "-m", "ai_guard.enforcer"],
+            [sys.executable, "-m", "ac_guard.enforcer"],
             input="not json{{{",
             capture_output=True,
             text=True,

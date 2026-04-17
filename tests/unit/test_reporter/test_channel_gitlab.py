@@ -7,9 +7,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from ai_guard.config.models import PrReportConfig
-from ai_guard.reporter.channel_base import ChannelError
-from ai_guard.reporter.channel_gitlab import GitLabChannel
+from ac_guard.config.models import PrReportConfig
+from ac_guard.reporter.channel_base import ChannelError
+from ac_guard.reporter.channel_gitlab import GitLabChannel
 
 
 class TestGitLabChannel:
@@ -95,7 +95,7 @@ class TestGitLabChannel:
 
         with (
             patch(
-                "ai_guard.reporter.channel_gitlab.get_remote_repo",
+                "ac_guard.reporter.channel_gitlab.get_remote_repo",
                 return_value="org/my-repo",
             ),
             patch("urllib.request.urlopen", return_value=self._mock_urlopen()) as m,
@@ -124,7 +124,7 @@ class TestGitLabChannel:
 
         with (
             patch(
-                "ai_guard.reporter.channel_gitlab.get_current_branch",
+                "ac_guard.reporter.channel_gitlab.get_current_branch",
                 return_value="feat/test",
             ),
             patch("urllib.request.urlopen", side_effect=urlopen_side_effect) as m,
@@ -143,7 +143,7 @@ class TestGitLabChannel:
 
         with (
             patch(
-                "ai_guard.reporter.channel_gitlab.get_current_branch", return_value=None
+                "ac_guard.reporter.channel_gitlab.get_current_branch", return_value=None
             ),
             pytest.raises(ChannelError, match="MR IID"),
         ):

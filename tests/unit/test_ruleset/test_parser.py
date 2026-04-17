@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from ai_guard.ruleset.exceptions import RulesetURLError
-from ai_guard.ruleset.parser import parse_ruleset_url
+from ac_guard.ruleset.exceptions import RulesetURLError
+from ac_guard.ruleset.parser import parse_ruleset_url
 
 
 class TestParseRulesetUrl:

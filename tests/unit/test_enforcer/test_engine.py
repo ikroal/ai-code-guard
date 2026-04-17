@@ -5,13 +5,13 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from ai_guard.enforcer.engine import evaluate
-from ai_guard.enforcer.matcher import Decision, PolicyDecision
+from ac_guard.enforcer.engine import evaluate
+from ac_guard.enforcer.matcher import Decision, PolicyDecision
 
 
 def _write_policy(project_root: Path, policy_data: dict) -> None:
     """Write a policy.json file."""
-    policy_dir = project_root / ".ai-guard"
+    policy_dir = project_root / ".ac-guard"
     policy_dir.mkdir(parents=True, exist_ok=True)
     (policy_dir / "policy.json").write_text(
         json.dumps(policy_data, indent=2), encoding="utf-8"
@@ -81,7 +81,7 @@ class TestEvaluateNoPolicy:
 
     def test_corrupt_policy_denies(self, tmp_path: Path) -> None:
         """Corrupt policy.json results in deny."""
-        policy_dir = tmp_path / ".ai-guard"
+        policy_dir = tmp_path / ".ac-guard"
         policy_dir.mkdir(parents=True)
         (policy_dir / "policy.json").write_text("{{invalid json")
         result = evaluate("Write", {"file_path": "test.py"}, tmp_path)

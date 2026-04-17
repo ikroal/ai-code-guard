@@ -7,9 +7,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from ai_guard.config.models import PrReportConfig
-from ai_guard.reporter.channel_base import ChannelError
-from ai_guard.reporter.channel_github import GitHubChannel
+from ac_guard.config.models import PrReportConfig
+from ac_guard.reporter.channel_base import ChannelError
+from ac_guard.reporter.channel_github import GitHubChannel
 
 
 class TestGitHubChannel:
@@ -87,7 +87,7 @@ class TestGitHubChannel:
             )
             assert m.call_args[0][0].full_url.startswith("https://git.corp.com/api/v3/")
 
-    def test_pr_number_from_ai_guard_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_pr_number_from_ac_guard_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("GITHUB_TOKEN", "ghp_test123")
         monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
         monkeypatch.delenv("GITHUB_REF", raising=False)
@@ -127,7 +127,7 @@ class TestGitHubChannel:
 
         with (
             patch(
-                "ai_guard.reporter.channel_github.get_current_branch",
+                "ac_guard.reporter.channel_github.get_current_branch",
                 return_value="feat/test",
             ),
             patch("urllib.request.urlopen", side_effect=urlopen_side_effect) as m,
@@ -145,7 +145,7 @@ class TestGitHubChannel:
 
         with (
             patch(
-                "ai_guard.reporter.channel_github.get_remote_repo",
+                "ac_guard.reporter.channel_github.get_remote_repo",
                 return_value="org/my-repo",
             ),
             patch("urllib.request.urlopen", return_value=self._mock_urlopen()) as m,
@@ -160,7 +160,7 @@ class TestGitHubChannel:
 
         with (
             patch(
-                "ai_guard.reporter.channel_github.get_remote_repo", return_value=None
+                "ac_guard.reporter.channel_github.get_remote_repo", return_value=None
             ),
             pytest.raises(ChannelError, match="repository"),
         ):
@@ -175,7 +175,7 @@ class TestGitHubChannel:
 
         with (
             patch(
-                "ai_guard.reporter.channel_github.get_current_branch", return_value=None
+                "ac_guard.reporter.channel_github.get_current_branch", return_value=None
             ),
             pytest.raises(ChannelError, match="PR number"),
         ):
@@ -192,7 +192,7 @@ class TestGitHubChannel:
 
         with (
             patch(
-                "ai_guard.reporter.channel_github.get_current_branch", return_value=None
+                "ac_guard.reporter.channel_github.get_current_branch", return_value=None
             ),
             pytest.raises(ChannelError, match="PR number"),
         ):
