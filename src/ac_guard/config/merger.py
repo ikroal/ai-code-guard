@@ -79,42 +79,32 @@ _SYSTEM_PROTECTION_PATTERNS: list[str] = [
 _SYSTEM_EXECUTE_FORBIDDEN: list[dict[str, Any]] = [
     {
         "pattern": "shell:git commit --no-verify*",
-        "reason": "--no-verify skips pre-commit checks / --no-verify 跳过 pre-commit 检查",
+        "reason": "--no-verify skips pre-commit checks",
     },
     {
         "pattern": "shell:git push --no-verify*",
-        "reason": "--no-verify skips pre-push checks / --no-verify 跳过 pre-push 检查",
+        "reason": "--no-verify skips pre-push checks",
     },
     {
         "pattern": r"shell:SKIP=\S+\s+git\s+(?:commit|push)\b.*",
         "regex": True,
-        "reason": (
-            "SKIP= env-var bypasses pre-commit hooks / "
-            "SKIP= 环境变量前缀绕过 pre-commit hooks"
-        ),
+        "reason": "SKIP= env-var bypasses pre-commit hooks",
     },
     {
         "pattern": r"shell:git\s+.*-c\s+core\.hooks[Pp]ath=\S+.*",
         "regex": True,
-        "reason": (
-            "git -c core.hooksPath overrides the hook path / "
-            "git -c core.hooksPath 一次性覆盖 hook 路径绕过门禁"
-        ),
+        "reason": "git -c core.hooksPath overrides the hook path",
     },
     {
         "pattern": r"shell:(?i)git\s+config\s.*core\.hookspath\s+\S+.*",
         "regex": True,
-        "reason": (
-            "git config core.hooksPath permanently overrides the hook path / "
-            "git config core.hooksPath 永久覆盖 hook 路径"
-        ),
+        "reason": "git config core.hooksPath permanently overrides the hook path",
     },
     {
         "pattern": r"shell:git\s+rebase\s+.*(?:--exec|-x\s+).*",
         "regex": True,
         "reason": (
-            "git rebase --exec can run arbitrary commands bypassing per-commit "
-            "hooks / git rebase --exec 可在 rebase 过程执行任意命令绕过 hook"
+            "git rebase --exec can run arbitrary commands bypassing per-commit hooks"
         ),
     },
 ]
