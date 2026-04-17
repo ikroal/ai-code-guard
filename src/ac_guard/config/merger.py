@@ -76,9 +76,37 @@ _SYSTEM_PROTECTION_PATTERNS: list[str] = [
     "file:.git/hooks/**",
 ]
 
-_SYSTEM_EXECUTE_FORBIDDEN: list[str] = [
-    "shell:git commit --no-verify*",
-    "shell:git push --no-verify*",
+_SYSTEM_EXECUTE_FORBIDDEN: list[dict[str, Any]] = [
+    {
+        "pattern": "shell:git commit --no-verify*",
+        "reason": "--no-verify skips pre-commit checks",
+    },
+    {
+        "pattern": "shell:git push --no-verify*",
+        "reason": "--no-verify skips pre-push checks",
+    },
+    {
+        "pattern": r"shell:SKIP=\S+\s+git\s+(?:commit|push)\b.*",
+        "regex": True,
+        "reason": "SKIP= env-var bypasses pre-commit hooks",
+    },
+    {
+        "pattern": r"shell:git\s+.*-c\s+core\.hooks[Pp]ath=\S+.*",
+        "regex": True,
+        "reason": "git -c core.hooksPath overrides the hook path",
+    },
+    {
+        "pattern": r"shell:(?i)git\s+config\s.*core\.hookspath\s+\S+.*",
+        "regex": True,
+        "reason": "git config core.hooksPath permanently overrides the hook path",
+    },
+    {
+        "pattern": r"shell:git\s+rebase\s+.*(?:--exec|-x\s+).*",
+        "regex": True,
+        "reason": (
+            "git rebase --exec can run arbitrary commands bypassing per-commit hooks"
+        ),
+    },
 ]
 
 _DEFAULT_LANGUAGES_YAML = Path(__file__).parent / "defaults" / "languages.yaml"
@@ -238,8 +266,8 @@ def _inject_system_rules(merged: dict[str, Any]) -> None:
 
     execute = behavior.setdefault("execute", {})
     forbidden = execute.setdefault("forbidden", [])
-    for pattern in _SYSTEM_EXECUTE_FORBIDDEN:
-        forbidden.append({"pattern": pattern, "_source": "system"})
+    for entry in _SYSTEM_EXECUTE_FORBIDDEN:
+        forbidden.append({**entry, "_source": "system"})
 
 
 def _auto_populate_languages(merged: dict[str, Any]) -> None:

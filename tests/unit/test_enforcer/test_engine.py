@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from ac_guard.enforcer.engine import evaluate
 from ac_guard.enforcer.matcher import Decision, PolicyDecision
 
@@ -161,6 +163,87 @@ class TestEvaluateUnknownTool:
         result = evaluate("SomeFutureTool", {"arg": "val"}, tmp_path)
         assert result.decision == Decision.ALLOW
         assert result.tier == "unknown_tool"
+
+
+def _bypass_policy() -> dict:
+    """Policy that mirrors the 4 system bypass regex rules from #104."""
+    return {
+        "config_hash": "bypass",
+        "behavior": {
+            "read": {"forbidden": [], "require_approval": [], "allow": []},
+            "write": {"forbidden": [], "require_approval": [], "allow": []},
+            "execute": {
+                "forbidden": [
+                    {
+                        "pattern": r"shell:SKIP=\S+\s+git\s+(?:commit|push)\b.*",
+                        "regex": True,
+                        "source": "system",
+                    },
+                    {
+                        "pattern": r"shell:git\s+.*-c\s+core\.hooks[Pp]ath=\S+.*",
+                        "regex": True,
+                        "source": "system",
+                    },
+                    {
+                        "pattern": (
+                            r"shell:(?i)git\s+config\s.*core\.hookspath\s+\S+.*"
+                        ),
+                        "regex": True,
+                        "source": "system",
+                    },
+                    {
+                        "pattern": r"shell:git\s+rebase\s+.*(?:--exec|-x\s+).*",
+                        "regex": True,
+                        "source": "system",
+                    },
+                ],
+                "require_approval": [],
+                "allow": [],
+            },
+        },
+    }
+
+
+class TestSystemBypassPatterns:
+    """Regression for #104: 4 hook-bypass patterns are denied; look-alikes pass."""
+
+    @pytest.mark.parametrize(
+        "cmd",
+        [
+            "SKIP=ruff git commit -m x",
+            "SKIP=ruff,mypy git push origin main",
+            "git -c core.hooksPath=/tmp commit -m x",
+            "git -c user.name=X -c core.hooksPath=/tmp push",
+            "git config core.hooksPath /tmp",
+            "git config --local core.hooksPath /tmp/hooks",
+            "git config --global core.hookspath /opt/hooks",
+            'git rebase --exec "rm -rf /" HEAD~3',
+            "git rebase -x 'echo pwned' HEAD~3",
+        ],
+    )
+    def test_bypass_command_denied(self, tmp_path: Path, cmd: str) -> None:
+        _write_policy(tmp_path, _bypass_policy())
+        result = evaluate("Bash", {"command": cmd}, tmp_path)
+        assert result.decision == Decision.DENY, f"expected deny for {cmd!r}"
+
+    @pytest.mark.parametrize(
+        "cmd",
+        [
+            "SKIP=foo make test",
+            "git -c user.name=Alice commit -m x",
+            "git config --get core.hooksPath",
+            "git config --unset core.hooksPath",
+            "git config --list",
+            "git rebase -i HEAD~3",
+            "git rebase -X ours HEAD~3",
+            "git commit -m 'normal commit'",
+            "git push origin feature",
+        ],
+    )
+    def test_lookalike_command_allowed(self, tmp_path: Path, cmd: str) -> None:
+        _write_policy(tmp_path, _bypass_policy())
+        result = evaluate("Bash", {"command": cmd}, tmp_path)
+        assert result.decision == Decision.ALLOW, f"expected allow for {cmd!r}"
 
 
 def _policy_with_audit(enabled: bool) -> dict:

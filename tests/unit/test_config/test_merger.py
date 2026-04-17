@@ -329,15 +329,35 @@ class TestSystemExecuteRules:
         path = _write_yaml(tmp_path, _minimal_guard())
         result = resolve_config(path)
         patterns = [r.pattern for r in result.behavior.execute.forbidden]
-        for expected in _SYSTEM_EXECUTE_FORBIDDEN:
-            assert expected in patterns
+        for entry in _SYSTEM_EXECUTE_FORBIDDEN:
+            assert entry["pattern"] in patterns
 
     def test_execute_forbidden_source_is_system(self, tmp_path: Path) -> None:
         path = _write_yaml(tmp_path, _minimal_guard())
         result = resolve_config(path)
+        system_patterns = {e["pattern"] for e in _SYSTEM_EXECUTE_FORBIDDEN}
         for rule in result.behavior.execute.forbidden:
-            if rule.pattern in _SYSTEM_EXECUTE_FORBIDDEN:
+            if rule.pattern in system_patterns:
                 assert rule.source == "system"
+
+    def test_execute_forbidden_regex_flag_preserved(self, tmp_path: Path) -> None:
+        """Regex entries retain ``regex=True`` after resolution."""
+        path = _write_yaml(tmp_path, _minimal_guard())
+        result = resolve_config(path)
+        by_pattern = {r.pattern: r for r in result.behavior.execute.forbidden}
+        for entry in _SYSTEM_EXECUTE_FORBIDDEN:
+            rule = by_pattern[entry["pattern"]]
+            assert rule.regex is entry.get("regex", False)
+
+    def test_execute_forbidden_has_bypass_patterns(self, tmp_path: Path) -> None:
+        """Regression for #104 — 4 bypass patterns on top of --no-verify."""
+        path = _write_yaml(tmp_path, _minimal_guard())
+        result = resolve_config(path)
+        patterns = [r.pattern for r in result.behavior.execute.forbidden]
+        assert any("SKIP=" in p for p in patterns)
+        assert any("-c" in p and "hooks" in p for p in patterns)
+        assert any("config" in p and "hookspath" in p.lower() for p in patterns)
+        assert any("rebase" in p and "exec" in p for p in patterns)
 
     def test_user_execute_rules_coexist_with_system_rules(self, tmp_path: Path) -> None:
         data = _minimal_guard(
@@ -351,8 +371,8 @@ class TestSystemExecuteRules:
         result = resolve_config(path)
         patterns = [r.pattern for r in result.behavior.execute.forbidden]
         assert "shell:rm -rf /*" in patterns
-        for expected in _SYSTEM_EXECUTE_FORBIDDEN:
-            assert expected in patterns
+        for entry in _SYSTEM_EXECUTE_FORBIDDEN:
+            assert entry["pattern"] in patterns
 
 
 # ---------------------------------------------------------------------------

@@ -11,6 +11,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Default system `execute.forbidden` now covers four additional
+  hook-bypass patterns on top of `--no-verify`:
+  `SKIP=<id> git commit/push` (pre-commit env-var bypass),
+  `git -c core.hooksPath=…` (one-shot hook-path override),
+  `git config core.hooksPath <path>` (permanent override — read/unset
+  forms still pass through), and `git rebase --exec/-x` (arbitrary
+  command execution inside rebase). All four ship as `regex`
+  rules with `_source: system` and remain user-removable via the
+  standard `behavior.execute.forbidden.remove` escape hatch.
+  ([#104](https://github.com/ikroal/ai-code-guard/issues/104))
 - Built-in `commit.format` / `push.lint` shortcuts now invoke the
   language-specific hook IDs (`format-<lang>` / `lint-<lang>`) that the
   Generator actually emits, so `ac-guard check` passes out of the box for
