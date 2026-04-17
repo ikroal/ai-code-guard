@@ -84,7 +84,7 @@ class PolicyDecision:
         matched_rule: The rule that triggered the decision,
             or None if no rule matched.
         tier: Which tier matched.
-        policy_hash: Config hash from policy.json.
+        policy_hash: Config hash from runtime.json.
     """
 
     decision: Decision

@@ -24,10 +24,10 @@ def _run_enforcer(input_data: dict, project_root: Path) -> dict:
 
 
 def _write_policy(project_root: Path, policy_data: dict) -> None:
-    """Write a policy.json file."""
+    """Write a runtime.json file."""
     policy_dir = project_root / ".ac-guard"
     policy_dir.mkdir(parents=True, exist_ok=True)
-    (policy_dir / "policy.json").write_text(
+    (policy_dir / "runtime.json").write_text(
         json.dumps(policy_data, indent=2), encoding="utf-8"
     )
 
@@ -60,7 +60,7 @@ class TestEnforcerCli:
     """Tests for python3 -m ac_guard.enforcer."""
 
     def test_no_policy_allows(self, tmp_path: Path) -> None:
-        """No policy.json returns allow."""
+        """No runtime.json returns allow."""
         result = _run_enforcer(
             {"tool_name": "Write", "tool_input": {"file_path": ".git/config"}},
             tmp_path,
@@ -98,3 +98,28 @@ class TestEnforcerCli:
         )
         output = json.loads(result.stdout.strip())
         assert output["decision"] == "deny"
+
+
+class TestEnforcerCliAudit:
+    """Regression for #75: subprocess entry threads agent into audit."""
+
+    def test_agent_from_stdin_is_recorded(self, tmp_path: Path) -> None:
+        policy = _standard_policy()
+        policy["audit"] = {
+            "enabled": True,
+            "path": ".ac-guard/audit.jsonl",
+            "retention_days": 30,
+        }
+        _write_policy(tmp_path, policy)
+        _run_enforcer(
+            {
+                "tool_name": "Write",
+                "tool_input": {"file_path": ".git/config"},
+                "agent": "cursor",
+            },
+            tmp_path,
+        )
+        audit_path = tmp_path / ".ac-guard" / "audit.jsonl"
+        assert audit_path.is_file()
+        record = json.loads(audit_path.read_text().strip().split("\n")[0])
+        assert record["agent"] == "cursor"

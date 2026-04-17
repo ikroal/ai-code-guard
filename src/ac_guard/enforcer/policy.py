@@ -1,6 +1,6 @@
 """Enforcer policy loader (E1 primitive).
 
-Loads ``.ac-guard/policy.json`` and reconstructs a
+Loads ``.ac-guard/runtime.json`` and reconstructs a
 :class:`BehaviorConfig` for runtime rule evaluation.
 """
 
@@ -10,6 +10,7 @@ import json
 from typing import TYPE_CHECKING, Any
 
 from ac_guard.config.models import (
+    AuditConfig,
     BehaviorConfig,
     OperationRules,
     Rule,
@@ -21,43 +22,60 @@ if TYPE_CHECKING:
 
 __all__ = ["load_policy"]
 
-_POLICY_FILE = ".ac-guard/policy.json"
+_RUNTIME_FILE = ".ac-guard/runtime.json"
 
 
-def load_policy(project_root: Path) -> tuple[BehaviorConfig, str] | None:
-    """Load policy from ``.ac-guard/policy.json``.
+def load_policy(
+    project_root: Path,
+) -> tuple[BehaviorConfig, str, AuditConfig] | None:
+    """Load Enforcer runtime cache from ``.ac-guard/runtime.json``.
 
     Args:
         project_root: Path to the project root directory.
 
     Returns:
-        Tuple of (BehaviorConfig, config_hash) if policy exists,
-        None if no policy file is installed (first-time use).
+        Tuple of (BehaviorConfig, config_hash, AuditConfig) if the
+        cache exists, ``None`` if no runtime file is installed
+        (first-time use). When the cache predates the audit section
+        (legacy install), a disabled ``AuditConfig`` is returned so
+        the caller can proceed without special-casing.
 
     Raises:
-        PolicyCorruptError: If policy.json exists but cannot
+        PolicyCorruptError: If runtime.json exists but cannot
             be parsed as valid JSON.
     """
-    policy_path = project_root / _POLICY_FILE
-    if not policy_path.is_file():
+    runtime_path = project_root / _RUNTIME_FILE
+    if not runtime_path.is_file():
         return None
 
     try:
-        data = json.loads(policy_path.read_text(encoding="utf-8"))
+        data = json.loads(runtime_path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError) as e:
-        raise PolicyCorruptError(str(policy_path), str(e)) from None
+        raise PolicyCorruptError(str(runtime_path), str(e)) from None
 
     config_hash = data.get("config_hash", "")
     behavior_raw = data.get("behavior", {})
     behavior = _deserialize_behavior(behavior_raw)
-    return behavior, config_hash
+    audit = _deserialize_audit(data.get("audit"))
+    return behavior, config_hash, audit
+
+
+def _deserialize_audit(raw: dict[str, Any] | None) -> AuditConfig:
+    """Reconstruct AuditConfig; missing section defaults to disabled."""
+    if raw is None:
+        return AuditConfig(enabled=False)
+    return AuditConfig(
+        enabled=bool(raw.get("enabled", False)),
+        path=raw.get("path", ".ac-guard/audit.jsonl"),
+        retention=int(raw.get("retention_days", 30)),
+    )
 
 
 def _deserialize_behavior(raw: dict[str, Any]) -> BehaviorConfig:
     """Reconstruct BehaviorConfig from serialized dict.
 
     Args:
-        raw: Behavior dict from policy.json.
+        raw: Behavior dict from runtime.json.
 
     Returns:
         BehaviorConfig with deserialized rules.
@@ -73,7 +91,7 @@ def _deserialize_operation_rules(raw: dict[str, Any]) -> OperationRules:
     """Reconstruct OperationRules from serialized dict.
 
     Args:
-        raw: Operation rules dict from policy.json.
+        raw: Operation rules dict from runtime.json.
 
     Returns:
         OperationRules with deserialized rule lists.
@@ -91,7 +109,7 @@ def _deserialize_rule(raw: dict[str, Any]) -> Rule:
     """Reconstruct Rule from serialized dict.
 
     Args:
-        raw: Rule dict from policy.json.
+        raw: Rule dict from runtime.json.
 
     Returns:
         Rule with pattern, reason, message, regex, and source.

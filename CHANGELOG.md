@@ -37,9 +37,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   / `[SKIP]` indicators stay ASCII for alignment. Unknown locales
   fall back to English.
   ([#76](https://github.com/ikroal/ai-code-guard/issues/76))
+- Audit logging is now actually written. Enforcer `evaluate()`
+  appends a JSON record to `.ac-guard/audit.jsonl` per policy
+  decision when `output.audit.enabled: true`, capturing timestamp /
+  agent / tool / operation / scheme / target / decision / reason /
+  matched_rule / policy_hash. `apply_retention()` is called at the
+  end of `ac-guard install` / `ac-guard update` so the
+  `output.audit.retention` field takes effect.
+  ([#75](https://github.com/ikroal/ai-code-guard/issues/75))
 
 ### Changed
 
+- **Breaking**: the Enforcer runtime cache file has been renamed from
+  `.ac-guard/policy.json` to `.ac-guard/runtime.json`. The file now
+  carries both behavior rules and audit config, so the new name
+  reflects that. `ac-guard install` / `update` delete the legacy
+  `policy.json` automatically on first run.
 - `code.commit.naming` is now a no-op that the checker surfaces as a
   `[SKIP]` result — the shortcut is reserved for a follow-up release
   ([#95](https://github.com/ikroal/ai-code-guard/issues/95)). The
@@ -109,7 +122,6 @@ and **code-quality gates** (`pre-commit` / `pre-push` Checker).
 
 ### Known Limitations
 
-- Audit logging is not yet wired into every Enforcer call path. ([#75](https://github.com/ikroal/ai-code-guard/issues/75))
 - `post_pr_comment` is not yet invoked automatically by the CLI; call it manually from CI for now. ([#66](https://github.com/ikroal/ai-code-guard/issues/66))
 - HTTP requests have no retry/backoff; transient network failures surface directly. ([#67](https://github.com/ikroal/ai-code-guard/issues/67))
 - `code.commit.naming: true` is accepted but produces a `[SKIP]` result — a concrete naming check implementation is planned in a follow-up. ([#95](https://github.com/ikroal/ai-code-guard/issues/95))

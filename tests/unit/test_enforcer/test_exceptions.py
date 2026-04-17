@@ -10,19 +10,19 @@ class TestPolicyCorruptError:
 
     def test_inherits_enforcer_error(self) -> None:
         """PolicyCorruptError is an EnforcerError."""
-        err = PolicyCorruptError("/path/policy.json", "bad json")
+        err = PolicyCorruptError("/path/runtime.json", "bad json")
         assert isinstance(err, EnforcerError)
 
     def test_attributes(self) -> None:
         """PolicyCorruptError stores path and detail."""
-        err = PolicyCorruptError("/path/policy.json", "parse error")
-        assert err.path == "/path/policy.json"
+        err = PolicyCorruptError("/path/runtime.json", "parse error")
+        assert err.path == "/path/runtime.json"
         assert err.detail == "parse error"
 
     def test_str_contains_path(self) -> None:
         """String representation contains the file path."""
-        err = PolicyCorruptError("/path/policy.json")
-        assert "/path/policy.json" in str(err)
+        err = PolicyCorruptError("/path/runtime.json")
+        assert "/path/runtime.json" in str(err)
 
 
 class TestEnforcerError:

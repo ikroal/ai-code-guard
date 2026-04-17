@@ -102,7 +102,7 @@ All check commands (`check`, `verify`, `status`) support `--format json` for mac
 
 ## How It Works
 
-`ac-guard install` reads `guard.yaml` and generates all artifacts at once — rule documents, hook scripts, `.pre-commit-config.yaml`, and `.ac-guard/policy.json`. No config parsing happens at runtime.
+`ac-guard install` reads `guard.yaml` and generates all artifacts at once — rule documents, hook scripts, `.pre-commit-config.yaml`, and `.ac-guard/runtime.json`. No config parsing happens at runtime.
 
 When the agent runs, its hook script loads the pre-built policy and matches each operation against the rules. Forbidden operations are blocked. Operations requiring approval prompt the user. Everything else is allowed. Every decision is logged to `.ac-guard/audit.jsonl`.
 

@@ -29,13 +29,13 @@ def _init_and_install(tmp_path: Path, agents: str = "claude-code") -> None:
 
 
 class TestEnforcerPipeline:
-    """Enforcer evaluate() with real policy.json from install."""
+    """Enforcer evaluate() with real runtime.json from install."""
 
     def test_install_then_evaluate(self, tmp_path: Path) -> None:
-        """install generates policy.json that evaluate() can use."""
+        """install generates runtime.json that evaluate() can use."""
         _init_and_install(tmp_path)
-        # policy.json should exist
-        assert (tmp_path / ".ac-guard" / "policy.json").is_file()
+        # runtime.json should exist
+        assert (tmp_path / ".ac-guard" / "runtime.json").is_file()
         # Evaluate should work (system protection rules present)
         result = evaluate("Write", {"file_path": "src/main.py"}, tmp_path)
         assert result.decision in (Decision.ALLOW, Decision.ASK, Decision.DENY)
@@ -116,17 +116,16 @@ class TestAuditLoggingE2E:
     """Audit logging with real Enforcer decisions."""
 
     def test_evaluate_then_audit(self, tmp_path: Path) -> None:
-        """Evaluate + audit produces correct JSON Lines record."""
+        """evaluate() auto-audits when audit is enabled (standard preset)."""
         _init_and_install(tmp_path)
 
-        result = evaluate("Write", {"file_path": "guard.yaml"}, tmp_path)
-        record = result.to_audit_record("Write", "claude-code")
-        append_audit_log(record, tmp_path)
+        evaluate("Write", {"file_path": "guard.yaml"}, tmp_path, agent="claude-code")
 
         audit_path = tmp_path / ".ac-guard" / "audit.jsonl"
         assert audit_path.is_file()
-        content = audit_path.read_text()
-        parsed = json.loads(content.strip())
+        lines = audit_path.read_text().strip().split("\n")
+        assert len(lines) == 1
+        parsed = json.loads(lines[0])
         assert parsed["agent"] == "claude-code"
         assert parsed["tool"] == "Write"
         assert parsed["decision"] in ("allow", "deny", "ask")
@@ -142,11 +141,10 @@ class TestAuditLoggingE2E:
             ("Bash", {"command": "git status"}),
         ]
         for tool_name, tool_input in tool_calls:
-            result = evaluate(tool_name, tool_input, tmp_path)
-            record = result.to_audit_record(tool_name, "claude-code")
-            append_audit_log(record, tmp_path)
+            evaluate(tool_name, tool_input, tmp_path, agent="claude-code")
 
         audit_path = tmp_path / ".ac-guard" / "audit.jsonl"
+        assert audit_path.is_file()
         lines = audit_path.read_text().strip().split("\n")
         assert len(lines) == 3
 
@@ -156,6 +154,7 @@ class TestAuditLoggingE2E:
 
         # Write an old record manually
         audit_path = tmp_path / ".ac-guard" / "audit.jsonl"
+        audit_path.parent.mkdir(parents=True, exist_ok=True)
         old_record = json.dumps(
             {
                 "timestamp": "2020-01-01T00:00:00+00:00",
@@ -164,10 +163,8 @@ class TestAuditLoggingE2E:
         )
         audit_path.write_text(old_record + "\n")
 
-        # Add a fresh record via evaluate
-        result = evaluate("Read", {"file_path": "src/main.py"}, tmp_path)
-        record = result.to_audit_record("Read", "claude-code")
-        append_audit_log(record, tmp_path)
+        # Add a fresh record via evaluate (auto-audits)
+        evaluate("Read", {"file_path": "src/main.py"}, tmp_path, agent="claude-code")
 
         # Retention should remove the old one
         removed = apply_retention(tmp_path, retention_days=30)
@@ -181,16 +178,16 @@ class TestErrorRecovery:
     """Error scenarios and fail-closed behavior."""
 
     def test_no_policy_allows_all(self, tmp_path: Path) -> None:
-        """Without policy.json, all operations are allowed."""
+        """Without runtime.json, all operations are allowed."""
         result = evaluate("Write", {"file_path": ".git/config"}, tmp_path)
         assert result.decision == Decision.ALLOW
         assert result.tier == "no_policy"
 
     def test_corrupt_policy_denies(self, tmp_path: Path) -> None:
-        """Corrupt policy.json results in deny (fail-closed)."""
+        """Corrupt runtime.json results in deny (fail-closed)."""
         policy_dir = tmp_path / ".ac-guard"
         policy_dir.mkdir(parents=True)
-        (policy_dir / "policy.json").write_text("{{{bad json")
+        (policy_dir / "runtime.json").write_text("{{{bad json")
         result = evaluate("Write", {"file_path": "test.py"}, tmp_path)
         assert result.decision == Decision.DENY
         assert result.tier == "error"

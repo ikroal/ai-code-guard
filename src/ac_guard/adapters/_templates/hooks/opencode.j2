@@ -31,6 +31,7 @@ function evaluatePolicy(call: ToolCall): {
   const input = JSON.stringify({
     tool_name: call.tool,
     tool_input: call.args || {},
+    agent: "opencode",
   });
 
   try {

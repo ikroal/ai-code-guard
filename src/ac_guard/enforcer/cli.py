@@ -8,7 +8,10 @@ Usage:
         python3 -m ac_guard.enforcer
 
 Input (stdin JSON):
-    {"tool_name": "...", "tool_input": {...}}
+    {"tool_name": "...", "tool_input": {...}, "agent": "cursor", "project_root": "."}
+    Only ``tool_name`` and ``tool_input`` are required. ``agent`` is
+    recorded in the audit log to identify the caller; ``project_root``
+    defaults to ``.``.
 
 Output (stdout JSON):
     {"decision": "allow|deny|ask", "reason": "...", "pattern": "..."}
@@ -37,8 +40,9 @@ def main() -> None:
     tool_name = input_data.get("tool_name", "")
     tool_input = input_data.get("tool_input", {})
     project_root = Path(input_data.get("project_root", "."))
+    agent = input_data.get("agent", "")
 
-    result = evaluate(tool_name, tool_input, project_root)
+    result = evaluate(tool_name, tool_input, project_root, agent=agent)
 
     output: dict[str, str] = {"decision": result.decision.value}
     if result.matched_rule and result.matched_rule.reason:

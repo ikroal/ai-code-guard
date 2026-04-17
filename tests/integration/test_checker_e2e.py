@@ -403,7 +403,7 @@ class TestSystemExecuteRulesE2E:
 
         import json
 
-        policy = json.loads((tmp_path / ".ac-guard" / "policy.json").read_text())
+        policy = json.loads((tmp_path / ".ac-guard" / "runtime.json").read_text())
         patterns = {
             rule["pattern"] for rule in policy["behavior"]["execute"]["forbidden"]
         }

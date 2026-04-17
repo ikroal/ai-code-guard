@@ -41,7 +41,7 @@ def installed_project(project_with_config: Path) -> Path:
         ac_guard_version="0.1.0",
         installed_agents=["claude-code"],
         config_hash="abcd1234",
-        artifacts=["CLAUDE.md", ".ac-guard/policy.json"],
+        artifacts=["CLAUDE.md", ".ac-guard/runtime.json"],
     )
     state_path = project_with_config / STATE_FILE
     state_path.parent.mkdir(parents=True, exist_ok=True)
@@ -49,7 +49,7 @@ def installed_project(project_with_config: Path) -> Path:
     # Create the artifact files so uninstall can delete them
     (project_with_config / "CLAUDE.md").write_text("# Rules\n")
     policy_dir = project_with_config / ".ac-guard"
-    (policy_dir / "policy.json").write_text("{}")
+    (policy_dir / "runtime.json").write_text("{}")
     return project_with_config
 
 

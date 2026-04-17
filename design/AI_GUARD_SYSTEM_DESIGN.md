@@ -371,7 +371,7 @@ AI Agent 工具调用
   Hook 脚本：协议转换（Agent 格式 → 统一 ToolCall）
   │
   Enforcer.evaluate():
-    E1 load_policy (从 policy.json)
+    E1 load_policy (从 runtime.json)
     E2 classify (确定操作类型和目标)
     E3 match (规则匹配)
     E4 decide (产出 PolicyDecision)
@@ -589,7 +589,7 @@ write:
 
 #### 5.3.4 规则来源追踪
 
-合并过程中，每条规则标记其来源，用于 `guard status --rules` 的展示和 policy.json 的存储：
+合并过程中，每条规则标记其来源，用于 `guard status --rules` 的展示和 runtime.json 的存储：
 
 | 来源标记 | 含义 |
 |---|---|
@@ -728,7 +728,7 @@ C1 内部流程：加载内置默认 → 逐个加载规则集并合并 → 加�
 | G2 | generate_hook_files | ResolvedConfig + AgentAdapter | list[FileSpec]（Hook 脚本 + 配置） |
 | G3 | generate_tool_configs | ResolvedConfig + ruleset files | list[FileSpec]（工具配置） |
 | G4 | generate_precommit_config | ResolvedConfig.code + languages | FileSpec（.pre-commit-config.yaml） |
-| G5 | generate_policy_cache | ResolvedConfig | FileSpec（policy.json） |
+| G5 | generate_policy_cache | ResolvedConfig | FileSpec（runtime.json） |
 | G6 | generate_git_hooks | — | list[FileSpec]（.git/hooks/*） |
 | G7 | write_artifacts | list[FileSpec] | 文件写入磁盘 |
 
@@ -803,19 +803,19 @@ install 为增量操作：新增 Agent 追加至已有列表，为全部 Agent �
 
 #### 6.4.1 职责与边界
 
-运行时规则匹配引擎。接收统一格式的 ToolCall，基于策略缓存（policy.json）执行判定，返回 PolicyDecision。Enforcer 不经过 CLI 入口，由安装时生成的 Hook 脚本直接调用。
+运行时规则匹配引擎。接收统一格式的 ToolCall，基于策略缓存（runtime.json）执行判定，返回 PolicyDecision。Enforcer 不经过 CLI 入口，由安装时生成的 Hook 脚本直接调用。
 
 #### 6.4.2 策略缓存机制
 
-install/update 时生成 `.ai-guard/policy.json`，包含合并后的最终行为策略（JSON 格式）及 config_hash。Enforcer 运行时直接加载此文件，无需解析 YAML。
+install/update 时生成 `.ai-guard/runtime.json`，包含合并后的最终行为策略（JSON 格式）及 config_hash。Enforcer 运行时直接加载此文件，无需解析 YAML。
 
-漂移检测：Enforcer 启动时比对当前 guard.yaml 的 hash 与 policy.json 中的 config_hash，不一致时向 stderr 输出警告，但不阻止执行（使用旧策略继续判定）。
+漂移检测：Enforcer 启动时比对当前 guard.yaml 的 hash 与 runtime.json 中的 config_hash，不一致时向 stderr 输出警告，但不阻止执行（使用旧策略继续判定）。
 
 #### 6.4.3 原语操作
 
 | 编号 | 原语 | 输入 | 输出 |
 |---|---|---|---|
-| E1 | load_policy | policy.json 路径 | Policy 对象 |
+| E1 | load_policy | runtime.json 路径 | Policy 对象 |
 | E2 | classify | tool_name, tool_args | (operation, scheme, target) |
 | E3 | match | target, rules | 命中的规则或 None |
 | E4 | decide | match 结果 | PolicyDecision (allow / deny / ask) |
@@ -837,8 +837,8 @@ Pattern 匹配支持两种模式：glob（默认）和 regex（`regex: true` 显
 
 | 异常场景 | 处理方式 | 理由 |
 |---|---|---|
-| policy.json 缺失（未 install） | 输出引导提示 + allow | 首次使用不阻塞 |
-| policy.json 解析失败 | **deny** + 错误提示 | fail-closed |
+| runtime.json 缺失（未 install） | 输出引导提示 + allow | 首次使用不阻塞 |
+| runtime.json 解析失败 | **deny** + 错误提示 | fail-closed |
 | 未知工具类型 | allow | 不在管控范围 |
 | Pattern 匹配崩溃 | **deny** + 错误提示 | fail-closed |
 | config_hash 不一致 | 警告 + 用旧策略继续 | 提醒但不阻塞 |
@@ -1116,7 +1116,7 @@ class ResolvedConfig:
 }
 ```
 
-#### policy.json
+#### runtime.json
 
 ```json
 {
@@ -1195,7 +1195,7 @@ class CheckReport:
 | Hook 脚本 + 配置 | G2 | Agent 特定的拦截脚本和注册配置 |
 | 工具配置（.clang-format 等） | G3 | 从规则集复制的工具配置文件 |
 | .pre-commit-config.yaml | G4 | pre-commit 框架配置 |
-| .ai-guard/policy.json | G5 | 策略缓存（Enforcer 消费） |
+| .ai-guard/runtime.json | G5 | 策略缓存（Enforcer 消费） |
 | .git/hooks/pre-commit, pre-push | G6 | Git Hook 脚本 |
 | .ai-guard/state.json | install 命令 | 安装状态记录 |
 

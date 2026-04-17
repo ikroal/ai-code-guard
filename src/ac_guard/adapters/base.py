@@ -107,7 +107,7 @@ class AgentAdapter(ABC):
 
         Args:
             behavior: BehaviorConfig containing behavior rules.
-                (Hook scripts may embed rules or reference policy.json)
+                (Hook scripts may embed rules or reference runtime.json)
 
         Returns:
             List of FileSpec objects for Hook-related files.
