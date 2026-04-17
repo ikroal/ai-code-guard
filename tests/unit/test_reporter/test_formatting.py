@@ -126,6 +126,37 @@ class TestFormatTerminal:
         output = format_terminal(_failed_report())
         assert "1/2" in output
 
+    def test_default_locale_uses_english_labels(self) -> None:
+        """Default locale keeps existing English output verbatim."""
+        output = format_terminal(_passed_report())
+        assert "Stage: commit — PASSED" in output
+        assert "2/2 checks passed, 0 failed" in output
+        assert "Total time" in output
+
+    def test_zh_cn_locale_localizes_headings(self) -> None:
+        """zh-CN localizes stage / summary / total_time labels and status."""
+        output = format_terminal(_passed_report(), locale="zh-CN")
+        assert "阶段: commit — 通过" in output
+        assert "2/2 项检查通过, 0 项失败" in output
+        assert "总耗时" in output
+        # PASS / FAIL / SKIP indicators remain ASCII for alignment
+        assert "[PASS]" in output
+        # English labels must not leak into zh-CN output
+        assert "PASSED" not in output
+        assert "Stage:" not in output
+
+    def test_zh_cn_locale_failure_heading(self) -> None:
+        """zh-CN locale shows 失败 when the report fails."""
+        output = format_terminal(_failed_report(), locale="zh-CN")
+        assert "阶段: push — 失败" in output
+        assert "1/2 项检查通过, 1 项失败" in output
+
+    def test_unknown_locale_falls_back_to_english(self) -> None:
+        """Unknown locale behaves like the default English labels."""
+        output = format_terminal(_passed_report(), locale="fr-FR")
+        assert "Stage: commit — PASSED" in output
+        assert "2/2 checks passed, 0 failed" in output
+
 
 # ---------------------------------------------------------------------------
 # TestFormatGate

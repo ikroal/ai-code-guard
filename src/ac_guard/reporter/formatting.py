@@ -29,6 +29,30 @@ _LOCALE_TEMPLATES = {
     "zh-CN": "report_zh_cn.md.j2",
 }
 
+# Terminal-facing labels. See format_terminal() docstring for the scope
+# of what is localized versus left as stable ASCII tokens.
+_LABELS: dict[str, dict[str, str]] = {
+    "en": {
+        "stage": "Stage",
+        "passed": "PASSED",
+        "failed": "FAILED",
+        "summary": "{passed}/{total} checks passed, {failed} failed",
+        "total_time": "Total time",
+    },
+    "zh-CN": {
+        "stage": "阶段",
+        "passed": "通过",
+        "failed": "失败",
+        "summary": "{passed}/{total} 项检查通过, {failed} 项失败",
+        "total_time": "总耗时",
+    },
+}
+
+
+def _labels_for(locale: str) -> dict[str, str]:
+    """Return the label set for *locale*, falling back to English."""
+    return _LABELS.get(locale, _LABELS["en"])
+
 
 def _get_env() -> Environment:
     """Get or create Jinja2 environment."""
@@ -51,23 +75,29 @@ def _get_env() -> Environment:
 def format_terminal(
     report: Any,
     verbosity: str = "normal",
+    locale: str = "en",
 ) -> str:
     """Format a CheckReport for terminal display.
 
     Args:
         report: Any to format.
         verbosity: Output detail level ("quiet", "normal", "verbose").
+        locale: Label locale ("en" or "zh-CN"). Unknown locales fall
+            back to English. Only full-line headings are localized;
+            the ``[PASS] / [FAIL] / [SKIP]`` indicators and check
+            names stay as stable ASCII tokens to preserve alignment.
 
     Returns:
         Formatted string for terminal output.
     """
-    status = "PASSED" if report.passed else "FAILED"
+    labels = _labels_for(locale)
+    status = labels["passed"] if report.passed else labels["failed"]
 
     if verbosity == "quiet":
         return f"{report.stage}: {status}"
 
     lines: list[str] = []
-    lines.append(f"Stage: {report.stage} — {status}")
+    lines.append(f"{labels['stage']}: {report.stage} — {status}")
     lines.append("")
 
     for result in report.results:
@@ -87,10 +117,10 @@ def format_terminal(
     passed = sum(1 for r in report.results if r.passed)
     total = len(report.results)
     failed = total - passed
-    lines.append(f"{passed}/{total} checks passed, {failed} failed")
+    lines.append(labels["summary"].format(passed=passed, total=total, failed=failed))
 
     if report.duration_ms:
-        lines.append(f"Total time: {report.duration_ms}ms")
+        lines.append(f"{labels['total_time']}: {report.duration_ms}ms")
 
     return "\n".join(lines)
 
