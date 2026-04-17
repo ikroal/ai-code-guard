@@ -32,6 +32,9 @@ ac-guard check --format json             # CI 机器可读输出
 ac-guard ruleset fetch <url>#v1.0        # 拉取共享规则集
 ```
 
+第一次用？按
+[15 分钟快速上手指南](docs/getting-started_zh.md) 走一遍完整流程。
+
 ## 支持的 Agent
 
 | Agent | 运行时 Hook | 代码质量 | 规则文档 |
