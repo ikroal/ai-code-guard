@@ -154,5 +154,5 @@ class TestNoPrContextError:
         post_pr_comment(report=report, config=config, locale="en")
 
         captured = capsys.readouterr()
-        assert "Warning: PR comment not posted" in captured.err
+        assert "Warning: PR comment failed to post" in captured.err
         assert "API 500" in captured.err

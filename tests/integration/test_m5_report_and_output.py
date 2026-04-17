@@ -360,7 +360,7 @@ class TestCliPrReportIntegration:
             if result.stderr_bytes
             else ""
         )
-        assert "Warning: PR comment not posted" not in combined
+        assert "Warning: PR comment failed to post" not in combined
         assert "Cannot determine PR number" not in combined
 
     def test_cli_check_warns_when_channel_error(self, tmp_path: Path) -> None:
@@ -383,7 +383,7 @@ class TestCliPrReportIntegration:
             if result.stderr_bytes
             else ""
         )
-        assert "Warning: PR comment not posted" in combined
+        assert "Warning: PR comment failed to post" in combined
         assert "500" in combined
 
     def test_cli_check_disabled_skips_channel_entirely(self, tmp_path: Path) -> None:

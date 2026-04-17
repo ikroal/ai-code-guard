@@ -156,8 +156,8 @@ def post_pr_comment(
         channel.send(markdown, config)
     except NoPrContextError:
         return  # Silent skip: no PR in context (typical in local dev)
-    except (ChannelError, Exception) as exc:
-        print(f"Warning: PR comment not posted: {exc}", file=sys.stderr)
+    except Exception as exc:
+        print(f"Warning: PR comment failed to post: {exc}", file=sys.stderr)
 
 
 # Ensure built-in channels are registered on import
