@@ -134,6 +134,10 @@ pytest                    # 816 tests
 ruff check .
 ```
 
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for release notes and known limitations.
+
 ## License
 
 [MIT](LICENSE)
