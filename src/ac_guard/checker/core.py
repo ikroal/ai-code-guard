@@ -301,12 +301,16 @@ def run_build(build_command: str, project_root: Path) -> CheckResult:
 # ---------------------------------------------------------------------------
 
 
-def run_stage(
+def run_stage(  # noqa: PLR0913 — orchestrator intentionally exposes
+    # five distinct inputs (stage, code_config, project_root, build_command,
+    # files, languages); collapsing them into a dataclass would hurt callsite
+    # readability for no gain.
     stage: str,
     code_config: CodeConfig,
     project_root: Path,
     build_command: str | None = None,
     files: list[str] | None = None,
+    languages: list[str] | None = None,
 ) -> CheckReport:
     """Orchestrate all checks for a stage.
 
@@ -319,15 +323,21 @@ def run_stage(
         project_root: Path to project root directory.
         build_command: Optional build command (push stage only).
         files: Explicit file list. If None, auto-detect via git.
+        languages: Language identifiers used to resolve pre-commit
+            hook IDs (``format-<lang>`` / ``lint-<lang>``). Empty list
+            or None means format/lint shortcuts are silently skipped.
 
     Returns:
         CheckReport with aggregated results.
     """
     start = time.monotonic()
+    langs = list(languages or [])
 
     if stage == "push":
         # Fail-fast: run commit stage first
-        commit_report = run_stage("commit", code_config, project_root, files=files)
+        commit_report = run_stage(
+            "commit", code_config, project_root, files=files, languages=langs
+        )
         if not commit_report.passed:
             elapsed = int((time.monotonic() - start) * 1000)
             return CheckReport(
@@ -342,10 +352,10 @@ def run_stage(
     results: list[CheckResult] = []
 
     if stage == "commit":
-        results.extend(_run_commit_checks(code_config, files, project_root))
+        results.extend(_run_commit_checks(code_config, files, project_root, langs))
     else:
         results.extend(
-            _run_push_checks(code_config, files, project_root, build_command)
+            _run_push_checks(code_config, files, project_root, build_command, langs)
         )
 
     elapsed = int((time.monotonic() - start) * 1000)
@@ -359,28 +369,37 @@ def run_stage(
     )
 
 
+# Naming check is declared in the schema but not yet implemented — see
+# https://github.com/ikroal/ai-code-guard/issues/95
+_NAMING_NOT_IMPLEMENTED_MSG = (
+    "Naming check is not yet implemented — tracked in "
+    "https://github.com/ikroal/ai-code-guard/issues/95"
+)
+
+
 def _run_commit_checks(
     config: CodeConfig,
     files: list[str],
     project_root: Path,
+    languages: list[str],
 ) -> list[CheckResult]:
-    """Run commit-stage checks.
-
-    Args:
-        config: CodeConfig with commit settings.
-        files: Changed files list.
-        project_root: Path to project root.
-
-    Returns:
-        List of CheckResults for commit stage.
-    """
+    """Run commit-stage checks."""
     results: list[CheckResult] = []
 
     if config.commit_format:
-        results.append(run_precommit("format", files, project_root))
+        results.extend(
+            run_precommit(f"format-{lang}", files, project_root) for lang in languages
+        )
 
     if config.commit_naming:
-        results.append(run_precommit("naming", files, project_root))
+        results.append(
+            CheckResult(
+                name="naming",
+                passed=True,
+                skipped=True,
+                output=_NAMING_NOT_IMPLEMENTED_MSG,
+            )
+        )
 
     for name, check_item in config.commit_checks.items():
         results.append(run_check(name, check_item, files, project_root))
@@ -393,25 +412,18 @@ def _run_push_checks(
     files: list[str],
     project_root: Path,
     build_command: str | None,
+    languages: list[str],
 ) -> list[CheckResult]:
-    """Run push-stage checks.
-
-    Args:
-        config: CodeConfig with push settings.
-        files: Changed files list.
-        project_root: Path to project root.
-        build_command: Optional build command.
-
-    Returns:
-        List of CheckResults for push stage.
-    """
+    """Run push-stage checks."""
     results: list[CheckResult] = []
 
     if build_command:
         results.append(run_build(build_command, project_root))
 
     if config.push_lint:
-        results.append(run_precommit("lint", files, project_root))
+        results.extend(
+            run_precommit(f"lint-{lang}", files, project_root) for lang in languages
+        )
 
     for name, check_item in config.push_checks.items():
         results.append(run_check(name, check_item, files, project_root))

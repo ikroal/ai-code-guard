@@ -331,10 +331,11 @@ class TestInitCommandIntegration:
         content = output.read_text()
         # Check for expected content from standard preset
         assert "format: true" in content
-        assert "naming: true" in content
         assert "lint: true" in content
         assert "audit:" in content
         assert "enabled: true" in content
+        # naming shortcut is not shipped with the preset — see #95
+        assert "naming" not in content
 
     def test_init_strict_preset_yaml_content(self, tmp_path: Path) -> None:
         """init strict preset produces expected YAML content."""

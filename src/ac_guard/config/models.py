@@ -142,7 +142,7 @@ class CodeConfig:
     """
 
     commit_format: bool = True
-    commit_naming: bool = True
+    commit_naming: bool = False
     commit_checks: dict[str, CheckItem] = field(default_factory=dict)
     push_lint: bool = True
     push_checks: dict[str, CheckItem] = field(default_factory=dict)

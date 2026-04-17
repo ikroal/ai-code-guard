@@ -13,6 +13,7 @@ from ac_guard.config.exceptions import (
     ConfigWarning,
 )
 from ac_guard.config.merger import (
+    _SYSTEM_EXECUTE_FORBIDDEN,
     _SYSTEM_PROTECTION_PATTERNS,
     resolve_config,
 )
@@ -72,7 +73,9 @@ class TestResolveConfigMinimal:
         path = _write_yaml(tmp_path, _minimal_guard())
         result = resolve_config(path)
         assert result.code.commit_format is True
-        assert result.code.commit_naming is True
+        # naming defaults to False because the shortcut is not yet
+        # implemented (see checker skip path and issue #95).
+        assert result.code.commit_naming is False
         assert result.code.push_lint is True
         assert result.code.commit_checks == {}
         assert result.code.push_checks == {}
@@ -89,9 +92,12 @@ class TestResolveConfigMinimal:
     def test_default_behavior_empty(self, tmp_path: Path) -> None:
         path = _write_yaml(tmp_path, _minimal_guard())
         result = resolve_config(path)
-        # read and execute should be empty
+        # read should be empty; execute.forbidden holds system rules only
         assert result.behavior.read.forbidden == []
-        assert result.behavior.execute.forbidden == []
+        user_execute = [
+            r for r in result.behavior.execute.forbidden if r.source != "system"
+        ]
+        assert user_execute == []
 
     def test_build_command_none_by_default(self, tmp_path: Path) -> None:
         path = _write_yaml(tmp_path, _minimal_guard())
@@ -138,8 +144,8 @@ class TestScalarOverride:
         path = _write_yaml(tmp_path, data)
         result = resolve_config(path)
         assert result.code.commit_format is False
-        # naming should still be True (from default)
-        assert result.code.commit_naming is True
+        # naming remains False (default; shortcut unimplemented — see #95)
+        assert result.code.commit_naming is False
 
     def test_override_push_lint(self, tmp_path: Path) -> None:
         data = _minimal_guard(code={"push": {"lint": False}})
@@ -307,6 +313,81 @@ class TestSystemProtectionRules:
         assert "file:deploy/**" in patterns
         for expected in _SYSTEM_PROTECTION_PATTERNS:
             assert expected in patterns
+
+
+# ---------------------------------------------------------------------------
+# TestSystemExecuteRules
+# ---------------------------------------------------------------------------
+
+
+class TestSystemExecuteRules:
+    """System execute.forbidden rules (anti-bypass) are injected."""
+
+    def test_execute_forbidden_includes_no_verify_patterns(
+        self, tmp_path: Path
+    ) -> None:
+        path = _write_yaml(tmp_path, _minimal_guard())
+        result = resolve_config(path)
+        patterns = [r.pattern for r in result.behavior.execute.forbidden]
+        for expected in _SYSTEM_EXECUTE_FORBIDDEN:
+            assert expected in patterns
+
+    def test_execute_forbidden_source_is_system(self, tmp_path: Path) -> None:
+        path = _write_yaml(tmp_path, _minimal_guard())
+        result = resolve_config(path)
+        for rule in result.behavior.execute.forbidden:
+            if rule.pattern in _SYSTEM_EXECUTE_FORBIDDEN:
+                assert rule.source == "system"
+
+    def test_user_execute_rules_coexist_with_system_rules(self, tmp_path: Path) -> None:
+        data = _minimal_guard(
+            behavior={
+                "execute": {
+                    "forbidden": [{"pattern": "shell:rm -rf /*"}],
+                },
+            }
+        )
+        path = _write_yaml(tmp_path, data)
+        result = resolve_config(path)
+        patterns = [r.pattern for r in result.behavior.execute.forbidden]
+        assert "shell:rm -rf /*" in patterns
+        for expected in _SYSTEM_EXECUTE_FORBIDDEN:
+            assert expected in patterns
+
+
+# ---------------------------------------------------------------------------
+# TestLanguagesAutoPopulate
+# ---------------------------------------------------------------------------
+
+
+class TestLanguagesAutoPopulate:
+    """Empty languages gets auto-filled from project.language + defaults."""
+
+    def test_empty_languages_filled_from_project_language(self, tmp_path: Path) -> None:
+        path = _write_yaml(tmp_path, _minimal_guard())  # language=python, no languages
+        result = resolve_config(path)
+        assert "python" in result.languages
+        assert result.languages["python"].format == "black"
+        assert result.languages["python"].lint == "ruff"
+
+    def test_explicit_languages_not_overridden(self, tmp_path: Path) -> None:
+        data = _minimal_guard(
+            languages={
+                "python": {"tools": {"format": "ruff format", "lint": "ruff"}},
+            }
+        )
+        path = _write_yaml(tmp_path, data)
+        result = resolve_config(path)
+        assert result.languages["python"].format == "ruff format"
+
+    def test_unknown_project_language_leaves_languages_empty(
+        self, tmp_path: Path
+    ) -> None:
+        # Use a language with no defaults mapping
+        data = {"version": 1, "project": {"language": "brainfuck"}}
+        path = _write_yaml(tmp_path, data)
+        result = resolve_config(path)
+        assert result.languages == {}
 
 
 # ---------------------------------------------------------------------------
@@ -748,7 +829,20 @@ class TestEdgeCases:
         assert "_source" not in rs["behavior"]["read"]["forbidden"][0]
         assert rs == original
 
-    def test_languages_empty_by_default(self, tmp_path: Path) -> None:
+    def test_languages_auto_populated_from_project_language(
+        self, tmp_path: Path
+    ) -> None:
+        # _minimal_guard sets project.language = python and no languages
+        # block. The merger should auto-populate from defaults/languages.yaml.
         path = _write_yaml(tmp_path, _minimal_guard())
+        result = resolve_config(path)
+        assert "python" in result.languages
+
+    def test_languages_empty_when_project_language_unknown(
+        self, tmp_path: Path
+    ) -> None:
+        # A language with no default tool mapping must not synthesize entries.
+        data = {"version": 1, "project": {"language": "brainfuck"}}
+        path = _write_yaml(tmp_path, data)
         result = resolve_config(path)
         assert result.languages == {}

@@ -9,6 +9,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Built-in `commit.format` / `push.lint` shortcuts now invoke the
+  language-specific hook IDs (`format-<lang>` / `lint-<lang>`) that the
+  Generator actually emits, so `ac-guard check` passes out of the box for
+  every preset. ([#92](https://github.com/ikroal/ai-code-guard/issues/92))
+- `git commit --no-verify` and `git push --no-verify` are now added to
+  `execute.forbidden` as system rules, matching the README's "the agent
+  cannot skip the gate" promise.
+  ([#93](https://github.com/ikroal/ai-code-guard/issues/93))
+
+### Changed
+
+- `code.commit.naming` is now a no-op that the checker surfaces as a
+  `[SKIP]` result — the shortcut is reserved for a follow-up release
+  ([#95](https://github.com/ikroal/ai-code-guard/issues/95)). The
+  `standard` and `strict` presets no longer opt in by default.
+- When `guard.yaml` declares `project.language` but omits `languages`,
+  the merger auto-populates the tool mapping from
+  `defaults/languages.yaml` so built-in `format` / `lint` shortcuts work
+  without extra configuration.
+- Generated Claude Code / OpenCode / Cursor hook scripts keep their
+  trailing newline, so the very first `ac-guard check` run no longer
+  trips `black` / `prettier`.
+
 ## [0.1.0] - 2026-0X-XX
 
 首个公开预览版本。核心能力覆盖 AI Agent 看护系统的两条主线：
@@ -71,6 +96,7 @@ and **code-quality gates** (`pre-commit` / `pre-push` Checker).
 - Push-stage build failure does not fail-fast as aggressively as commit-stage. ([#77](https://github.com/ikroal/ai-code-guard/issues/77))
 - `post_pr_comment` is not yet invoked automatically by the CLI; call it manually from CI for now. ([#66](https://github.com/ikroal/ai-code-guard/issues/66))
 - HTTP requests have no retry/backoff; transient network failures surface directly. ([#67](https://github.com/ikroal/ai-code-guard/issues/67))
+- `code.commit.naming: true` is accepted but produces a `[SKIP]` result — a concrete naming check implementation is planned in a follow-up. ([#95](https://github.com/ikroal/ai-code-guard/issues/95))
 
 [Unreleased]: https://github.com/ikroal/ai-code-guard/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/ikroal/ai-code-guard/releases/tag/v0.1.0

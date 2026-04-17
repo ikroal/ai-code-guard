@@ -14,7 +14,7 @@ from ac_guard.checker.core import (
     run_precommit,
     run_stage,
 )
-from ac_guard.checker.models import CheckReport
+from ac_guard.checker.models import CheckReport, CheckResult
 from ac_guard.config.exceptions import ConfigError
 from ac_guard.config.merger import resolve_config
 from ac_guard.reporter.formatting import format_gate, format_json, format_terminal
@@ -30,6 +30,10 @@ __all__ = [
 ]
 
 _BUILTIN_CHECKS = frozenset({"format", "naming", "lint"})
+_NAMING_NOT_IMPLEMENTED_MSG = (
+    "Naming check is not yet implemented — tracked in "
+    "https://github.com/ikroal/ai-code-guard/issues/95"
+)
 
 
 def check_command(
@@ -49,7 +53,13 @@ def check_command(
     project_root = config_path.parent.resolve()
     file_list = files or None
 
-    report = run_stage("commit", resolved.code, project_root, files=file_list)
+    report = run_stage(
+        "commit",
+        resolved.code,
+        project_root,
+        files=file_list,
+        languages=list(resolved.languages),
+    )
 
     print(_format_report(report, output_format, resolved.output.verbosity))
     raise SystemExit(0 if report.passed else 1)
@@ -72,7 +82,13 @@ def verify_command(
     project_root = config_path.parent.resolve()
     build_cmd = None if skip_build else resolved.build_command
 
-    report = run_stage("push", resolved.code, project_root, build_command=build_cmd)
+    report = run_stage(
+        "push",
+        resolved.code,
+        project_root,
+        build_command=build_cmd,
+        languages=list(resolved.languages),
+    )
 
     print(_format_report(report, output_format, resolved.output.verbosity))
     raise SystemExit(0 if report.passed else 1)
@@ -96,9 +112,33 @@ def run_command(
     project_root = config_path.parent.resolve()
     file_list = files or get_changed_files(stage, project_root)
 
-    # Built-in pre-commit checks
+    # Built-in pre-commit shortcuts (format / naming / lint)
+    results: list = []
     if name in _BUILTIN_CHECKS:
-        result = run_precommit(name, file_list, project_root)
+        if name == "naming":
+            results.append(
+                CheckResult(
+                    name="naming",
+                    passed=True,
+                    skipped=True,
+                    output=_NAMING_NOT_IMPLEMENTED_MSG,
+                )
+            )
+        else:  # format or lint — iterate languages
+            results.extend(
+                run_precommit(f"{name}-{lang}", file_list, project_root)
+                for lang in resolved.languages
+            )
+            if not results:
+                # No languages configured — nothing to run
+                results.append(
+                    CheckResult(
+                        name=name,
+                        passed=True,
+                        skipped=True,
+                        output="No languages configured",
+                    )
+                )
     else:
         # Search custom checks in both stages
         check_item = resolved.code.commit_checks.get(name)
@@ -112,13 +152,15 @@ def run_command(
             if available:
                 print(f"Available checks: {', '.join(available)}")
             raise SystemExit(1)
-        result = run_check(name, check_item, file_list, project_root)
+        results.append(run_check(name, check_item, file_list, project_root))
 
+    passed = all(r.passed for r in results)
+    duration = sum(r.duration_ms for r in results)
     report = CheckReport(
         stage=stage,
-        passed=result.passed,
-        results=[result],
-        duration_ms=result.duration_ms,
+        passed=passed,
+        results=results,
+        duration_ms=duration,
     )
 
     print(_format_report(report, "text", resolved.output.verbosity))
@@ -139,7 +181,13 @@ def gate_run_command(
     project_root = config_path.parent.resolve()
     build_cmd = resolved.build_command if stage == "push" else None
 
-    report = run_stage(stage, resolved.code, project_root, build_command=build_cmd)
+    report = run_stage(
+        stage,
+        resolved.code,
+        project_root,
+        build_command=build_cmd,
+        languages=list(resolved.languages),
+    )
 
     message, exit_code = format_gate(report)
     print(message)
