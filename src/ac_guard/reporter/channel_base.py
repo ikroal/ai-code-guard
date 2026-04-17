@@ -20,6 +20,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "ChannelError",
+    "NoPrContextError",
     "ReportChannel",
     "get_channel",
     "post_pr_comment",
@@ -32,6 +33,17 @@ class ChannelError(Exception):
 
     This is caught by ``post_pr_comment`` to avoid affecting
     the main exit code — failures are logged as warnings.
+    """
+
+
+class NoPrContextError(ChannelError):
+    """Raised when no PR/MR can be identified in the current context.
+
+    Distinct from generic :class:`ChannelError` because it is an
+    expected condition during local development (no PR opened yet)
+    and should be silently skipped by :func:`post_pr_comment` —
+    not logged as a warning. Real failures such as missing tokens
+    or HTTP errors continue to raise plain :class:`ChannelError`.
     """
 
 
@@ -142,8 +154,10 @@ def post_pr_comment(
         markdown = format_markdown(report, locale)
         channel = get_channel(config.platform)
         channel.send(markdown, config)
-    except (ChannelError, Exception) as exc:
-        print(f"Warning: PR comment not posted: {exc}", file=sys.stderr)
+    except NoPrContextError:
+        return  # Silent skip: no PR in context (typical in local dev)
+    except Exception as exc:
+        print(f"Warning: PR comment failed to post: {exc}", file=sys.stderr)
 
 
 # Ensure built-in channels are registered on import

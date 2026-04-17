@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from ac_guard.config.models import PrReportConfig
-from ac_guard.reporter.channel_base import ChannelError
+from ac_guard.reporter.channel_base import ChannelError, NoPrContextError
 from ac_guard.reporter.channel_gitea import GiteaChannel
 
 
@@ -147,5 +147,21 @@ class TestGiteaChannel:
                 "ac_guard.reporter.channel_gitea.get_current_branch", return_value=None
             ),
             pytest.raises(ChannelError, match="PR number"),
+        ):
+            GiteaChannel().send("r", self._make_config())
+
+    def test_no_pr_raises_no_pr_context_error(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """No PR discoverable => NoPrContextError (silent-skip contract)."""
+        monkeypatch.setenv("GITEA_TOKEN", "gt_test123")
+        monkeypatch.setenv("GITEA_REPOSITORY", "owner/repo")
+        monkeypatch.delenv("AI_GUARD_PR_NUMBER", raising=False)
+
+        with (
+            patch(
+                "ac_guard.reporter.channel_gitea.get_current_branch", return_value=None
+            ),
+            pytest.raises(NoPrContextError, match="PR number"),
         ):
             GiteaChannel().send("r", self._make_config())

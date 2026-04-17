@@ -17,6 +17,7 @@ from ac_guard.checker.core import (
 from ac_guard.checker.models import CheckReport, CheckResult
 from ac_guard.config.exceptions import ConfigError
 from ac_guard.config.merger import resolve_config
+from ac_guard.reporter.channel_base import post_pr_comment
 from ac_guard.reporter.formatting import format_gate, format_json, format_terminal
 
 if TYPE_CHECKING:
@@ -69,6 +70,7 @@ def check_command(
             resolved.output.locale,
         )
     )
+    post_pr_comment(report, resolved.output.pr_report, resolved.output.locale)
     raise SystemExit(0 if report.passed else 1)
 
 
@@ -105,6 +107,7 @@ def verify_command(
             resolved.output.locale,
         )
     )
+    post_pr_comment(report, resolved.output.pr_report, resolved.output.locale)
     raise SystemExit(0 if report.passed else 1)
 
 
@@ -209,6 +212,7 @@ def gate_run_command(
 
     message, exit_code = format_gate(report)
     print(message)
+    post_pr_comment(report, resolved.output.pr_report, resolved.output.locale)
     raise SystemExit(exit_code)
 
 

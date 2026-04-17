@@ -108,7 +108,7 @@ When the agent runs, its hook script loads the pre-built policy and matches each
 
 At commit and push time, pre-commit hooks run format, lint, naming, and custom checks. The agent cannot skip these because `git commit --no-verify` is itself a forbidden pattern.
 
-Check results can be posted as PR comments on GitHub, GitLab, Gitea, and Bitbucket via the `output.pr_report` configuration.
+Check results can be posted as PR comments on GitHub, GitLab, Gitea, and Bitbucket via the `output.pr_report` configuration. When `enabled: true`, `check`, `verify`, and `gate run` automatically publish a comment on the associated PR after execution. If no PR can be identified in the current context (e.g. local branch, no PR open yet), the dispatch is silently skipped — no noise in local development.
 
 ## Roadmap
 

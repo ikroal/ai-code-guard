@@ -274,3 +274,116 @@ class TestJsonOutput:
         data = json.loads(result.output)
         assert data["stage"] == "push"
         assert "results" in data
+
+
+# ---------------------------------------------------------------------------
+# TestCliAutoPostPrComment — WP6.1 / Issue #66
+# ---------------------------------------------------------------------------
+
+
+def _write_config_with_pr_report(tmp_path: Path, *, enabled: bool) -> Path:
+    """Write guard.yaml with output.pr_report.enabled set explicitly."""
+    config = tmp_path / "guard.yaml"
+    config.write_text(
+        yaml.dump(
+            {
+                "version": 1,
+                "project": {"name": "test", "language": "python"},
+                "output": {
+                    "locale": "zh-CN",
+                    "pr_report": {
+                        "enabled": enabled,
+                        "platform": "github",
+                        "token_env": "GITHUB_TOKEN",
+                    },
+                },
+            },
+            default_flow_style=False,
+        ),
+    )
+    return config
+
+
+class TestCliAutoPostPrComment:
+    """check / verify / gate run auto-trigger post_pr_comment (WP6.1)."""
+
+    def test_check_calls_post_pr_comment_with_resolved_config(
+        self, tmp_path: Path
+    ) -> None:
+        """check dispatches post_pr_comment with report + pr_report + locale."""
+        config = _write_config_with_pr_report(tmp_path, enabled=True)
+        with (
+            patch("ac_guard.checker.core.get_changed_files", return_value=[]),
+            patch("ac_guard.cli.check.post_pr_comment") as mock_post,
+        ):
+            result = runner.invoke(app, ["check", "--config", str(config)])
+        assert result.exit_code == 0
+        assert mock_post.call_count == 1
+        pos_args, _kw_args = mock_post.call_args
+        report_arg, pr_config_arg, locale_arg = pos_args
+        assert report_arg.stage == "commit"
+        assert report_arg.passed is True
+        assert pr_config_arg.enabled is True
+        assert pr_config_arg.platform == "github"
+        assert locale_arg == "zh-CN"
+
+    def test_check_passes_disabled_config_through(self, tmp_path: Path) -> None:
+        """Even when disabled, CLI calls post_pr_comment (primitive self-gates)."""
+        config = _write_config_with_pr_report(tmp_path, enabled=False)
+        with (
+            patch("ac_guard.checker.core.get_changed_files", return_value=[]),
+            patch("ac_guard.cli.check.post_pr_comment") as mock_post,
+        ):
+            result = runner.invoke(app, ["check", "--config", str(config)])
+        assert result.exit_code == 0
+        assert mock_post.call_count == 1
+        pos_args, _ = mock_post.call_args
+        _report, pr_config_arg, _locale = pos_args
+        assert pr_config_arg.enabled is False
+
+    def test_verify_calls_post_pr_comment(self, tmp_path: Path) -> None:
+        """verify also dispatches post_pr_comment at end."""
+        config = _write_config_with_pr_report(tmp_path, enabled=True)
+        with (
+            patch("ac_guard.checker.core.get_changed_files", return_value=[]),
+            patch("ac_guard.cli.check.post_pr_comment") as mock_post,
+        ):
+            result = runner.invoke(
+                app, ["verify", "--skip-build", "--config", str(config)]
+            )
+        assert result.exit_code == 0
+        assert mock_post.call_count == 1
+        pos_args, _ = mock_post.call_args
+        report_arg, _, _ = pos_args
+        assert report_arg.stage == "push"
+
+    def test_gate_run_calls_post_pr_comment(self, tmp_path: Path) -> None:
+        """gate run also dispatches post_pr_comment at end."""
+        config = _write_config_with_pr_report(tmp_path, enabled=True)
+        with (
+            patch("ac_guard.checker.core.get_changed_files", return_value=[]),
+            patch("ac_guard.cli.check.post_pr_comment") as mock_post,
+        ):
+            result = runner.invoke(
+                app, ["gate", "run", "--stage", "commit", "--config", str(config)]
+            )
+        assert result.exit_code == 0
+        assert mock_post.call_count == 1
+        pos_args, _ = mock_post.call_args
+        report_arg, _, _ = pos_args
+        assert report_arg.stage == "commit"
+
+    def test_run_does_not_call_post_pr_comment(self, tmp_path: Path) -> None:
+        """run is intentionally out of scope (WP6.1): single-check runner.
+
+        Fixates the decision: enabling per-check runs would create PR noise
+        (one comment per check). Re-evaluate in a follow-up issue if needed.
+        """
+        config = _write_config_with_checks(tmp_path)
+        with (
+            patch("ac_guard.checker.core.get_changed_files", return_value=[]),
+            patch("ac_guard.cli.check.post_pr_comment") as mock_post,
+        ):
+            result = runner.invoke(app, ["run", "echo-test", "--config", str(config)])
+        assert result.exit_code == 0
+        assert mock_post.call_count == 0

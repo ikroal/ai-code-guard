@@ -19,7 +19,11 @@ from typer.testing import CliRunner
 from ac_guard.checker.core import run_stage
 from ac_guard.cli.main import app
 from ac_guard.config.models import PrReportConfig
-from ac_guard.reporter.channel_base import post_pr_comment
+from ac_guard.reporter.channel_base import (
+    ChannelError,
+    NoPrContextError,
+    post_pr_comment,
+)
 from ac_guard.reporter.formatting import format_markdown
 
 runner = CliRunner()
@@ -272,6 +276,126 @@ class TestValidationDiscovery:
         assert "format" in output
         assert "naming" in output
         assert "lint" in output
+
+
+# ---------------------------------------------------------------------------
+# D4: CLI Auto-Dispatch of PR Report (WP6.1 / Issue #66)
+# ---------------------------------------------------------------------------
+
+
+def _write_config_pr_report(
+    tmp_path: Path, *, enabled: bool, platform: str = "github"
+) -> Path:
+    """Write a guard.yaml that enables PR reporting for the given platform."""
+    (tmp_path / ".git").mkdir(exist_ok=True)
+    config = tmp_path / "guard.yaml"
+    config.write_text(
+        yaml.dump(
+            {
+                "version": 1,
+                "project": {"name": "test", "language": "python"},
+                "output": {
+                    "pr_report": {
+                        "enabled": enabled,
+                        "platform": platform,
+                        "token_env": "GITHUB_TOKEN",
+                    },
+                },
+            },
+            default_flow_style=False,
+        ),
+        encoding="utf-8",
+    )
+    return config
+
+
+class TestCliPrReportIntegration:
+    """D4: CLI commands auto-dispatch post_pr_comment end-to-end (WP6.1)."""
+
+    def test_cli_check_triggers_pr_comment_when_pr_exists(self, tmp_path: Path) -> None:
+        """D4-1: guard check with pr_report.enabled=true → Channel.send called."""
+        config = _write_config_pr_report(tmp_path, enabled=True)
+        with (
+            patch("ac_guard.checker.core.get_changed_files", return_value=[]),
+            patch("ac_guard.reporter.channel_github.GitHubChannel.send") as mock_send,
+        ):
+            result = runner.invoke(app, ["check", "--config", str(config)])
+        assert result.exit_code == 0
+        assert mock_send.call_count == 1
+        markdown_arg = mock_send.call_args[0][0]
+        assert isinstance(markdown_arg, str)
+        assert len(markdown_arg) > 0
+
+    def test_cli_gate_run_triggers_pr_comment_when_pr_exists(
+        self, tmp_path: Path
+    ) -> None:
+        """D4-2: guard gate run with pr_report.enabled=true → Channel.send called."""
+        config = _write_config_pr_report(tmp_path, enabled=True)
+        with (
+            patch("ac_guard.checker.core.get_changed_files", return_value=[]),
+            patch("ac_guard.reporter.channel_github.GitHubChannel.send") as mock_send,
+        ):
+            result = runner.invoke(
+                app, ["gate", "run", "--stage", "commit", "--config", str(config)]
+            )
+        assert result.exit_code == 0
+        assert mock_send.call_count == 1
+
+    def test_cli_check_silent_when_no_pr_context(self, tmp_path: Path) -> None:
+        """D4-3: NoPrContextError from channel.send → no stderr warning."""
+        config = _write_config_pr_report(tmp_path, enabled=True)
+        with (
+            patch("ac_guard.checker.core.get_changed_files", return_value=[]),
+            patch(
+                "ac_guard.reporter.channel_github.GitHubChannel.send",
+                side_effect=NoPrContextError("Cannot determine PR number"),
+            ),
+        ):
+            result = runner.invoke(
+                app, ["check", "--config", str(config)], catch_exceptions=False
+            )
+        assert result.exit_code == 0
+        combined = result.output + (
+            result.stderr_bytes.decode("utf-8", errors="replace")
+            if result.stderr_bytes
+            else ""
+        )
+        assert "Warning: PR comment failed to post" not in combined
+        assert "Cannot determine PR number" not in combined
+
+    def test_cli_check_warns_when_channel_error(self, tmp_path: Path) -> None:
+        """D4-4: Non-NoPrContext ChannelError → stderr warning preserved."""
+        config = _write_config_pr_report(tmp_path, enabled=True)
+        with (
+            patch("ac_guard.checker.core.get_changed_files", return_value=[]),
+            patch(
+                "ac_guard.reporter.channel_github.GitHubChannel.send",
+                side_effect=ChannelError("GitHub API returned 500"),
+            ),
+        ):
+            # CliRunner merges stdout+stderr by default; check full output
+            result = runner.invoke(
+                app, ["check", "--config", str(config)], catch_exceptions=False
+            )
+        assert result.exit_code == 0
+        combined = result.output + (
+            result.stderr_bytes.decode("utf-8", errors="replace")
+            if result.stderr_bytes
+            else ""
+        )
+        assert "Warning: PR comment failed to post" in combined
+        assert "500" in combined
+
+    def test_cli_check_disabled_skips_channel_entirely(self, tmp_path: Path) -> None:
+        """D4-5: pr_report.enabled=false → channel.send never invoked."""
+        config = _write_config_pr_report(tmp_path, enabled=False)
+        with (
+            patch("ac_guard.checker.core.get_changed_files", return_value=[]),
+            patch("ac_guard.reporter.channel_github.GitHubChannel.send") as mock_send,
+        ):
+            result = runner.invoke(app, ["check", "--config", str(config)])
+        assert result.exit_code == 0
+        assert mock_send.call_count == 0
 
 
 # ---------------------------------------------------------------------------
