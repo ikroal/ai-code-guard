@@ -1,10 +1,10 @@
-"""Tests for ai_guard.config.models — Config data model definitions."""
+"""Tests for ac_guard.config.models — Config data model definitions."""
 
 from __future__ import annotations
 
 import pytest
 
-from ai_guard.config.models import (
+from ac_guard.config.models import (
     AuditConfig,
     BehaviorConfig,
     CheckItem,
@@ -215,7 +215,7 @@ class TestAuditConfig:
     def test_defaults_values(self):
         cfg = AuditConfig()
         assert cfg.enabled is True
-        assert cfg.path == ".ai-guard/audit.jsonl"
+        assert cfg.path == ".ac-guard/audit.jsonl"
         assert cfg.retention == 30
 
     def test_custom_values(self):
@@ -341,7 +341,7 @@ class TestResolvedConfig:
 
 class TestModuleExports:
     def test_config_package_exports(self):
-        from ai_guard.config import (  # noqa: F401
+        from ac_guard.config import (  # noqa: F401
             AuditConfig,
             BehaviorConfig,
             CheckItem,
@@ -355,7 +355,7 @@ class TestModuleExports:
         )
 
     def test_config_all_list(self):
-        import ai_guard.config as config_mod
+        import ac_guard.config as config_mod
 
         expected = {
             # Exceptions

@@ -8,8 +8,8 @@ import pytest
 import yaml
 from typer.testing import CliRunner
 
-from ai_guard.cli.main import app
-from ai_guard.generator.models import STATE_FILE, GeneratedState
+from ac_guard.cli.main import app
+from ac_guard.generator.models import STATE_FILE, GeneratedState
 
 runner = CliRunner()
 
@@ -38,17 +38,17 @@ def project_with_config(tmp_path: Path) -> Path:
 def installed_project(project_with_config: Path) -> Path:
     """Create a project with an existing installation state."""
     state = GeneratedState(
-        ai_guard_version="0.1.0",
+        ac_guard_version="0.1.0",
         installed_agents=["claude-code"],
         config_hash="abcd1234",
-        artifacts=["CLAUDE.md", ".ai-guard/policy.json"],
+        artifacts=["CLAUDE.md", ".ac-guard/policy.json"],
     )
     state_path = project_with_config / STATE_FILE
     state_path.parent.mkdir(parents=True, exist_ok=True)
     state_path.write_text(state.to_json(), encoding="utf-8")
     # Create the artifact files so uninstall can delete them
     (project_with_config / "CLAUDE.md").write_text("# Rules\n")
-    policy_dir = project_with_config / ".ai-guard"
+    policy_dir = project_with_config / ".ac-guard"
     (policy_dir / "policy.json").write_text("{}")
     return project_with_config
 
@@ -185,7 +185,7 @@ class TestInstallCommand:
         assert result.exit_code == 0
         state_path = project_with_config / STATE_FILE
         state = GeneratedState.from_json(state_path.read_text())
-        assert state.ai_guard_version
+        assert state.ac_guard_version
         assert state.config_hash
         assert len(state.artifacts) > 0
         assert state.installed_agents == ["claude-code"]
@@ -294,11 +294,11 @@ class TestUninstallCommand:
         assert result.exit_code == 0
         assert not (installed_project / "guard.yaml").exists()
 
-    def test_uninstall_cleans_ai_guard_dir(
+    def test_uninstall_cleans_ac_guard_dir(
         self, installed_project: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """uninstall removes .ai-guard/ directory when empty."""
+        """uninstall removes .ac-guard/ directory when empty."""
         monkeypatch.chdir(installed_project)
         result = runner.invoke(app, ["uninstall"])
         assert result.exit_code == 0
-        assert not (installed_project / ".ai-guard").exists()
+        assert not (installed_project / ".ac-guard").exists()

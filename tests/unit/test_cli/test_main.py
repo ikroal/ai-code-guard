@@ -2,8 +2,8 @@
 
 from typer.testing import CliRunner
 
-from ai_guard import __version__
-from ai_guard.cli.main import app
+from ac_guard import __version__
+from ac_guard.cli.main import app
 
 runner = CliRunner()
 

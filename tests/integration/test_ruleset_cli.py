@@ -15,8 +15,8 @@ from pathlib import Path
 import yaml
 from typer.testing import CliRunner
 
-from ai_guard.cli.main import app
-from ai_guard.generator.models import STATE_FILE
+from ac_guard.cli.main import app
+from ac_guard.generator.models import STATE_FILE
 
 runner = CliRunner()
 
@@ -110,7 +110,7 @@ class TestRulesetFetchAndCacheClear:
         assert "guard.yaml: found" in result.output
 
         # Verify cache populated
-        cache_dir = tmp_path / ".ai-guard" / "cache" / "test-rules"
+        cache_dir = tmp_path / ".ac-guard" / "cache" / "test-rules"
         assert cache_dir.is_dir()
         assert (cache_dir / "guard.yaml").is_file()
         assert (cache_dir / ".ruleset-meta.json").is_file()
@@ -287,12 +287,12 @@ class TestRulesetFileCopy:
             cmd.extend(extra_args)
         return runner.invoke(app, cmd)
 
-    def test_install_copies_checks_to_ai_guard(self, tmp_path: Path) -> None:
-        """Check scripts from ruleset should appear in .ai-guard/checks/."""
+    def test_install_copies_checks_to_ac_guard(self, tmp_path: Path) -> None:
+        """Check scripts from ruleset should appear in .ac-guard/checks/."""
         url = _create_bare_repo(tmp_path / "repos")
         result = self._init_and_install_with_ruleset(tmp_path, url, "test-rules")
         assert result.exit_code == 0, f"install failed: {result.output}"
-        assert (tmp_path / ".ai-guard" / "checks" / "check_headers.py").is_file()
+        assert (tmp_path / ".ac-guard" / "checks" / "check_headers.py").is_file()
 
     def test_install_copies_files_to_root(self, tmp_path: Path) -> None:
         """Tool config files from ruleset should appear at project root."""

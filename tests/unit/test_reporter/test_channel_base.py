@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from ai_guard.config.models import PrReportConfig
-from ai_guard.reporter.channel_base import (
+from ac_guard.config.models import PrReportConfig
+from ac_guard.reporter.channel_base import (
     ChannelError,
     ReportChannel,
     get_channel,
@@ -78,7 +78,7 @@ class TestPostPrComment:
 
     def test_send_failure_does_not_raise(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """If channel.send() raises, post_pr_comment catches and warns."""
-        from ai_guard.checker.models import CheckReport
+        from ac_guard.checker.models import CheckReport
 
         config = PrReportConfig(enabled=True, platform="github")
         report = CheckReport(stage="commit", passed=True)

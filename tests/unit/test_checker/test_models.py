@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ai_guard.checker.models import CheckReport, CheckResult, Violation
+from ac_guard.checker.models import CheckReport, CheckResult, Violation
 
 
 class TestViolation:

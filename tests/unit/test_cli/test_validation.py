@@ -7,7 +7,7 @@ from pathlib import Path
 import yaml
 from typer.testing import CliRunner
 
-from ai_guard.cli.main import app
+from ac_guard.cli.main import app
 
 runner = CliRunner()
 

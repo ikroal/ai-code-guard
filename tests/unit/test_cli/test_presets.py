@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from ai_guard.cli.presets import (
+from ac_guard.cli.presets import (
     AVAILABLE_PRESETS,
     PresetNotFoundError,
     load_preset,

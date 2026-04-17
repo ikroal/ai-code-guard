@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from ai_guard.config.exceptions import (
+from ac_guard.config.exceptions import (
     ConfigError,
     ConfigFileNotFoundError,
     ConfigSyntaxError,
@@ -65,7 +65,7 @@ class TestConfigFileNotFoundError:
 
     def test_message_suggests_init(self) -> None:
         err = ConfigFileNotFoundError("missing.yaml")
-        assert "ai-guard init" in str(err)
+        assert "ac-guard init" in str(err)
 
 
 class TestConfigSyntaxError:

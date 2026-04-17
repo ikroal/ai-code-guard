@@ -5,14 +5,14 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import patch
 
-from ai_guard.checker.core import (
+from ac_guard.checker.core import (
     _filter_files_by_type,
     get_changed_files,
     run_build,
     run_check,
     run_stage,
 )
-from ai_guard.config.models import CheckItem, CodeConfig
+from ac_guard.config.models import CheckItem, CodeConfig
 
 
 class TestGetChangedFiles:
@@ -20,7 +20,7 @@ class TestGetChangedFiles:
 
     def test_commit_stage_command(self, tmp_path: Path) -> None:
         """Commit stage uses git diff --cached."""
-        with patch("ai_guard.checker.core.subprocess.run") as mock_run:
+        with patch("ac_guard.checker.core.subprocess.run") as mock_run:
             mock_run.return_value.returncode = 0
             mock_run.return_value.stdout = "a.py\nb.py\n"
             files = get_changed_files("commit", tmp_path)
@@ -30,7 +30,7 @@ class TestGetChangedFiles:
 
     def test_push_stage_command(self, tmp_path: Path) -> None:
         """Push stage uses git diff origin/main..HEAD."""
-        with patch("ai_guard.checker.core.subprocess.run") as mock_run:
+        with patch("ac_guard.checker.core.subprocess.run") as mock_run:
             mock_run.return_value.returncode = 0
             mock_run.return_value.stdout = "c.py\n"
             files = get_changed_files("push", tmp_path)
@@ -40,7 +40,7 @@ class TestGetChangedFiles:
 
     def test_empty_output(self, tmp_path: Path) -> None:
         """Empty git output returns empty list."""
-        with patch("ai_guard.checker.core.subprocess.run") as mock_run:
+        with patch("ac_guard.checker.core.subprocess.run") as mock_run:
             mock_run.return_value.returncode = 0
             mock_run.return_value.stdout = ""
             files = get_changed_files("commit", tmp_path)
@@ -48,7 +48,7 @@ class TestGetChangedFiles:
 
     def test_git_error_returns_empty(self, tmp_path: Path) -> None:
         """Git error returns empty list."""
-        with patch("ai_guard.checker.core.subprocess.run") as mock_run:
+        with patch("ac_guard.checker.core.subprocess.run") as mock_run:
             mock_run.return_value.returncode = 1
             mock_run.return_value.stdout = ""
             files = get_changed_files("commit", tmp_path)
@@ -141,7 +141,7 @@ class TestRunStage:
     def test_commit_stage_runs_checks(self, tmp_path: Path) -> None:
         """Commit stage runs format + naming checks."""
         config = CodeConfig(commit_format=True, commit_naming=True)
-        with patch("ai_guard.checker.core.get_changed_files", return_value=[]):
+        with patch("ac_guard.checker.core.get_changed_files", return_value=[]):
             report = run_stage("commit", config, tmp_path)
         assert report.stage == "commit"
         # Format and naming are pre-commit hooks — skipped with no files
@@ -154,7 +154,7 @@ class TestRunStage:
             commit_naming=False,
             commit_checks={"echo": CheckItem(command="echo ok")},
         )
-        with patch("ai_guard.checker.core.get_changed_files", return_value=[]):
+        with patch("ac_guard.checker.core.get_changed_files", return_value=[]):
             report = run_stage("commit", config, tmp_path)
         assert report.passed is True
         assert any(r.name == "echo" for r in report.results)
@@ -164,7 +164,7 @@ class TestRunStage:
         config = CodeConfig(
             commit_checks={"fail": CheckItem(command="exit 1")},
         )
-        with patch("ai_guard.checker.core.get_changed_files", return_value=[]):
+        with patch("ac_guard.checker.core.get_changed_files", return_value=[]):
             report = run_stage("push", config, tmp_path)
         assert report.stage == "push"
         assert report.passed is False
@@ -176,7 +176,7 @@ class TestRunStage:
             commit_naming=False,
             push_lint=False,
         )
-        with patch("ai_guard.checker.core.get_changed_files", return_value=[]):
+        with patch("ac_guard.checker.core.get_changed_files", return_value=[]):
             report = run_stage("push", config, tmp_path, build_command="echo build")
         assert report.passed is True
         assert any(r.name == "build" for r in report.results)

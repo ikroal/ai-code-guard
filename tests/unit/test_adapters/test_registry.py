@@ -1,19 +1,19 @@
-"""Tests for ai_guard.adapters.registry — Adapter registration and lookup."""
+"""Tests for ac_guard.adapters.registry — Adapter registration and lookup."""
 
 from __future__ import annotations
 
 import pytest
 
-from ai_guard.adapters.base import AgentAdapter, AgentCapabilities
-from ai_guard.adapters.registry import (
+from ac_guard.adapters.base import AgentAdapter, AgentCapabilities
+from ac_guard.adapters.registry import (
     AdapterNotFoundError,
     clear_registry,
     get_adapter,
     list_adapters,
     register_adapter,
 )
-from ai_guard.config.models import BehaviorConfig
-from ai_guard.shared.types import FileSpec
+from ac_guard.config.models import BehaviorConfig
+from ac_guard.shared.types import FileSpec
 
 
 # Helper to create minimal adapter for testing
@@ -179,7 +179,7 @@ class TestBuiltinRegistration:
         # Re-import registry module to trigger _register_builtins
         import importlib
 
-        import ai_guard.adapters.registry as registry_mod
+        import ac_guard.adapters.registry as registry_mod
 
         importlib.reload(registry_mod)
 
@@ -194,7 +194,7 @@ class TestBuiltinRegistration:
         clear_registry()
         import importlib
 
-        import ai_guard.adapters.registry as registry_mod
+        import ac_guard.adapters.registry as registry_mod
 
         importlib.reload(registry_mod)
 
@@ -211,7 +211,7 @@ class TestBuiltinRegistration:
 
 class TestModuleExports:
     def test_registry_exports(self) -> None:
-        from ai_guard.adapters.registry import (  # noqa: F401
+        from ac_guard.adapters.registry import (  # noqa: F401
             AdapterNotFoundError,
             clear_registry,
             get_adapter,

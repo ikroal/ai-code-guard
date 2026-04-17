@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from ai_guard.generator.exceptions import (
+from ac_guard.generator.exceptions import (
     AdapterNotRegisteredError,
     ArtifactWriteError,
     GeneratorError,

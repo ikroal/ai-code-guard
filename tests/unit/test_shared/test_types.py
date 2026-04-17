@@ -1,8 +1,8 @@
-"""Tests for ai_guard.shared.types — Shared types module."""
+"""Tests for ac_guard.shared.types — Shared types module."""
 
 from __future__ import annotations
 
-from ai_guard.shared.types import (
+from ac_guard.shared.types import (
     MARKER_BEGIN,
     MARKER_END,
     FileSpec,
@@ -84,7 +84,7 @@ class TestFileSpec:
 
 class TestModuleExports:
     def test_types_exports(self) -> None:
-        from ai_guard.shared.types import (  # noqa: F401
+        from ac_guard.shared.types import (  # noqa: F401
             MARKER_BEGIN,
             MARKER_END,
             FileSpec,
@@ -92,7 +92,7 @@ class TestModuleExports:
         )
 
     def test_all_list(self) -> None:
-        import ai_guard.shared.types as types
+        import ac_guard.shared.types as types
 
         assert set(types.__all__) == {
             "FileSpec",
@@ -102,7 +102,7 @@ class TestModuleExports:
         }
 
     def test_shared_package_exports(self) -> None:
-        from ai_guard.shared import (  # noqa: F401
+        from ac_guard.shared import (  # noqa: F401
             MARKER_BEGIN,
             MARKER_END,
             FileSpec,

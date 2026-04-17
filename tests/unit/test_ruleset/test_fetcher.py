@@ -9,16 +9,16 @@ from pathlib import Path
 import pytest
 import yaml
 
-from ai_guard.ruleset.exceptions import (
+from ac_guard.ruleset.exceptions import (
     RulesetFetchError,
     RulesetValidationError,
 )
-from ai_guard.ruleset.fetcher import (
+from ac_guard.ruleset.fetcher import (
     _is_commit_sha,
     fetch_ruleset,
     validate_ruleset_dir,
 )
-from ai_guard.ruleset.models import RulesetRef
+from ac_guard.ruleset.models import RulesetRef
 
 # ---------------------------------------------------------------------------
 # Helpers — create local git repos for testing

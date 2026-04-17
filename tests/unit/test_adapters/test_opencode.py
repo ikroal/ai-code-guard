@@ -1,10 +1,10 @@
-"""Tests for ai_guard.adapters.opencode — OpenCode Agent adapter."""
+"""Tests for ac_guard.adapters.opencode — OpenCode Agent adapter."""
 
 from __future__ import annotations
 
-from ai_guard.adapters.opencode import OpenCodeAdapter
-from ai_guard.config.models import BehaviorConfig, OperationRules, Rule
-from ai_guard.shared.types import MARKER_BEGIN, MARKER_END
+from ac_guard.adapters.opencode import OpenCodeAdapter
+from ac_guard.config.models import BehaviorConfig, OperationRules, Rule
+from ac_guard.shared.types import MARKER_BEGIN, MARKER_END
 
 # ---------------------------------------------------------------------------
 # Adapter Properties

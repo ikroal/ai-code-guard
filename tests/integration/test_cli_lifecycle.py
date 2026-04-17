@@ -14,8 +14,8 @@ from pathlib import Path
 import yaml
 from typer.testing import CliRunner
 
-from ai_guard.cli.main import app
-from ai_guard.generator.models import STATE_FILE, GeneratedState
+from ac_guard.cli.main import app
+from ac_guard.generator.models import STATE_FILE, GeneratedState
 
 runner = CliRunner()
 

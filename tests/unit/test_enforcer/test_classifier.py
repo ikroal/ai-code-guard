@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ai_guard.enforcer.classifier import classify
+from ac_guard.enforcer.classifier import classify
 
 
 class TestClassifyReadOps:

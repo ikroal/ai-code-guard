@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ai_guard.enforcer.__main__ import main
+from ac_guard.enforcer.__main__ import main
 
 
 class TestMain:

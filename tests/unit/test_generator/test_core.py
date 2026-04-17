@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from ai_guard.config.models import (
+from ac_guard.config.models import (
     BehaviorConfig,
     CheckItem,
     CodeConfig,
@@ -17,7 +17,7 @@ from ai_guard.config.models import (
     OperationRules,
     Rule,
 )
-from ai_guard.generator.core import (
+from ac_guard.generator.core import (
     MARKER_BEGIN,
     MARKER_END,
     create_state,
@@ -32,8 +32,8 @@ from ai_guard.generator.core import (
     write_artifacts,
     write_state,
 )
-from ai_guard.generator.exceptions import ArtifactWriteError
-from ai_guard.generator.models import STATE_FILE, FileSpec, GeneratedState
+from ac_guard.generator.exceptions import ArtifactWriteError
+from ac_guard.generator.models import STATE_FILE, FileSpec, GeneratedState
 
 # ---------------------------------------------------------------------------
 # State Management Tests
@@ -49,7 +49,7 @@ class TestReadState:
 
     def test_returns_state_when_file_exists(self, tmp_path: Path) -> None:
         state_data = {
-            "ai_guard_version": "0.1.0",
+            "ac_guard_version": "0.1.0",
             "installed_agents": ["claude-code"],
             "config_hash": "abc123",
             "installed_at": "2026-04-16T12:00:00",
@@ -61,7 +61,7 @@ class TestReadState:
 
         result = read_state(tmp_path)
         assert result is not None
-        assert result.ai_guard_version == "0.1.0"
+        assert result.ac_guard_version == "0.1.0"
         assert result.installed_agents == ["claude-code"]
 
     def test_handles_empty_state_file(self, tmp_path: Path) -> None:
@@ -77,21 +77,21 @@ class TestReadState:
 class TestWriteState:
     """write_state function tests."""
 
-    def test_creates_ai_guard_directory(self, tmp_path: Path) -> None:
+    def test_creates_ac_guard_directory(self, tmp_path: Path) -> None:
         state = GeneratedState(
-            ai_guard_version="0.1.0",
+            ac_guard_version="0.1.0",
             installed_agents=["claude-code"],
             config_hash="abc",
             installed_at=datetime.now(),
             artifacts=["x"],
         )
         write_state(tmp_path, state)
-        assert (tmp_path / ".ai-guard").is_dir()
+        assert (tmp_path / ".ac-guard").is_dir()
         assert (tmp_path / STATE_FILE).is_file()
 
     def test_writes_valid_json(self, tmp_path: Path) -> None:
         state = GeneratedState(
-            ai_guard_version="0.1.0",
+            ac_guard_version="0.1.0",
             installed_agents=["claude-code", "cursor"],
             config_hash="abc123",
             installed_at=datetime(2026, 4, 16, 14, 0, 0),
@@ -101,13 +101,13 @@ class TestWriteState:
 
         content = (tmp_path / STATE_FILE).read_text(encoding="utf-8")
         data = json.loads(content)
-        assert data["ai_guard_version"] == "0.1.0"
+        assert data["ac_guard_version"] == "0.1.0"
         assert data["installed_agents"] == ["claude-code", "cursor"]
 
     def test_overwrites_existing_state(self, tmp_path: Path) -> None:
         # Write initial state
         state1 = GeneratedState(
-            ai_guard_version="0.1.0",
+            ac_guard_version="0.1.0",
             installed_agents=["claude-code"],
             installed_at=datetime.now(),
         )
@@ -115,7 +115,7 @@ class TestWriteState:
 
         # Write updated state
         state2 = GeneratedState(
-            ai_guard_version="0.1.0",
+            ac_guard_version="0.1.0",
             installed_agents=["claude-code", "cursor"],
             installed_at=datetime.now(),
         )
@@ -135,7 +135,7 @@ class TestCreateState:
             config_hash="abc123",
             artifacts=["CLAUDE.md"],
         )
-        assert state.ai_guard_version == "0.1.0"
+        assert state.ac_guard_version == "0.1.0"
         assert state.installed_agents == ["claude-code"]
         assert state.config_hash == "abc123"
         assert state.artifacts == ["CLAUDE.md"]
@@ -392,7 +392,7 @@ class TestGeneratePolicyCache:
         behavior = BehaviorConfig.empty()
         result = generate_policy_cache(behavior, "abc123")
         assert isinstance(result, FileSpec)
-        assert result.path == ".ai-guard/policy.json"
+        assert result.path == ".ac-guard/policy.json"
 
     def test_includes_config_hash(self) -> None:
         behavior = BehaviorConfig.empty()
@@ -498,7 +498,7 @@ class TestGenerateGitHooks:
         (tmp_path / ".git" / "hooks").mkdir()
         result = generate_git_hooks(tmp_path)
         for hook in result:
-            assert "ai-guard gate run" in hook.content
+            assert "ac-guard gate run" in hook.content
 
     def test_pre_commit_has_correct_stage(self, tmp_path: Path) -> None:
         (tmp_path / ".git").mkdir()
@@ -533,7 +533,7 @@ class TestGenerateToolConfigs:
 
     def test_copies_files_from_ruleset(self, tmp_path: Path) -> None:
         # Create mock ruleset cache
-        cache_dir = tmp_path / ".ai-guard" / "cache" / "company-rules" / "files"
+        cache_dir = tmp_path / ".ac-guard" / "cache" / "company-rules" / "files"
         cache_dir.mkdir(parents=True)
         (cache_dir / ".clang-format").write_text("Format config", encoding="utf-8")
 
@@ -544,11 +544,11 @@ class TestGenerateToolConfigs:
 
     def test_copies_from_multiple_rulesets(self, tmp_path: Path) -> None:
         # Create two ruleset caches
-        cache1 = tmp_path / ".ai-guard" / "cache" / "ruleset-a" / "files"
+        cache1 = tmp_path / ".ac-guard" / "cache" / "ruleset-a" / "files"
         cache1.mkdir(parents=True)
         (cache1 / "config-a.yaml").write_text("a", encoding="utf-8")
 
-        cache2 = tmp_path / ".ai-guard" / "cache" / "ruleset-b" / "files"
+        cache2 = tmp_path / ".ac-guard" / "cache" / "ruleset-b" / "files"
         cache2.mkdir(parents=True)
         (cache2 / "config-b.yaml").write_text("b", encoding="utf-8")
 
@@ -560,7 +560,7 @@ class TestGenerateToolConfigs:
 
     def test_skips_missing_ruleset(self, tmp_path: Path) -> None:
         # Create only one ruleset cache
-        cache = tmp_path / ".ai-guard" / "cache" / "existing" / "files"
+        cache = tmp_path / ".ac-guard" / "cache" / "existing" / "files"
         cache.mkdir(parents=True)
         (cache / "file.txt").write_text("content", encoding="utf-8")
 
@@ -569,7 +569,7 @@ class TestGenerateToolConfigs:
         assert result[0].path == "file.txt"
 
     def test_skips_binary_files(self, tmp_path: Path) -> None:
-        cache = tmp_path / ".ai-guard" / "cache" / "ruleset" / "files"
+        cache = tmp_path / ".ac-guard" / "cache" / "ruleset" / "files"
         cache.mkdir(parents=True)
         (cache / "text.txt").write_text("text", encoding="utf-8")
         # Write binary file
@@ -588,7 +588,7 @@ class TestGenerateToolConfigsForce:
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
         """Existing user file should be skipped with warning when force=False."""
-        cache = tmp_path / ".ai-guard" / "cache" / "rules" / "files"
+        cache = tmp_path / ".ac-guard" / "cache" / "rules" / "files"
         cache.mkdir(parents=True)
         (cache / ".editorconfig").write_text("ruleset content", encoding="utf-8")
 
@@ -604,7 +604,7 @@ class TestGenerateToolConfigsForce:
 
     def test_overwrites_existing_file_when_forced(self, tmp_path: Path) -> None:
         """Existing file should be included when force=True."""
-        cache = tmp_path / ".ai-guard" / "cache" / "rules" / "files"
+        cache = tmp_path / ".ac-guard" / "cache" / "rules" / "files"
         cache.mkdir(parents=True)
         (cache / ".editorconfig").write_text("ruleset content", encoding="utf-8")
 
@@ -616,7 +616,7 @@ class TestGenerateToolConfigsForce:
 
     def test_copies_new_file_regardless_of_force(self, tmp_path: Path) -> None:
         """New files should always be copied, even with force=False."""
-        cache = tmp_path / ".ai-guard" / "cache" / "rules" / "files"
+        cache = tmp_path / ".ac-guard" / "cache" / "rules" / "files"
         cache.mkdir(parents=True)
         (cache / "new-config.yml").write_text("new", encoding="utf-8")
 
@@ -628,7 +628,7 @@ class TestGenerateToolConfigsForce:
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
         """Only existing files should be skipped; new files still copied."""
-        cache = tmp_path / ".ai-guard" / "cache" / "rules" / "files"
+        cache = tmp_path / ".ac-guard" / "cache" / "rules" / "files"
         cache.mkdir(parents=True)
         (cache / "existing.cfg").write_text("from ruleset", encoding="utf-8")
         (cache / "new.cfg").write_text("new config", encoding="utf-8")
@@ -644,63 +644,63 @@ class TestGenerateCheckScripts:
     """generate_check_scripts function tests."""
 
     def test_returns_empty_list_when_no_rulesets(self, tmp_path: Path) -> None:
-        from ai_guard.generator.core import generate_check_scripts
+        from ac_guard.generator.core import generate_check_scripts
 
         result = generate_check_scripts(tmp_path, [])
         assert result == []
 
     def test_returns_empty_list_when_cache_missing(self, tmp_path: Path) -> None:
-        from ai_guard.generator.core import generate_check_scripts
+        from ac_guard.generator.core import generate_check_scripts
 
         result = generate_check_scripts(tmp_path, ["company-rules"])
         assert result == []
 
-    def test_copies_scripts_to_ai_guard_checks(self, tmp_path: Path) -> None:
-        from ai_guard.generator.core import generate_check_scripts
+    def test_copies_scripts_to_ac_guard_checks(self, tmp_path: Path) -> None:
+        from ac_guard.generator.core import generate_check_scripts
 
-        cache = tmp_path / ".ai-guard" / "cache" / "rules" / "checks"
+        cache = tmp_path / ".ac-guard" / "cache" / "rules" / "checks"
         cache.mkdir(parents=True)
         (cache / "encoding_check.py").write_text("# check", encoding="utf-8")
 
         result = generate_check_scripts(tmp_path, ["rules"])
         assert len(result) == 1
-        assert result[0].path == ".ai-guard/checks/encoding_check.py"
+        assert result[0].path == ".ac-guard/checks/encoding_check.py"
         assert result[0].content == "# check"
 
     def test_copies_from_multiple_rulesets(self, tmp_path: Path) -> None:
-        from ai_guard.generator.core import generate_check_scripts
+        from ac_guard.generator.core import generate_check_scripts
 
-        cache1 = tmp_path / ".ai-guard" / "cache" / "a" / "checks"
+        cache1 = tmp_path / ".ac-guard" / "cache" / "a" / "checks"
         cache1.mkdir(parents=True)
         (cache1 / "check_a.py").write_text("a", encoding="utf-8")
 
-        cache2 = tmp_path / ".ai-guard" / "cache" / "b" / "checks"
+        cache2 = tmp_path / ".ac-guard" / "cache" / "b" / "checks"
         cache2.mkdir(parents=True)
         (cache2 / "check_b.py").write_text("b", encoding="utf-8")
 
         result = generate_check_scripts(tmp_path, ["a", "b"])
         assert len(result) == 2
         paths = [r.path for r in result]
-        assert ".ai-guard/checks/check_a.py" in paths
-        assert ".ai-guard/checks/check_b.py" in paths
+        assert ".ac-guard/checks/check_a.py" in paths
+        assert ".ac-guard/checks/check_b.py" in paths
 
     def test_skips_binary_files(self, tmp_path: Path) -> None:
-        from ai_guard.generator.core import generate_check_scripts
+        from ac_guard.generator.core import generate_check_scripts
 
-        cache = tmp_path / ".ai-guard" / "cache" / "rules" / "checks"
+        cache = tmp_path / ".ac-guard" / "cache" / "rules" / "checks"
         cache.mkdir(parents=True)
         (cache / "check.py").write_text("# ok", encoding="utf-8")
         (cache / "binary.bin").write_bytes(b"\x00\xff\xfe")
 
         result = generate_check_scripts(tmp_path, ["rules"])
         assert len(result) == 1
-        assert result[0].path == ".ai-guard/checks/check.py"
+        assert result[0].path == ".ac-guard/checks/check.py"
 
     def test_skips_missing_checks_dir(self, tmp_path: Path) -> None:
-        from ai_guard.generator.core import generate_check_scripts
+        from ac_guard.generator.core import generate_check_scripts
 
         # Ruleset exists in cache but has no checks/ dir
-        cache = tmp_path / ".ai-guard" / "cache" / "rules"
+        cache = tmp_path / ".ac-guard" / "cache" / "rules"
         cache.mkdir(parents=True)
         (cache / "guard.yaml").write_text("version: 1", encoding="utf-8")
 

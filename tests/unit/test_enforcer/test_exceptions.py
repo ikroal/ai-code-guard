@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ai_guard.enforcer.exceptions import EnforcerError, PolicyCorruptError
+from ac_guard.enforcer.exceptions import EnforcerError, PolicyCorruptError
 
 
 class TestPolicyCorruptError:

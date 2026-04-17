@@ -10,8 +10,8 @@ import pytest
 import yaml
 from typer.testing import CliRunner
 
-from ai_guard.cli.main import app
-from ai_guard.generator.models import STATE_FILE, GeneratedState
+from ac_guard.cli.main import app
+from ac_guard.generator.models import STATE_FILE, GeneratedState
 
 runner = CliRunner()
 
@@ -43,10 +43,10 @@ def _write_state(
 ) -> GeneratedState:
     """Write a state.json and return the GeneratedState."""
     state = GeneratedState(
-        ai_guard_version="0.1.0",
+        ac_guard_version="0.1.0",
         installed_agents=agents or ["claude-code"],
         config_hash=config_hash,
-        artifacts=artifacts or ["CLAUDE.md", ".ai-guard/policy.json"],
+        artifacts=artifacts or ["CLAUDE.md", ".ac-guard/policy.json"],
     )
     state_path = project_root / STATE_FILE
     state_path.parent.mkdir(parents=True, exist_ok=True)
@@ -64,11 +64,11 @@ def installed_project(tmp_path: Path) -> Path:
         tmp_path,
         agents=["claude-code"],
         config_hash=config_hash,
-        artifacts=["CLAUDE.md", ".ai-guard/policy.json", ".pre-commit-config.yaml"],
+        artifacts=["CLAUDE.md", ".ac-guard/policy.json", ".pre-commit-config.yaml"],
     )
     # Create actual artifact files
     (tmp_path / "CLAUDE.md").write_text("# Rules\n")
-    (tmp_path / ".ai-guard" / "policy.json").write_text(
+    (tmp_path / ".ac-guard" / "policy.json").write_text(
         json.dumps({"config_hash": config_hash})
     )
     (tmp_path / ".pre-commit-config.yaml").write_text("repos: []\n")
@@ -144,7 +144,7 @@ class TestStatusCommand:
         # Set state version to something different
         state_path = installed_project / STATE_FILE
         state = GeneratedState.from_json(state_path.read_text())
-        state.ai_guard_version = "99.99.99"
+        state.ac_guard_version = "99.99.99"
         state_path.write_text(state.to_json())
         result = runner.invoke(app, ["status", "--config", str(config)])
         assert result.exit_code == 0

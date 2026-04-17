@@ -1,1 +1,1 @@
-"""Tests for ai_guard.adapters module."""
+"""Tests for ac_guard.adapters module."""
