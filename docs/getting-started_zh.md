@@ -89,17 +89,19 @@ output:
     enabled: false
 ```
 
-四个顶层段落：
+你上面这份文件里出现了三个顶层段落：`project` / `code` / `output`。还有
+第四个段落 `behavior` 是可选的，minimal 预设里省略了，你会在第 6 步加
+上。各段用途如下：
 
 - **`project`**：项目身份，init 会从当前目录自动填充
-- **`behavior`**：运行时行为规则，由 Agent 的 hook 求值。minimal 预设里
-  **没有用户规则**，但 ac-guard 总会为你注入 **4 条系统保护规则**，避免
-  Agent 悄悄改掉自己的护栏（`guard.yaml` / `.ac-guard/**` /
-  `.pre-commit-config.yaml` / `.git/hooks/**`，均为 `require_approval`）。
-  这几条会出现在第 4 步生成的 `CLAUDE.md` 里；你自己的规则会在第 6 步添加
 - **`code`**：代码质量门禁，按 `commit` / `push` 阶段划分。每个阶段支持
   内置快捷开关（`format`、`naming`、`lint`）**与** 自定义 `checks` 两种方式
 - **`output`**：结果去向（终端、audit 日志、PR 评论）
+- **`behavior`**（*可选，当前文件里还没有*）：运行时行为规则，由 Agent
+  的 hook 求值。即便你没写这个段落，ac-guard 也会注入 **4 条系统保护
+  规则**，避免 Agent 悄悄改掉自己的护栏（`guard.yaml` / `.ac-guard/**` /
+  `.pre-commit-config.yaml` / `.git/hooks/**`，均为 `require_approval`）。
+  这几条会出现在第 4 步生成的 `CLAUDE.md` 里
 
 > **0.1.0 提示**：`format` / `naming` / `lint` 三个内置快捷开关当前依赖的
 > 语言特定钩子接线将在后续版本补齐。为了让你拿到开箱即用的体验，本教程
