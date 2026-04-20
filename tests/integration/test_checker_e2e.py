@@ -508,7 +508,7 @@ class TestLocalePropagation:
         with patch("ac_guard.checker.core.get_changed_files", return_value=[]):
             r = runner.invoke(app, ["check", "-c", str(config)])
         assert r.exit_code == 0
-        assert "阶段: commit — 通过" in r.output
+        assert "阶段: pre-commit — 通过" in r.output
         assert "项检查通过" in r.output
         assert "PASSED" not in r.output
 
@@ -538,7 +538,7 @@ class TestReportFormats:
     def test_markdown_rendering(self) -> None:
         """F2: Markdown report has table and emoji."""
         report = CheckReport(
-            stage="commit",
+            stage="pre-commit",
             passed=False,
             results=[
                 CheckResult(name="format", passed=True, duration_ms=10),

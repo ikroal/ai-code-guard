@@ -250,7 +250,7 @@ class TestJsonOutput:
             )
         assert result.exit_code == 0
         data = json.loads(result.output)
-        assert data["stage"] == "commit"
+        assert data["stage"] == "pre-commit"
         assert data["passed"] is True
         assert "results" in data
 
@@ -273,7 +273,7 @@ class TestJsonOutput:
             )
         assert result.exit_code == 0
         data = json.loads(result.output)
-        assert data["stage"] == "push"
+        assert data["stage"] == "pre-push"
         assert "results" in data
 
 
@@ -323,7 +323,7 @@ class TestCliAutoPostPrComment:
         assert mock_post.call_count == 1
         pos_args, _kw_args = mock_post.call_args
         report_arg, pr_config_arg, locale_arg = pos_args
-        assert report_arg.stage == "commit"
+        assert report_arg.stage == "pre-commit"
         assert report_arg.passed is True
         assert pr_config_arg.enabled is True
         assert pr_config_arg.platform == "github"
@@ -357,7 +357,7 @@ class TestCliAutoPostPrComment:
         assert mock_post.call_count == 1
         pos_args, _ = mock_post.call_args
         report_arg, _, _ = pos_args
-        assert report_arg.stage == "push"
+        assert report_arg.stage == "pre-push"
 
     def test_gate_run_calls_post_pr_comment(self, tmp_path: Path) -> None:
         """gate run also dispatches post_pr_comment at end."""
@@ -373,7 +373,7 @@ class TestCliAutoPostPrComment:
         assert mock_post.call_count == 1
         pos_args, _ = mock_post.call_args
         report_arg, _, _ = pos_args
-        assert report_arg.stage == "commit"
+        assert report_arg.stage == "pre-commit"
 
     def test_run_does_not_call_post_pr_comment(self, tmp_path: Path) -> None:
         """run is intentionally out of scope (WP6.1): single-check runner.

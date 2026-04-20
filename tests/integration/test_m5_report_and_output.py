@@ -91,12 +91,12 @@ class TestPrReportFlow:
         resolved_config = _resolve(config)
 
         # Run real checker
-        report = run_stage("commit", resolved_config.code, tmp_path)
+        report = run_stage("pre-commit", resolved_config.code, tmp_path)
 
         # Markdown should render without error
         markdown = format_markdown(report)
         assert "✅" in markdown or "❌" in markdown  # emoji indicators
-        assert report.stage in markdown or "commit" in markdown.lower()
+        assert report.stage in markdown or "pre-commit" in markdown.lower()
 
         # post_pr_comment should call channel.send with the markdown
         pr_config = PrReportConfig(enabled=True, platform="github")
@@ -128,7 +128,7 @@ class TestPrReportFlow:
         """D1-2: post_pr_comment failure → no exception, stderr warning."""
         config = _init_and_install(tmp_path)
         resolved_config = _resolve(config)
-        report = run_stage("commit", resolved_config.code, tmp_path)
+        report = run_stage("pre-commit", resolved_config.code, tmp_path)
 
         pr_config = PrReportConfig(enabled=True, platform="github")
 
@@ -145,7 +145,7 @@ class TestPrReportFlow:
         """D1-3: enabled=False → no HTTP call."""
         config = _init_and_install(tmp_path)
         resolved_config = _resolve(config)
-        report = run_stage("commit", resolved_config.code, tmp_path)
+        report = run_stage("pre-commit", resolved_config.code, tmp_path)
 
         pr_config = PrReportConfig(enabled=False)
         with patch("urllib.request.urlopen") as mock_urlopen:
@@ -171,7 +171,7 @@ class TestJsonOutput:
         assert result.exit_code == 0
 
         data = json.loads(result.output)
-        assert data["stage"] == "commit"
+        assert data["stage"] == "pre-commit"
         assert isinstance(data["passed"], bool)
         assert isinstance(data["results"], list)
         assert "duration_ms" in data

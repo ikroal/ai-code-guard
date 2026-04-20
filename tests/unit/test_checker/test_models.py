@@ -62,7 +62,7 @@ class TestCheckReport:
     def test_all_passed(self) -> None:
         """Report with all checks passing."""
         report = CheckReport(
-            stage="commit",
+            stage="pre-commit",
             passed=True,
             results=[
                 CheckResult(name="format", passed=True),
@@ -75,7 +75,7 @@ class TestCheckReport:
     def test_any_failed(self) -> None:
         """Report with a failing check."""
         report = CheckReport(
-            stage="push",
+            stage="pre-push",
             passed=False,
             results=[
                 CheckResult(name="lint", passed=True),
@@ -86,5 +86,5 @@ class TestCheckReport:
 
     def test_empty_results(self) -> None:
         """Report with no results."""
-        report = CheckReport(stage="commit", passed=True)
+        report = CheckReport(stage="pre-commit", passed=True)
         assert report.results == []

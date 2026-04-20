@@ -199,7 +199,7 @@ ac-guard check
 干净代码上的输出：
 
 ```
-Stage: commit — PASSED
+Stage: pre-commit — PASSED
 
   [PASS] pre-commit:format-python (295ms)
   [PASS] ruff (37ms)
@@ -221,7 +221,7 @@ ac-guard check
 ```
 
 ```
-Stage: commit — FAILED
+Stage: pre-commit — FAILED
 
   [FAIL] ruff (19ms)
 
@@ -236,7 +236,7 @@ ac-guard check --format json
 
 ```json
 {
-  "stage": "commit",
+  "stage": "pre-commit",
   "passed": false,
   "results": [
     {

@@ -55,7 +55,7 @@ def check_command(
     file_list = files or None
 
     report = run_stage(
-        "commit",
+        "pre-commit",
         resolved.code,
         project_root,
         files=file_list,
@@ -92,7 +92,7 @@ def verify_command(
     build_cmd = None if skip_build else resolved.build_command
 
     report = run_stage(
-        "push",
+        "pre-push",
         resolved.code,
         project_root,
         build_command=build_cmd,
@@ -121,7 +121,7 @@ def run_command(
 
     Args:
         name: Check name to run.
-        stage: Check stage ("commit" or "push").
+        stage: Check stage ("pre-commit" or "pre-push").
         files: Explicit file list, or empty for auto-detect.
         config_path: Path to guard.yaml.
     """
@@ -197,10 +197,9 @@ _GATING_STAGES = frozenset(
     {"pre-commit", "commit-msg", "pre-merge-commit", "pre-push", "pre-rebase"}
 )
 
-# Map schema-v2 stage names onto the legacy ``run_stage`` stage values
-# ("commit" / "push") for stages where ac-guard has bucket-aware logic.
-# Other gating stages delegate straight to pre-commit via subprocess.
-_LEGACY_STAGE_ALIAS = {"pre-commit": "commit", "pre-push": "push"}
+# Stages where ac-guard has bucket-aware logic and runs its own checker.
+# The other gating stages delegate straight to pre-commit via subprocess.
+_BUCKET_AWARE_STAGES = frozenset({"pre-commit", "pre-push"})
 
 
 def gate_run_command(
@@ -231,11 +230,10 @@ def gate_run_command(
     resolved = _load_config(config_path)
     project_root = config_path.parent.resolve()
 
-    if stage in _LEGACY_STAGE_ALIAS:
-        legacy = _LEGACY_STAGE_ALIAS[stage]
-        build_cmd = resolved.build_command if legacy == "push" else None
+    if stage in _BUCKET_AWARE_STAGES:
+        build_cmd = resolved.build_command if stage == "pre-push" else None
         report = run_stage(
-            legacy,
+            stage,
             resolved.code,
             project_root,
             build_command=build_cmd,

@@ -37,16 +37,16 @@ def get_changed_files(stage: str, project_root: Path) -> list[str]:
     """Get list of changed files for the given stage.
 
     Args:
-        stage: Check stage ("commit" or "push").
+        stage: Check stage ("pre-commit" or "pre-push").
         project_root: Path to project root directory.
 
     Returns:
         List of changed file paths relative to project root.
     """
-    if stage == "commit":
+    if stage == "pre-commit":
         cmd = ["git", "diff", "--cached", "--name-only", "--diff-filter=ACMR"]
     else:
-        # Push stage: diff against upstream
+        # pre-push stage: diff against upstream
         cmd = ["git", "diff", "origin/main..HEAD", "--name-only", "--diff-filter=ACMR"]
 
     try:
@@ -311,14 +311,14 @@ def run_stage(
 ) -> CheckReport:
     """Orchestrate all checks for a stage.
 
-    For commit stage: format + naming + custom checks.
-    For push stage: commit first (fail-fast) + build + lint + custom checks.
+    For pre-commit stage: format + lint + custom checks.
+    For pre-push stage: pre-commit first (fail-fast) + build + lint + custom.
 
     Args:
-        stage: Check stage ("commit" or "push").
+        stage: Check stage ("pre-commit" or "pre-push").
         code_config: CodeConfig with enabled flags and checks.
         project_root: Path to project root directory.
-        build_command: Optional build command (push stage only).
+        build_command: Optional build command (pre-push stage only).
         files: Explicit file list. If None, auto-detect via git.
         languages: Language identifiers used to resolve pre-commit
             hook IDs (``format-<lang>`` / ``lint-<lang>``). Empty list
@@ -330,15 +330,15 @@ def run_stage(
     start = time.monotonic()
     langs = list(languages or [])
 
-    if stage == "push":
-        # Fail-fast: run commit stage first
+    if stage == "pre-push":
+        # Fail-fast: run pre-commit stage first
         commit_report = run_stage(
-            "commit", code_config, project_root, files=files, languages=langs
+            "pre-commit", code_config, project_root, files=files, languages=langs
         )
         if not commit_report.passed:
             elapsed = int((time.monotonic() - start) * 1000)
             return CheckReport(
-                stage="push",
+                stage="pre-push",
                 passed=False,
                 results=commit_report.results,
                 duration_ms=elapsed,
@@ -348,7 +348,7 @@ def run_stage(
         files = get_changed_files(stage, project_root)
     results: list[CheckResult] = []
 
-    if stage == "commit":
+    if stage == "pre-commit":
         results.extend(_run_commit_checks(code_config, files, project_root, langs))
     else:
         results.extend(
