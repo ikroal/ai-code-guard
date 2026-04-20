@@ -34,6 +34,7 @@ from ac_guard.generator.core import (
 )
 from ac_guard.generator.exceptions import ArtifactWriteError
 from ac_guard.generator.models import STATE_FILE, FileSpec, GeneratedState
+from ac_guard.shared.types import MARKER_BEGIN_HASH, MARKER_END_HASH
 
 # ---------------------------------------------------------------------------
 # State Management Tests
@@ -848,3 +849,115 @@ class TestGeneratePrecommitConfig:
         assert "format-typescript" in result.content
         assert "lint-python" in result.content
         assert "lint-typescript" in result.content
+
+
+class TestPrecommitManagedBlock:
+    """Managed-block lifecycle for `.pre-commit-config.yaml`."""
+
+    @staticmethod
+    def _write_precommit(
+        tmp_path: Path, *, format_on: bool = True, lint_on: bool = True
+    ) -> str:
+        """Run generator + write_artifacts; return the on-disk content."""
+        code = CodeConfig(commit_format=format_on, push_lint=lint_on)
+        languages = {"python": LanguageTools(format="black", lint="ruff")}
+        spec = generate_precommit_config(code, languages)
+        write_artifacts(tmp_path, [spec])
+        return (tmp_path / ".pre-commit-config.yaml").read_text()
+
+    def test_template_uses_hash_markers(self) -> None:
+        """Generated content embeds the YAML-safe marker style."""
+        code = CodeConfig()
+        languages = {"python": LanguageTools(format="black", lint="ruff")}
+        result = generate_precommit_config(code, languages)
+        assert MARKER_BEGIN_HASH in result.content
+        assert MARKER_END_HASH in result.content
+        # HTML markers must not leak into YAML.
+        assert MARKER_BEGIN not in result.content
+        assert MARKER_END not in result.content
+
+    def test_first_write_keeps_single_marker_pair(self, tmp_path: Path) -> None:
+        """First install writes the template verbatim; no double wrapping."""
+        content = self._write_precommit(tmp_path)
+        assert content.count(MARKER_BEGIN_HASH) == 1
+        assert content.count(MARKER_END_HASH) == 1
+
+    def test_first_write_has_valid_repos_header(self, tmp_path: Path) -> None:
+        content = self._write_precommit(tmp_path)
+        # `repos:` stays at the top level, markers live inside the list.
+        repos_idx = content.index("repos:")
+        begin_idx = content.index(MARKER_BEGIN_HASH)
+        end_idx = content.index(MARKER_END_HASH)
+        assert repos_idx < begin_idx < end_idx
+
+    def test_regenerate_preserves_user_added_repo_below(self, tmp_path: Path) -> None:
+        """External repo entries added AFTER the END marker survive update."""
+        self._write_precommit(tmp_path)
+        cfg = tmp_path / ".pre-commit-config.yaml"
+        existing = cfg.read_text()
+        user_addition = (
+            "\n  - repo: https://github.com/PyCQA/bandit\n"
+            "    rev: 1.8.0\n"
+            "    hooks:\n"
+            "      - id: bandit\n"
+        )
+        cfg.write_text(existing + user_addition)
+
+        # Re-generate with different toggles — still only one marker pair,
+        # and the user addition stays intact.
+        self._write_precommit(tmp_path, format_on=False, lint_on=True)
+        updated = cfg.read_text()
+        assert updated.count(MARKER_BEGIN_HASH) == 1
+        assert updated.count(MARKER_END_HASH) == 1
+        assert "PyCQA/bandit" in updated
+        # lint-only re-generation drops format-python...
+        assert "format-python" not in updated
+        # ...but the lint hook lands inside the fresh managed block.
+        lint_idx = updated.index("lint-python")
+        begin_idx = updated.index(MARKER_BEGIN_HASH)
+        end_idx = updated.index(MARKER_END_HASH)
+        assert begin_idx < lint_idx < end_idx
+
+    def test_regenerate_preserves_user_added_repo_above(self, tmp_path: Path) -> None:
+        """Repo entries inserted BEFORE the BEGIN marker also survive."""
+        self._write_precommit(tmp_path)
+        cfg = tmp_path / ".pre-commit-config.yaml"
+        existing = cfg.read_text()
+        # Insert an external repo between `repos:` and `# AI-GUARD:BEGIN`.
+        injected = existing.replace(
+            "repos:\n",
+            "repos:\n"
+            "  - repo: https://github.com/astral-sh/ruff-pre-commit\n"
+            "    rev: v0.15.10\n"
+            "    hooks:\n"
+            "      - id: ruff\n",
+            1,
+        )
+        cfg.write_text(injected)
+
+        self._write_precommit(tmp_path)
+        updated = cfg.read_text()
+        assert updated.count(MARKER_BEGIN_HASH) == 1
+        assert "astral-sh/ruff-pre-commit" in updated
+
+    def test_regenerate_does_not_nest_markers(self, tmp_path: Path) -> None:
+        """New template output is unwrapped before splicing to avoid nesting."""
+        self._write_precommit(tmp_path)
+        # Re-write with identical config — would double-nest without
+        # the _unwrap_self_embedded_block logic.
+        self._write_precommit(tmp_path)
+        content = (tmp_path / ".pre-commit-config.yaml").read_text()
+        assert content.count(MARKER_BEGIN_HASH) == 1
+        assert content.count(MARKER_END_HASH) == 1
+
+    def test_first_write_with_existing_unmarked_file_overwrites(
+        self, tmp_path: Path
+    ) -> None:
+        """Legacy file without markers is fully replaced (no partial merge)."""
+        cfg = tmp_path / ".pre-commit-config.yaml"
+        cfg.write_text("# legacy hand-written config\nrepos: []\n")
+        self._write_precommit(tmp_path)
+        content = cfg.read_text()
+        assert content.count(MARKER_BEGIN_HASH) == 1
+        # Legacy content is gone — user has to re-add their repos once.
+        assert "legacy" not in content

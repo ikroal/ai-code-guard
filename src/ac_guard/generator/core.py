@@ -27,6 +27,7 @@ from ac_guard.shared.types import (
     MARKER_BEGIN,
     MARKER_END,
     FileSpec,
+    markers_for,
     wrap_with_managed_block,
 )
 
@@ -212,26 +213,39 @@ def create_state(
 # adapters.base - they are shared types used by both modules.
 
 
-def replace_managed_block(existing_content: str, new_content: str) -> str:
+def replace_managed_block(
+    existing_content: str,
+    new_content: str,
+    *,
+    path: str | None = None,
+) -> str:
     """Replace content within managed block markers.
 
     If markers exist in existing_content, replaces the content between
     them. If markers don't exist, wraps new_content with markers and
     appends to existing content.
 
+    Marker style is selected by ``path`` extension so pre-commit / YAML /
+    TOML / shell / Python files get the ``# AI-GUARD:*`` form while
+    Markdown rule docs keep the historical HTML comment form.
+
     Args:
         existing_content: The existing file content.
         new_content: The new managed content to insert.
+        path: Optional file path — drives marker style. Defaults to
+            the HTML-comment markers for callers that don't yet know
+            the target file name (preserves old behaviour).
 
     Returns:
         Updated content with managed block replaced or appended.
     """
-    begin_idx = existing_content.find(MARKER_BEGIN)
-    end_idx = existing_content.find(MARKER_END)
+    begin, end = markers_for(path) if path is not None else (MARKER_BEGIN, MARKER_END)
+    begin_idx = existing_content.find(begin)
+    end_idx = existing_content.find(end)
 
     if begin_idx == -1 or end_idx == -1 or begin_idx > end_idx:
         # Markers not found or malformed — wrap and append
-        wrapped = wrap_with_managed_block(new_content)
+        wrapped = wrap_with_managed_block(new_content, path=path)
         if existing_content.strip():
             # Ensure separation from existing content
             if not existing_content.endswith("\n"):
@@ -242,7 +256,7 @@ def replace_managed_block(existing_content: str, new_content: str) -> str:
     # Markers found — replace content between them
     # Preserve content before BEGIN and after END
     before = existing_content[:begin_idx]
-    after = existing_content[end_idx + len(MARKER_END) :]
+    after = existing_content[end_idx + len(end) :]
 
     # Ensure proper line breaks
     if before and not before.endswith("\n"):
@@ -250,12 +264,44 @@ def replace_managed_block(existing_content: str, new_content: str) -> str:
     if after and not after.startswith("\n"):
         after = "\n" + after
 
-    return f"{before}{MARKER_BEGIN}\n{new_content}\n{MARKER_END}{after}"
+    return f"{before}{begin}\n{new_content}\n{end}{after}"
 
 
 # ---------------------------------------------------------------------------
 # Artifact Writing (G7)
 # ---------------------------------------------------------------------------
+
+
+# Paths whose body *is* the managed block on first write — the Generator
+# emits just the inner content and write_artifacts wraps it with markers
+# so the resulting file is self-documenting. Files whose templates already
+# self-embed markers (e.g. .pre-commit-config.yaml, which also needs a
+# top-level `repos:` scaffold) stay out of this set; they get written
+# verbatim on first creation and go through _unwrap_self_embedded_block
+# on regeneration.
+_WRAP_ON_WRITE_EXTS: frozenset[str] = frozenset({".md", ".mdc"})
+
+
+def _should_wrap_new_file(path: str) -> bool:
+    """Whether a first-time artifact's body should be wrapped in markers."""
+    return path.endswith(tuple(_WRAP_ON_WRITE_EXTS))
+
+
+def _unwrap_self_embedded_block(content: str, begin: str, end: str) -> str:
+    """Return the inner region of ``content`` when it self-embeds markers.
+
+    Templates like ``precommit_config.yaml.j2`` emit a *complete* file
+    with markers already inside the output. When ``write_artifacts``
+    needs to splice that output into an existing on-disk file, we must
+    use the inner block only, not the whole template output (otherwise
+    markers get nested). If ``content`` has no markers, it is returned
+    unchanged (callers can still use it as a drop-in inner block).
+    """
+    begin_idx = content.find(begin)
+    end_idx = content.find(end)
+    if begin_idx == -1 or end_idx == -1 or begin_idx >= end_idx:
+        return content
+    return content[begin_idx + len(begin) : end_idx].strip("\n")
 
 
 def write_artifacts(  # noqa: C901
@@ -298,19 +344,32 @@ def write_artifacts(  # noqa: C901
             # Handle managed blocks for existing files
             if full_path.is_file():
                 existing = full_path.read_text(encoding="utf-8")
-                # Check if file has managed block markers
-                if MARKER_BEGIN in existing and MARKER_END in existing:
-                    content = replace_managed_block(existing, artifact.content)
+                begin, end = markers_for(artifact.path)
+                # Check if file has managed block markers in the style
+                # matching its syntax — hash-style for YAML/TOML/sh/py,
+                # HTML-style for Markdown.
+                if begin in existing and end in existing:
+                    # If the new content self-embeds markers (e.g.
+                    # pre-commit template that carries its own `repos:`
+                    # scaffolding), splice in only the inner block so
+                    # markers don't nest.
+                    new_inner = _unwrap_self_embedded_block(
+                        artifact.content, begin, end
+                    )
+                    content = replace_managed_block(
+                        existing, new_inner, path=artifact.path
+                    )
                 else:
                     # No markers — overwrite entirely
                     content = artifact.content
+            # New file — wrap with managed block only when the template
+            # emits just the managed body (rule docs). Templates that
+            # produce a complete file with markers already embedded
+            # (pre-commit config) are written verbatim.
+            elif _should_wrap_new_file(artifact.path):
+                content = wrap_with_managed_block(artifact.content, path=artifact.path)
             else:
-                # New file — wrap with managed block for rule docs
-                # (hook scripts and configs don't need managed blocks)
-                if artifact.path.endswith((".md", ".mdc")):
-                    content = wrap_with_managed_block(artifact.content)
-                else:
-                    content = artifact.content
+                content = artifact.content
 
             # Write file
             full_path.write_text(content, encoding="utf-8")

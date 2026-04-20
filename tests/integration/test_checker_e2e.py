@@ -427,6 +427,47 @@ class TestSystemExecuteRulesE2E:
         assert len(regex_rules) == 9
 
 
+class TestPrecommitManagedBlockE2E:
+    """Managed block: install + external repo + update preserves user repo."""
+
+    def test_update_keeps_user_added_repo_outside_block(self, tmp_path: Path) -> None:
+        config = _write_config(tmp_path)
+        (tmp_path / ".git").mkdir()
+        runner.invoke(app, ["install", "-a", "claude-code", "-c", str(config)])
+
+        pre_commit = tmp_path / ".pre-commit-config.yaml"
+        assert pre_commit.is_file()
+        original = pre_commit.read_text()
+        assert "# AI-GUARD:BEGIN" in original
+        assert "# AI-GUARD:END" in original
+
+        # User adds an external repo outside the managed block.
+        pre_commit.write_text(
+            original
+            + "\n  - repo: https://github.com/PyCQA/bandit\n"
+            + "    rev: 1.8.0\n"
+            + "    hooks:\n      - id: bandit\n"
+        )
+
+        r = runner.invoke(app, ["update", "-c", str(config)])
+        assert r.exit_code == 0
+
+        updated = pre_commit.read_text()
+        assert updated.count("# AI-GUARD:BEGIN") == 1
+        assert updated.count("# AI-GUARD:END") == 1
+        assert "PyCQA/bandit" in updated
+        # The final file must parse as valid YAML.
+        import yaml
+
+        parsed = yaml.safe_load(updated)
+        assert isinstance(parsed, dict)
+        assert "repos" in parsed
+        # Two top-level repos survive: local (inside block) + bandit (outside)
+        repo_names = [entry.get("repo") for entry in parsed["repos"]]
+        assert "local" in repo_names
+        assert any("bandit" in str(r) for r in repo_names)
+
+
 class TestLocalePropagation:
     """#76: output.locale reaches the terminal formatter."""
 
