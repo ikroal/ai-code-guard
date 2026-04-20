@@ -6,11 +6,18 @@ into a single entry point for runtime behavior enforcement.
 
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING, Any
 
+from ac_guard.config.models import Rule
 from ac_guard.enforcer.classifier import classify
 from ac_guard.enforcer.exceptions import PolicyCorruptError
-from ac_guard.enforcer.matcher import Decision, PolicyDecision, evaluate_rules
+from ac_guard.enforcer.matcher import (
+    Decision,
+    MatchResult,
+    PolicyDecision,
+    evaluate_rules,
+)
 from ac_guard.enforcer.policy import load_policy
 from ac_guard.reporter.audit import append_audit_log
 
@@ -20,6 +27,15 @@ if TYPE_CHECKING:
     from ac_guard.config.models import AuditConfig
 
 __all__ = ["evaluate"]
+
+# Recognize `git commit` variants without relying on pattern rules so the
+# hooks-not-installed reminder fires independent of user policy.
+_GIT_COMMIT_RE = re.compile(r"\bgit\s+commit\b")
+
+# Signature strings pre-commit writes into the generated hook file.
+# Presence of both is the canonical "hooks installed" indicator used by
+# pre-commit itself (see their hook-impl template).
+_PRECOMMIT_HOOK_SIGNATURES = ("pre-commit", "hook-impl")
 
 
 def evaluate(
@@ -111,6 +127,19 @@ def evaluate(
     # E3/E4: Match and decide
     match_result = evaluate_rules(target, scheme, operation_rules)
 
+    # E5: Post-rule guard rail — if the policy would otherwise allow a
+    # `git commit` on a repository whose pre-commit hooks aren't
+    # installed, escalate to ASK so the agent can't silently commit
+    # without any gate running. Forbidden/ASK rules still win.
+    if (
+        match_result.decision == Decision.ALLOW
+        and operation == "execute"
+        and scheme == "shell"
+        and _GIT_COMMIT_RE.search(target)
+        and not _precommit_hook_installed(project_root)
+    ):
+        match_result = _hooks_not_installed_result()
+
     decision = PolicyDecision(
         decision=match_result.decision,
         operation=operation,
@@ -127,6 +156,40 @@ def evaluate(
     _maybe_audit(decision, tool_name, agent, project_root, audit_cfg)
 
     return decision
+
+
+def _precommit_hook_installed(project_root: Path) -> bool:
+    """Return True iff ``.git/hooks/pre-commit`` carries pre-commit's signature.
+
+    We look at the hook file contents rather than shelling out to
+    ``pre-commit`` so the check works on agents that don't have the
+    tool on PATH and so we don't pay subprocess startup on every
+    tool call.
+    """
+    hook_path = project_root / ".git" / "hooks" / "pre-commit"
+    try:
+        contents = hook_path.read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return False
+    return all(sig in contents for sig in _PRECOMMIT_HOOK_SIGNATURES)
+
+
+def _hooks_not_installed_result() -> MatchResult:
+    """Build a synthetic MatchResult flagging missing pre-commit hooks."""
+    synthetic = Rule(
+        pattern="shell:git commit*",
+        regex=False,
+        reason=(
+            "pre-commit hooks are not installed; run "
+            "`ac-guard install` or `pre-commit install` before committing"
+        ),
+        source="system",
+    )
+    return MatchResult(
+        decision=Decision.ASK,
+        matched_rule=synthetic,
+        tier="hooks_not_installed",
+    )
 
 
 def _maybe_audit(

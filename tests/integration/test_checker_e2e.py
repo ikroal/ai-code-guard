@@ -411,9 +411,20 @@ class TestSystemExecuteRulesE2E:
         assert any("-c" in p and "hooks" in p for p in patterns)
         assert any("config" in p and "hookspath" in p.lower() for p in patterns)
         assert any("rebase" in p and "exec" in p for p in patterns)
-        # Regex flag persists to runtime cache
+        # Hardening: CI= env-var + force-push variants (#105 follow-up)
+        assert any("CI=" in p and "git" in p for p in patterns)
+        assert any(
+            "git" in p and "push" in p and "--force" in p and "main" in p
+            for p in patterns
+        )
+        assert any(
+            "git" in p and "push" in p and "+" in p and "main" in p for p in patterns
+        )
+        # Regex flag persists to runtime cache — 4 bypass patterns plus the
+        # 5 hardening additions (CI=, two --force orderings, -f short form,
+        # `+<branch>` shorthand).
         regex_rules = [r for r in rules if r.get("regex")]
-        assert len(regex_rules) == 4
+        assert len(regex_rules) == 9
 
 
 class TestLocalePropagation:

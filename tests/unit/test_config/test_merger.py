@@ -359,6 +359,32 @@ class TestSystemExecuteRules:
         assert any("config" in p and "hookspath" in p.lower() for p in patterns)
         assert any("rebase" in p and "exec" in p for p in patterns)
 
+    def test_execute_forbidden_has_ci_env_pattern(self, tmp_path: Path) -> None:
+        """Regression: CI= env-var bypass is denied by default."""
+        path = _write_yaml(tmp_path, _minimal_guard())
+        result = resolve_config(path)
+        patterns = [r.pattern for r in result.behavior.execute.forbidden]
+        assert any("CI=" in p and "git" in p for p in patterns)
+
+    def test_execute_forbidden_has_force_push_patterns(self, tmp_path: Path) -> None:
+        """Regression: force push to main/master is blocked in all 4 forms."""
+        path = _write_yaml(tmp_path, _minimal_guard())
+        result = resolve_config(path)
+        patterns = [r.pattern for r in result.behavior.execute.forbidden]
+        # --force / --force-with-lease with branch either side of the flag
+        assert any(
+            "git" in p and "push" in p and "--force" in p and "main" in p
+            for p in patterns
+        )
+        # -f short form
+        assert any(
+            "git" in p and "push" in p and "-f" in p and "main" in p for p in patterns
+        )
+        # `git push <remote> +<branch>` shorthand
+        assert any(
+            "git" in p and "push" in p and "+" in p and "main" in p for p in patterns
+        )
+
     def test_user_execute_rules_coexist_with_system_rules(self, tmp_path: Path) -> None:
         data = _minimal_guard(
             behavior={
