@@ -39,7 +39,10 @@ if TYPE_CHECKING:
         CodeConfig,
         LanguageTools,
         OperationRules,
+        PreCommitMeta,
+        PreCommitRepo,
         Rule,
+        StageBucket,
     )
 
 __all__ = [
@@ -341,18 +344,17 @@ def write_artifacts(
             # Ensure parent directory exists
             full_path.parent.mkdir(parents=True, exist_ok=True)
 
-            # Handle managed blocks for existing files
-            if full_path.is_file():
+            # Schema v2 (#123 D4): .pre-commit-config.yaml is now a
+            # pure artifact — overwrite unconditionally, no managed-
+            # block splicing. Rule-doc files (CLAUDE.md, etc.) still
+            # honor the managed-block contract so user edits outside
+            # the block survive.
+            if artifact.path == ".pre-commit-config.yaml":
+                content = artifact.content
+            elif full_path.is_file():
                 existing = full_path.read_text(encoding="utf-8")
                 begin, end = markers_for(artifact.path)
-                # Check if file has managed block markers in the style
-                # matching its syntax — hash-style for YAML/TOML/sh/py,
-                # HTML-style for Markdown.
                 if begin in existing and end in existing:
-                    # If the new content self-embeds markers (e.g.
-                    # pre-commit template that carries its own `repos:`
-                    # scaffolding), splice in only the inner block so
-                    # markers don't nest.
                     new_inner = _unwrap_self_embedded_block(
                         artifact.content, begin, end
                     )
@@ -360,12 +362,7 @@ def write_artifacts(
                         existing, new_inner, path=artifact.path
                     )
                 else:
-                    # No markers — overwrite entirely
                     content = artifact.content
-            # New file — wrap with managed block only when the template
-            # emits just the managed body (rule docs). Templates that
-            # produce a complete file with markers already embedded
-            # (pre-commit config) are written verbatim.
             elif _should_wrap_new_file(artifact.path):
                 content = wrap_with_managed_block(artifact.content, path=artifact.path)
             else:
@@ -511,18 +508,26 @@ def _serialize_rule(rule: Rule) -> dict:
 # ---------------------------------------------------------------------------
 
 
-def generate_git_hooks(project_root: Path) -> list[FileSpec]:
-    """Generate Git hook scripts (G6).
+def generate_git_hooks(
+    project_root: Path,
+    code: CodeConfig | None = None,
+) -> list[FileSpec]:
+    """Generate Git hook scripts (G6) · schema v2.
 
-    Generates pre-commit and pre-push hooks that invoke
-    'ac-guard gate run --stage <stage>'.
+    Emits one wrapper per *active* gating stage. A stage is active
+    when its bucket declares any ``format`` / ``lint`` / ``checks`` /
+    ``hooks``. Empty buckets get no wrapper so ``.git/hooks/`` isn't
+    littered with no-op scripts.
 
     Args:
         project_root: Path to project root (to check .git existence).
+        code: CodeConfig. When ``None`` (legacy callers not yet
+            migrated), generates the two classic ``pre-commit`` and
+            ``pre-push`` wrappers unconditionally.
 
     Returns:
-        List of FileSpec for Git hooks (executable=True),
-        or empty list if .git directory doesn't exist.
+        List of FileSpec for Git hooks (executable=True), or empty
+        list if ``.git`` directory doesn't exist.
 
     Note:
         If .git directory doesn't exist, returns empty list.
@@ -533,14 +538,21 @@ def generate_git_hooks(project_root: Path) -> list[FileSpec]:
     if not git_dir.is_dir():
         return []
 
+    if code is None:
+        stages: list[str] = ["pre-commit", "pre-push"]
+    else:
+        stages = code.active_stages()
+    if not stages:
+        return []
+
     artifacts: list[FileSpec] = []
     env = _get_generator_env()
 
-    for hook_name in ["pre-commit", "pre-push"]:
-        template = env.get_template(f"git_hooks/{hook_name}.j2")
+    for stage in stages:
+        template = env.get_template(f"git_hooks/{stage}.j2")
         artifacts.append(
             FileSpec(
-                path=f".git/hooks/{hook_name}",
+                path=f".git/hooks/{stage}",
                 content=template.render(),
                 executable=True,
             )
@@ -674,31 +686,54 @@ _LANGUAGE_TYPES = {
 def generate_precommit_config(
     code: CodeConfig,
     languages: dict[str, LanguageTools],
+    pre_commit_meta: PreCommitMeta | None = None,
 ) -> FileSpec:
-    """Generate .pre-commit-config.yaml (G4).
+    """Generate .pre-commit-config.yaml (G4) · schema v2.
 
-    Generates a pre-commit configuration with format and lint hooks
-    for each configured language, plus any custom checks defined in
-    CodeConfig.
+    The generated file is a pure artifact — every repo entry is derived
+    from ``guard.yaml``. There is no managed-block / user-writable
+    region. ``ac-guard install`` overwrites the file completely.
 
-    Args:
-        code: CodeConfig with commit_format, push_lint, and checks.
-        languages: Per-language tool mappings (format and lint tools).
+    For each non-empty stage bucket:
+      * If any of ``format`` / ``lint`` / ``checks`` is set, emit one
+        ``repo: local`` entry collecting per-language format-/lint-
+        hooks plus ``custom-<name>`` hooks from ``checks``.
+      * Each ``hooks[]`` entry (external repo or user-declared local)
+        is rendered verbatim with its ``stages:`` field defaulted to
+        the bucket's stage when absent.
 
-    Returns:
-        FileSpec for .pre-commit-config.yaml
+    ``code.extra_repos`` are rendered at the end with no injected
+    ``stages`` (passthrough only).
     """
+    from ac_guard.config.models import PreCommitMeta  # local import avoids cycle
+
     env = _get_generator_env()
     template = env.get_template("precommit_config.yaml.j2")
 
-    # Combine commit and push checks for the template
-    all_checks = {**code.commit_checks, **code.push_checks}
+    meta = pre_commit_meta if pre_commit_meta is not None else PreCommitMeta()
+
+    # Pre-compute per-stage rendered repos for the template. Doing the
+    # shape work here keeps the Jinja template simple and deterministic.
+    rendered_stages: list[dict[str, Any]] = []
+    for stage_name, bucket in code.buckets():
+        local_hooks = _build_local_repo_hooks(bucket, languages, stage_name)
+        external_repos = _build_external_repos(bucket.hooks, stage_name)
+        if not local_hooks and not external_repos:
+            continue
+        rendered_stages.append(
+            {
+                "stage": stage_name,
+                "local_hooks": local_hooks,  # list of dicts for one ``repo: local``
+                "external_repos": external_repos,
+            }
+        )
+
+    extra_repos = _build_external_repos(code.extra_repos, stage=None)
 
     context = {
-        "code": code,
-        "languages": languages,
-        "checks": all_checks,
-        "lang_types": _LANGUAGE_TYPES,
+        "rendered_stages": rendered_stages,
+        "extra_repos": extra_repos,
+        "meta": meta,
         "version": __version__,
     }
 
@@ -706,3 +741,80 @@ def generate_precommit_config(
         path=".pre-commit-config.yaml",
         content=template.render(context),
     )
+
+
+def _build_local_repo_hooks(
+    bucket: StageBucket,
+    languages: dict[str, LanguageTools],
+    stage: str,
+) -> list[dict[str, Any]]:
+    """Return hook dicts for the ``repo: local`` entry of this stage.
+
+    Combines per-language format / lint and `custom-<name>` check items
+    into a flat list ready for yaml emission.
+    """
+    hooks: list[dict[str, Any]] = []
+    if bucket.format:
+        for lang, tools in languages.items():
+            hooks.append(
+                {
+                    "id": f"format-{lang}",
+                    "name": f"Format ({lang})",
+                    "entry": tools.format,
+                    "language": "system",
+                    "types": [_LANGUAGE_TYPES.get(lang, lang)],
+                    "pass_filenames": True,
+                    "stages": [stage],
+                }
+            )
+    if bucket.lint:
+        for lang, tools in languages.items():
+            hooks.append(
+                {
+                    "id": f"lint-{lang}",
+                    "name": f"Lint ({lang})",
+                    "entry": tools.lint,
+                    "language": "system",
+                    "types": [_LANGUAGE_TYPES.get(lang, lang)],
+                    "pass_filenames": True,
+                    "stages": [stage],
+                }
+            )
+    for name, check in bucket.checks.items():
+        hook: dict[str, Any] = {
+            "id": f"custom-{name.replace(' ', '-').lower()}",
+            "name": name,
+            "entry": check.command,
+            "language": "system",
+            "pass_filenames": check.pass_filenames,
+            "stages": [stage],
+        }
+        if check.types:
+            hook["types"] = check.types
+        hooks.append(hook)
+    return hooks
+
+
+def _build_external_repos(
+    repos: list[PreCommitRepo],
+    stage: str | None,
+) -> list[dict[str, Any]]:
+    """Serialize PreCommitRepo list into plain dicts for template.
+
+    When ``stage`` is provided, any hook that doesn't declare its own
+    ``stages:`` gets this stage set as default.
+    """
+    result: list[dict[str, Any]] = []
+    for repo in repos:
+        repo_dict: dict[str, Any] = {"repo": repo.repo}
+        if repo.rev is not None:
+            repo_dict["rev"] = repo.rev
+        hooks: list[dict[str, Any]] = []
+        for h in repo.hooks:
+            hook_dict: dict[str, Any] = {"id": h.id, **dict(h.extra)}
+            if stage is not None and "stages" not in hook_dict:
+                hook_dict["stages"] = [stage]
+            hooks.append(hook_dict)
+        repo_dict["hooks"] = hooks
+        result.append(repo_dict)
+    return result
