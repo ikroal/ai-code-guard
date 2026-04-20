@@ -1,0 +1,37 @@
+# ac-guard dogfood configuration — this repo is guarded by itself.
+# Changes here are regenerated into .pre-commit-config.yaml (inside the
+# AI-GUARD managed block) and .ac-guard/runtime.json via `ac-guard install`.
+
+version: 1
+
+project:
+  name: "ac-guard"
+  language: "python"
+
+behavior:
+  # read/execute — use ac-guard defaults (Track A's 11 forbidden patterns:
+  #   --no-verify / SKIP= / CI= / -c core.hooksPath / git config core.hooksPath /
+  #   git rebase --exec / --force / --force-with-lease / -f / +branch to main).
+  write:
+    # guard.yaml, .ac-guard/**, .pre-commit-config.yaml, .git/hooks/** are
+    # already protected by default. The extra entries below cover repo-specific
+    # policy surface that, if edited unexpectedly, would silently weaken the gate.
+    require_approval:
+      - pattern: "file:.importlinter"
+        message: "Editing the import-linter contract changes module layering"
+
+code:
+  commit:
+    format: true    # → format-python hook, populated inside the managed block
+  push:
+    lint: true      # → lint-python hook, populated inside the managed block
+
+output:
+  audit:
+    enabled: true
+
+languages:
+  python:
+    tools:
+      format: "ruff format"
+      lint: "ruff check --fix"
