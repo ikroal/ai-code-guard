@@ -107,6 +107,40 @@ _SYSTEM_EXECUTE_FORBIDDEN: list[dict[str, Any]] = [
             "git rebase --exec can run arbitrary commands bypassing per-commit hooks"
         ),
     },
+    {
+        "pattern": r"shell:CI=\S+\s+git\s+(?:commit|push)\b.*",
+        "regex": True,
+        "reason": "CI= env-var can trick tools into skipping pre-commit checks",
+    },
+    {
+        "pattern": (
+            r"shell:git\s+push\s+.*--force(?:-with-lease)?\b.*"
+            r"\b(?:main|master)\b.*"
+        ),
+        "regex": True,
+        "reason": "force push to protected branch rewrites shared history",
+    },
+    {
+        "pattern": (
+            r"shell:git\s+push\s+.*\b(?:main|master)\b.*"
+            r"--force(?:-with-lease)?\b.*"
+        ),
+        "regex": True,
+        "reason": "force push to protected branch rewrites shared history",
+    },
+    {
+        "pattern": r"shell:git\s+push\s+.*-f\b.*\b(?:main|master)\b.*",
+        "regex": True,
+        "reason": "force push (-f) to protected branch rewrites shared history",
+    },
+    {
+        "pattern": r"shell:git\s+push\s+\S+\s+\+(?:main|master)\b.*",
+        "regex": True,
+        "reason": (
+            "git push <remote> +<branch> is an alias for force push to the "
+            "protected branch"
+        ),
+    },
 ]
 
 _DEFAULT_LANGUAGES_YAML = Path(__file__).parent / "defaults" / "languages.yaml"
