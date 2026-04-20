@@ -65,6 +65,23 @@ repos:
 # AI-GUARD:END
 
   # -------------------------------------------------------------------
+  # Forbid `# noqa` lint suppressions in production source.
+  # Discovered during WP6.2 review: per-line suppressions hide real lint
+  # signal under the rug. If a rule is right, fix the code; if it's wrong,
+  # disable it at config level (pyproject.toml), not per-line. Tests are
+  # excluded since `tests/*` already has legitimate per-file-ignores for
+  # F401-style test imports.
+  # -------------------------------------------------------------------
+  - repo: local
+    hooks:
+      - id: forbid-noqa
+        name: Forbid "# noqa" lint suppressions
+        entry: '(?<!\w)#\s*noqa(\b|:)'
+        language: pygrep
+        types: [python]
+        exclude: ^tests/
+
+  # -------------------------------------------------------------------
   # Docstring coverage — ≥80% (carried over from check_docstrings.py)
   # -------------------------------------------------------------------
   - repo: https://github.com/econchick/interrogate

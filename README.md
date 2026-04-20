@@ -131,9 +131,23 @@ flowchart LR
 
 ## Development
 
+### First-time setup (fresh clone)
+
 ```bash
-pip install -e ".[dev]"   # installs ruff, pytest, interrogate, bandit, import-linter
-pre-commit install        # wires ruff + interrogate + bandit + import-linter hooks
+pip install -e ".[dev]"              # installs ruff, pytest, interrogate, bandit, import-linter
+ac-guard install --agent claude-code # materialises runtime.json + Claude Code hook + git hooks
+```
+
+That's it — `ac-guard install` writes its own `.git/hooks/pre-commit` wrapper
+that delegates to `ac-guard gate run --stage commit`, so no separate
+`pre-commit install` step is needed. The committed [`guard.yaml`](guard.yaml)
+and [`CLAUDE.md`](CLAUDE.md) are the source of truth for agent behavior rules;
+everything under `.claude/hooks/`, `.ac-guard/`, and `.git/hooks/` is
+per-machine and generated locally.
+
+### Day-to-day
+
+```bash
 pytest                    # 900+ tests
 ruff check .
 pre-commit run --all-files

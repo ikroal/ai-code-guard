@@ -304,7 +304,7 @@ def _unwrap_self_embedded_block(content: str, begin: str, end: str) -> str:
     return content[begin_idx + len(begin) : end_idx].strip("\n")
 
 
-def write_artifacts(  # noqa: C901
+def write_artifacts(
     project_root: Path,
     artifacts: list[FileSpec],
     *,

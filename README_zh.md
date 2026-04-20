@@ -131,9 +131,22 @@ flowchart LR
 
 ## 开发
 
+### 首次 setup（新 clone）
+
 ```bash
-pip install -e ".[dev]"   # 安装 ruff、pytest、interrogate、bandit、import-linter
-pre-commit install        # 配置 ruff + interrogate + bandit + import-linter 钩子
+pip install -e ".[dev]"              # 安装 ruff、pytest、interrogate、bandit、import-linter
+ac-guard install --agent claude-code # 生成 runtime.json + Claude Code hook + git hooks
+```
+
+两条命令即可。`ac-guard install` 会写一个 `.git/hooks/pre-commit` 包装脚本
+（内部调用 `ac-guard gate run --stage commit`），不需要再单独 `pre-commit install`。
+入库的 [`guard.yaml`](guard.yaml) 与 [`CLAUDE.md`](CLAUDE.md) 是 agent 行为规则的
+source of truth；`.claude/hooks/`、`.ac-guard/`、`.git/hooks/` 下的产物
+都是 per-machine 本地生成。
+
+### 日常
+
+```bash
 pytest                    # 900+ 个测试
 ruff check .
 pre-commit run --all-files
