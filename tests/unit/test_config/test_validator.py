@@ -59,9 +59,8 @@ class TestValidMinimalConfig:
                 },
             },
             "code": {
-                "commit": {
+                "pre-commit": {
                     "format": True,
-                    "naming": True,
                     "checks": {
                         "license_header": {
                             "command": "./scripts/check-license.sh",
@@ -69,7 +68,7 @@ class TestValidMinimalConfig:
                         },
                     },
                 },
-                "push": {
+                "pre-push": {
                     "lint": True,
                     "checks": {
                         "test": {"command": "pytest", "timeout": 300},
@@ -245,7 +244,7 @@ class TestBehaviorField:
 class TestCodeField:
     def test_check_missing_command(self) -> None:
         data = _minimal_config(
-            code={"commit": {"checks": {"my_check": {"timeout": 30}}}}
+            code={"pre-commit": {"checks": {"my_check": {"timeout": 30}}}}
         )
         with pytest.raises(ConfigValidationError) as exc_info:
             validate_raw_config(data)
@@ -254,7 +253,7 @@ class TestCodeField:
     def test_timeout_negative(self) -> None:
         data = _minimal_config(
             code={
-                "commit": {
+                "pre-commit": {
                     "checks": {
                         "my_check": {"command": "echo", "timeout": -1},
                     },
@@ -268,7 +267,7 @@ class TestCodeField:
     def test_timeout_zero(self) -> None:
         data = _minimal_config(
             code={
-                "commit": {
+                "pre-commit": {
                     "checks": {
                         "my_check": {"command": "echo", "timeout": 0},
                     },

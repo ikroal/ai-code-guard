@@ -34,9 +34,13 @@ from ac_guard.config.models import (
     LanguageTools,
     OperationRules,
     OutputConfig,
+    PreCommitHook,
+    PreCommitMeta,
+    PreCommitRepo,
     PrReportConfig,
     ResolvedConfig,
     Rule,
+    StageBucket,
 )
 
 __all__ = ["resolve_config"]
@@ -54,8 +58,12 @@ _BUILTIN_DEFAULTS: RawConfig = {  # type: ignore[typeddict-unknown-key]
         "execute": {},
     },
     "code": {
-        "commit": {"format": True, "naming": False, "checks": {}},
-        "push": {"lint": True, "checks": {}},
+        "pre-commit": {"format": True, "lint": False, "checks": {}, "hooks": []},
+        "commit-msg": {"format": False, "lint": False, "checks": {}, "hooks": []},
+        "pre-merge-commit": {"format": False, "lint": False, "checks": {}, "hooks": []},
+        "pre-push": {"format": False, "lint": True, "checks": {}, "hooks": []},
+        "pre-rebase": {"format": False, "lint": False, "checks": {}, "hooks": []},
+        "_extra": {"repos": []},
     },
     "output": {
         "verbosity": "normal",
@@ -204,11 +212,29 @@ def _merge_operation_rules(
     return merged
 
 
+_GATING_STAGES = (
+    "pre-commit",
+    "commit-msg",
+    "pre-merge-commit",
+    "pre-push",
+    "pre-rebase",
+)
+
+
 def _merge_code(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]:
     merged = copy.deepcopy(base)
-    for stage in ("commit", "push"):
+    for stage in _GATING_STAGES:
         if stage in overlay:
             merged[stage] = _merge_code_stage(merged.get(stage, {}), overlay[stage])
+    # _extra.repos: append overlay repos (last-write-wins semantics not
+    # meaningful for pre-commit repo lists; concatenate so ruleset-
+    # provided extras survive the user's own declarations).
+    if "_extra" in overlay:
+        base_extra = merged.get("_extra", {"repos": []})
+        overlay_repos = overlay["_extra"].get("repos", [])
+        merged["_extra"] = {
+            "repos": base_extra.get("repos", []) + copy.deepcopy(overlay_repos)
+        }
     return merged
 
 
@@ -217,10 +243,36 @@ def _merge_code_stage(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str
     for key, value in overlay.items():
         if key == "checks":
             merged["checks"] = _deep_merge_checks(merged.get("checks", {}), value)
+        elif key == "hooks":
+            # Append external repo lists: ruleset hooks + user hooks
+            # coexist. Dedup by (repo, rev) last-wins.
+            merged["hooks"] = _merge_precommit_repos(merged.get("hooks", []), value)
         else:
-            # Scalar bools (format, naming, lint)
+            # Scalar bools (format, lint)
             merged[key] = value
     return merged
+
+
+def _merge_precommit_repos(
+    base: list[dict[str, Any]], overlay: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """Concatenate two pre-commit repos lists, deduping by (repo, rev).
+
+    When the same (repo, rev) pair appears in both, the overlay's entry
+    replaces the base — hooks list and any other fields are taken from
+    the overlay, letting user guard.yaml override ruleset defaults.
+    """
+    result: list[dict[str, Any]] = [copy.deepcopy(r) for r in base]
+    by_key = {(r.get("repo"), r.get("rev")): i for i, r in enumerate(result)}
+    for repo in overlay:
+        key = (repo.get("repo"), repo.get("rev"))
+        copied = copy.deepcopy(repo)
+        if key in by_key:
+            result[by_key[key]] = copied
+        else:
+            by_key[key] = len(result)
+            result.append(copied)
+    return result
 
 
 def _deep_merge_checks(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]:
@@ -395,6 +447,7 @@ def _to_resolved_config(
         code=_to_code(merged.get("code", {})),
         languages=_to_languages(merged.get("languages", {})),
         output=_to_output(merged.get("output", {})),
+        pre_commit_meta=_to_pre_commit_meta(merged.get("_pre_commit", {})),
         build_command=merged.get("build", {}).get("command"),
         config_hash=config_hash,
         rulesets=merged.get("rulesets", []),
@@ -428,19 +481,53 @@ def _to_rule(raw: dict[str, Any]) -> Rule:
 
 
 def _to_code(raw: dict[str, Any]) -> CodeConfig:
-    commit = raw.get("commit", {})
-    push = raw.get("push", {})
+    buckets: dict[str, StageBucket] = {}
+    for stage in _GATING_STAGES:
+        raw_bucket = raw.get(stage, {})
+        buckets[stage] = _to_stage_bucket(raw_bucket)
+    extra_repos = [
+        _to_precommit_repo(r) for r in raw.get("_extra", {}).get("repos", [])
+    ]
+    # Map yaml hyphenated stage names to Python attribute names.
     return CodeConfig(
-        commit_format=commit.get("format", True),
-        commit_naming=commit.get("naming", False),
-        commit_checks={
-            name: _to_check_item(item)
-            for name, item in commit.get("checks", {}).items()
+        pre_commit=buckets["pre-commit"],
+        commit_msg=buckets["commit-msg"],
+        pre_merge_commit=buckets["pre-merge-commit"],
+        pre_push=buckets["pre-push"],
+        pre_rebase=buckets["pre-rebase"],
+        extra_repos=extra_repos,
+    )
+
+
+def _to_stage_bucket(raw: dict[str, Any]) -> StageBucket:
+    return StageBucket(
+        format=bool(raw.get("format", False)),
+        lint=bool(raw.get("lint", False)),
+        checks={
+            name: _to_check_item(item) for name, item in raw.get("checks", {}).items()
         },
-        push_lint=push.get("lint", True),
-        push_checks={
-            name: _to_check_item(item) for name, item in push.get("checks", {}).items()
-        },
+        hooks=[_to_precommit_repo(r) for r in raw.get("hooks", [])],
+    )
+
+
+def _to_precommit_repo(raw: dict[str, Any]) -> PreCommitRepo:
+    return PreCommitRepo(
+        repo=raw["repo"],
+        rev=raw.get("rev"),
+        hooks=[_to_precommit_hook(h) for h in raw.get("hooks", [])],
+    )
+
+
+def _to_precommit_hook(raw: dict[str, Any]) -> PreCommitHook:
+    extra = {k: v for k, v in raw.items() if k != "id"}
+    return PreCommitHook(id=raw["id"], extra=extra)
+
+
+def _to_pre_commit_meta(raw: dict[str, Any]) -> PreCommitMeta:
+    return PreCommitMeta(
+        minimum_version=raw.get("minimum_version"),
+        default_install_hook_types=raw.get("default_install_hook_types"),
+        default_language_version=dict(raw.get("default_language_version", {})),
     )
 
 

@@ -57,7 +57,7 @@ class TestLoadConfigSuccess:
                 },
             },
             "code": {
-                "commit": {
+                "pre-commit": {
                     "format": True,
                     "checks": {
                         "lic": {"command": "./check-lic.sh"},

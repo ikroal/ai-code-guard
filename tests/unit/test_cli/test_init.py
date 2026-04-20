@@ -282,7 +282,7 @@ class TestRenderGuardYaml:
         config = {
             "version": 1,
             "project": {"name": "test", "language": "python"},
-            "code": {"commit": {"format": True}},
+            "code": {"pre-commit": {"format": True}},
         }
         yaml_content = _render_guard_yaml(config, "standard")
         # Count occurrences of "project:" (should be exactly 1)

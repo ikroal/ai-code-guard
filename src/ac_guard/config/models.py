@@ -3,11 +3,19 @@
 All config-related dataclasses that represent the parsed and merged
 guard.yaml configuration. These are pure data containers with no
 validation logic — schema validation belongs in the config loader.
+
+Schema v2 (#123): ``code:`` is keyed by pre-commit gating stage names
+(pre-commit / commit-msg / pre-merge-commit / pre-push / pre-rebase).
+Each stage bucket holds the same five fields
+(``format`` / ``lint`` / ``checks`` / ``hooks`` / plus ruff N-rules via
+``lint``). ``_pre_commit`` carries top-level pre-commit meta, ``_extra``
+carries passthrough hooks for non-gating stages.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 
 __all__ = [
     "AuditConfig",
@@ -18,8 +26,12 @@ __all__ = [
     "OperationRules",
     "OutputConfig",
     "PrReportConfig",
+    "PreCommitHook",
+    "PreCommitMeta",
+    "PreCommitRepo",
     "ResolvedConfig",
     "Rule",
+    "StageBucket",
 ]
 
 
@@ -107,7 +119,11 @@ class BehaviorConfig:
 
 @dataclass
 class CheckItem:
-    """A single code check definition.
+    """A single code check definition (short-hand for local hooks).
+
+    A ``CheckItem`` is rendered into the generated
+    ``.pre-commit-config.yaml`` as a ``custom-<name>`` entry under the
+    stage bucket's ``repo: local`` block.
 
     Attributes:
         command: Shell command to execute for this check.
@@ -127,25 +143,174 @@ class CheckItem:
 
 
 @dataclass
-class CodeConfig:
-    """Code quality check configuration.
+class PreCommitHook:
+    """Passthrough wrapper for a single pre-commit hook entry.
+
+    ``id`` is required; all other pre-commit fields (``name`` / ``entry`` /
+    ``args`` / ``language`` / ``types`` / ``pass_filenames`` /
+    ``additional_dependencies`` / ``stages`` / ``always_run`` / ``files`` /
+    ``exclude`` / ...) are carried verbatim in ``extra`` so new
+    pre-commit fields work without schema changes.
 
     Attributes:
-        commit_format: Enable format checking at commit stage.
-        commit_naming: Enable naming convention checking at
-            commit stage.
-        commit_checks: Custom check items run at commit stage,
-            keyed by check name.
-        push_lint: Enable semantic lint at push stage.
-        push_checks: Custom check items run at push stage,
-            keyed by check name.
+        id: Hook identifier (required).
+        extra: Any additional pre-commit hook fields passed through
+            to the generated yaml as-is.
     """
 
-    commit_format: bool = True
-    commit_naming: bool = False
-    commit_checks: dict[str, CheckItem] = field(default_factory=dict)
-    push_lint: bool = True
-    push_checks: dict[str, CheckItem] = field(default_factory=dict)
+    id: str
+    extra: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class PreCommitRepo:
+    """Passthrough wrapper for a pre-commit ``repos[]`` entry.
+
+    Attributes:
+        repo: Repository URL or the literal ``"local"``.
+        rev: Repository revision tag/branch. ``None`` for local repos.
+        hooks: List of hook entries under this repo.
+    """
+
+    repo: str
+    rev: str | None = None
+    hooks: list[PreCommitHook] = field(default_factory=list)
+
+
+@dataclass
+class StageBucket:
+    """Per-stage configuration bucket under ``code.<stage>``.
+
+    Each bucket produces exactly one local ac-guard repo entry (built
+    from ``format`` / ``lint`` / ``checks``) plus ``hooks`` passed
+    through verbatim in the generated ``.pre-commit-config.yaml``. All
+    resulting hooks carry the bucket's stage as their default
+    ``stages:`` field (user-provided ``stages`` on passthrough hooks
+    overrides).
+
+    Attributes:
+        format: Inject per-language format hooks (``format-<lang>``)
+            from ``languages[*].tools.format``.
+        lint: Inject per-language lint hooks (``lint-<lang>``) from
+            ``languages[*].tools.lint``.
+        checks: Short-hand local hooks rendered as ``custom-<name>``.
+        hooks: Full pre-commit repo/hook declarations. Community repos
+            or project-specific local hooks that need the full
+            passthrough surface live here.
+    """
+
+    format: bool = False
+    lint: bool = False
+    checks: dict[str, CheckItem] = field(default_factory=dict)
+    hooks: list[PreCommitRepo] = field(default_factory=list)
+
+    def is_empty(self) -> bool:
+        """True when no ac-guard semantic or external hooks are declared."""
+        return not self.format and not self.lint and not self.checks and not self.hooks
+
+
+@dataclass
+class CodeConfig:
+    """Code quality configuration, keyed by pre-commit gating stage.
+
+    The five gating stage buckets mirror pre-commit's native stage
+    taxonomy. Non-gating stages (post-* / prepare-commit-msg / manual)
+    live in ``extra_repos`` as passthrough — ac-guard does not gate
+    them but renders them into the generated yaml so pre-commit still
+    executes them.
+
+    Attributes:
+        pre_commit: pre-commit stage (most project hooks land here).
+        commit_msg: commit-msg stage (e.g. conventional-pre-commit).
+        pre_merge_commit: pre-merge-commit stage (rare).
+        pre_push: pre-push stage (heavy checks, test/coverage).
+        pre_rebase: pre-rebase stage (rare).
+        extra_repos: Passthrough repos for non-gating stages
+            (populated from ``code._extra.repos`` in yaml).
+    """
+
+    pre_commit: StageBucket = field(default_factory=StageBucket)
+    commit_msg: StageBucket = field(default_factory=StageBucket)
+    pre_merge_commit: StageBucket = field(default_factory=StageBucket)
+    pre_push: StageBucket = field(default_factory=StageBucket)
+    pre_rebase: StageBucket = field(default_factory=StageBucket)
+    extra_repos: list[PreCommitRepo] = field(default_factory=list)
+
+    GATING_STAGES = (
+        "pre_commit",
+        "commit_msg",
+        "pre_merge_commit",
+        "pre_push",
+        "pre_rebase",
+    )
+
+    def buckets(self) -> list[tuple[str, StageBucket]]:
+        """Return (yaml_stage_name, bucket) pairs for all gating stages."""
+        return [
+            ("pre-commit", self.pre_commit),
+            ("commit-msg", self.commit_msg),
+            ("pre-merge-commit", self.pre_merge_commit),
+            ("pre-push", self.pre_push),
+            ("pre-rebase", self.pre_rebase),
+        ]
+
+    def active_stages(self) -> list[str]:
+        """Return yaml stage names for buckets that have any content.
+
+        Used by ``generate_git_hooks`` to only emit wrappers for
+        stages the project actually uses.
+        """
+        return [name for name, bucket in self.buckets() if not bucket.is_empty()]
+
+    # ---- Legacy read-only shims (Phase 1a, drop in Phase 1c) -----------
+    # These let checker / generator / CLI continue to read ``commit_*`` /
+    # ``push_*`` attributes during the transition to the new bucket API.
+    # Write-paths (merger, test constructors) must use the new fields
+    # directly; shims are read-only.
+
+    @property
+    def commit_format(self) -> bool:
+        return self.pre_commit.format
+
+    @property
+    def commit_naming(self) -> bool:
+        # D8: commit_naming is a dead flag; shim always returns False so
+        # the old checker branch becomes a no-op without removal yet.
+        return False
+
+    @property
+    def commit_checks(self) -> dict[str, CheckItem]:
+        return self.pre_commit.checks
+
+    @property
+    def push_lint(self) -> bool:
+        return self.pre_push.lint
+
+    @property
+    def push_checks(self) -> dict[str, CheckItem]:
+        return self.pre_push.checks
+
+
+@dataclass
+class PreCommitMeta:
+    """Top-level pre-commit yaml fields.
+
+    Populated from guard.yaml's ``_pre_commit:`` block. All fields
+    optional; generator substitutes sensible defaults when absent.
+
+    Attributes:
+        minimum_version: Value for ``minimum_pre_commit_version``
+            in the generated yaml.
+        default_install_hook_types: List for
+            ``default_install_hook_types`` (defaults to the active
+            stages detected from guard.yaml).
+        default_language_version: Map for
+            ``default_language_version`` (e.g. ``{python: python3}``).
+    """
+
+    minimum_version: str | None = None
+    default_install_hook_types: list[str] | None = None
+    default_language_version: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -232,11 +397,13 @@ class ResolvedConfig:
             (e.g. "python", "typescript").
         behavior: Behavior constraint rules across read,
             write, and execute dimensions.
-        code: Code quality check configuration for commit
-            and push stages.
+        code: Code quality configuration keyed by pre-commit
+            gating stage (schema v2).
         languages: Per-language tool mappings, keyed by
             language name.
         output: Output and reporting settings.
+        pre_commit_meta: Top-level pre-commit yaml fields
+            (minimum_version, default_language_version, ...).
         build_command: Optional build command run before
             push-stage checks.
         config_hash: SHA hash of the source guard.yaml,
@@ -250,6 +417,7 @@ class ResolvedConfig:
     code: CodeConfig
     languages: dict[str, LanguageTools]
     output: OutputConfig
+    pre_commit_meta: PreCommitMeta = field(default_factory=PreCommitMeta)
     build_command: str | None = None
     config_hash: str = ""
     rulesets: list[str] = field(default_factory=list)

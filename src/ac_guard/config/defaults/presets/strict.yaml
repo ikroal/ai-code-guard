@@ -10,9 +10,9 @@ behavior:
         reason: "Credential files are protected"
 
 code:
-  commit:
+  pre-commit:
     format: true
-  push:
+  pre-push:
     lint: true
     checks:
       test:

@@ -49,9 +49,8 @@ def _write_config_with_checks(tmp_path: Path) -> Path:
         "version": 1,
         "project": {"name": "test-project", "language": "python"},
         "code": {
-            "commit": {
+            "pre-commit": {
                 "format": True,
-                "naming": True,
                 "checks": {
                     "unit-test": {
                         "command": "pytest tests/unit",
@@ -59,7 +58,7 @@ def _write_config_with_checks(tmp_path: Path) -> Path:
                     },
                 },
             },
-            "push": {
+            "pre-push": {
                 "lint": True,
                 "checks": {
                     "typecheck": {
@@ -200,9 +199,8 @@ class TestJsonOutput:
             "version": 1,
             "project": {"name": "test", "language": "python"},
             "code": {
-                "commit": {
+                "pre-commit": {
                     "format": False,
-                    "naming": False,
                     "checks": {"fail": {"command": "exit 1"}},
                 },
             },

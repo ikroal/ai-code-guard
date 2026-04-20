@@ -62,11 +62,15 @@ class Dict:
         fields: Schema for each allowed key.
         required: Keys that must be present.
         check_regex: Special flag for rule nodes to validate regex patterns.
+        allow_unknown: Accept and skip validation for unknown keys. Used
+            for pre-commit hook passthrough where ac-guard shouldn't
+            enforce a fixed field list (pre-commit may add new fields).
     """
 
     fields: dict[str, SchemaNode]
     required: frozenset[str] = frozenset()
     check_regex: bool = False
+    allow_unknown: bool = False
 
 
 @dataclass(frozen=True)
@@ -138,20 +142,36 @@ _LANGUAGE_ENTRY = Dict(
     required=frozenset({"tools"}),
 )
 
-_COMMIT_STAGE = Dict(
+_PRECOMMIT_HOOK = Dict(
+    # id is required; everything else passes through (schema is lenient
+    # so new pre-commit fields work without ac-guard updates).
+    fields={"id": Str(non_empty=True)},
+    required=frozenset({"id"}),
+    allow_unknown=True,
+)
+
+_PRECOMMIT_REPO = Dict(
+    fields={
+        "repo": Str(non_empty=True),
+        "rev": Str(),
+        "hooks": List(items=_PRECOMMIT_HOOK),
+    },
+    required=frozenset({"repo"}),
+)
+
+# Every gating-stage bucket has the same shape. `naming` is intentionally
+# absent — D8 removed the dead flag; `lint: true` (via ruff N-rules)
+# covers what naming used to try to do.
+_STAGE_BUCKET = Dict(
     fields={
         "format": Bool(),
-        "naming": Bool(),
+        "lint": Bool(),
         "checks": DynDict(values=_CHECK_ITEM),
+        "hooks": List(items=_PRECOMMIT_REPO),
     }
 )
 
-_PUSH_STAGE = Dict(
-    fields={
-        "lint": Bool(),
-        "checks": DynDict(values=_CHECK_ITEM),
-    }
-)
+_EXTRA = Dict(fields={"repos": List(items=_PRECOMMIT_REPO)})
 
 _AUDIT_CONFIG = Dict(
     fields={
@@ -184,7 +204,24 @@ _PROJECT_CONFIG = Dict(
     required=frozenset({"language"}),
 )
 
-_CODE_CONFIG = Dict(fields={"commit": _COMMIT_STAGE, "push": _PUSH_STAGE})
+_CODE_CONFIG = Dict(
+    fields={
+        "pre-commit": _STAGE_BUCKET,
+        "commit-msg": _STAGE_BUCKET,
+        "pre-merge-commit": _STAGE_BUCKET,
+        "pre-push": _STAGE_BUCKET,
+        "pre-rebase": _STAGE_BUCKET,
+        "_extra": _EXTRA,
+    }
+)
+
+_PRE_COMMIT_META = Dict(
+    fields={
+        "minimum_version": Str(),
+        "default_install_hook_types": List(items=Str()),
+        "default_language_version": DynDict(values=Str()),
+    }
+)
 
 _BUILD_CONFIG = Dict(fields={"command": Str()})
 
@@ -201,6 +238,7 @@ _ROOT = Dict(
         "code": _CODE_CONFIG,
         "build": _BUILD_CONFIG,
         "output": _OUTPUT_CONFIG,
+        "_pre_commit": _PRE_COMMIT_META,
     },
     required=frozenset({"version", "project"}),
 )
@@ -329,12 +367,13 @@ class _Validator:
             )
             return
 
-        # Check unknown keys
-        allowed_keys = frozenset(node.fields.keys())
-        for key in data:
-            if key not in allowed_keys:
-                child_path = f"{path}.{key}" if path else key
-                self._add(child_path, f"unknown key '{key}'", key)
+        # Check unknown keys (unless passthrough allowed)
+        if not node.allow_unknown:
+            allowed_keys = frozenset(node.fields.keys())
+            for key in data:
+                if key not in allowed_keys:
+                    child_path = f"{path}.{key}" if path else key
+                    self._add(child_path, f"unknown key '{key}'", key)
 
         # Check required fields and recurse into present fields
         for name, child_node in node.fields.items():
