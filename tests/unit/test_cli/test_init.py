@@ -42,7 +42,7 @@ class TestInitCommand:
             ["init", "--language", "typescript", "--output", str(output)],
         )
         assert result.exit_code == 0
-        content = output.read_text()
+        content = output.read_text(encoding="utf-8")
         assert "language: typescript" in content
 
     def test_init_with_preset(self, tmp_path: Path) -> None:
@@ -61,7 +61,7 @@ class TestInitCommand:
             ],
         )
         assert result.exit_code == 0
-        content = output.read_text()
+        content = output.read_text(encoding="utf-8")
         assert "Preset: minimal" in content
 
     def test_init_with_ruleset(self, tmp_path: Path) -> None:
@@ -80,7 +80,7 @@ class TestInitCommand:
             ],
         )
         assert result.exit_code == 0
-        content = output.read_text()
+        content = output.read_text(encoding="utf-8")
         assert "security-rules" in content
 
     def test_init_multiple_rulesets(self, tmp_path: Path) -> None:
@@ -101,14 +101,14 @@ class TestInitCommand:
             ],
         )
         assert result.exit_code == 0
-        content = output.read_text()
+        content = output.read_text(encoding="utf-8")
         assert "security-rules" in content
         assert "team-conventions" in content
 
     def test_init_existing_file_fails(self, tmp_path: Path) -> None:
         """init command fails when guard.yaml already exists."""
         output = tmp_path / "guard.yaml"
-        output.write_text("existing content")
+        output.write_text("existing content", encoding="utf-8")
         result = runner.invoke(
             app,
             ["init", "--language", "python", "--output", str(output)],
@@ -119,13 +119,13 @@ class TestInitCommand:
     def test_init_force_overwrites(self, tmp_path: Path) -> None:
         """init --force overwrites existing guard.yaml."""
         output = tmp_path / "guard.yaml"
-        output.write_text("existing content")
+        output.write_text("existing content", encoding="utf-8")
         result = runner.invoke(
             app,
             ["init", "--language", "python", "--force", "--output", str(output)],
         )
         assert result.exit_code == 0
-        content = output.read_text()
+        content = output.read_text(encoding="utf-8")
         assert "existing content" not in content
         assert "AI Code Guard configuration" in content
 
@@ -328,7 +328,7 @@ class TestInitCommandIntegration:
         )
         assert result.exit_code == 0
 
-        content = output.read_text()
+        content = output.read_text(encoding="utf-8")
         # Check for expected content from standard preset
         assert "format: true" in content
         assert "lint: true" in content
@@ -354,7 +354,7 @@ class TestInitCommandIntegration:
         )
         assert result.exit_code == 0
 
-        content = output.read_text()
+        content = output.read_text(encoding="utf-8")
         # Check for expected content from strict preset
         assert "behavior:" in content
         assert "forbidden:" in content
@@ -378,7 +378,7 @@ class TestInitCommandIntegration:
         )
         assert result.exit_code == 0
 
-        content = output.read_text()
+        content = output.read_text(encoding="utf-8")
         # Check minimal preset specific content
         assert "format: true" in content
         assert "enabled: false" in content  # audit disabled

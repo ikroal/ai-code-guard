@@ -44,7 +44,7 @@ class TestFullLifecycle:
         assert result.exit_code == 0, f"install failed: {result.output}"
         state_path = tmp_path / STATE_FILE
         assert state_path.is_file()
-        state = GeneratedState.from_json(state_path.read_text())
+        state = GeneratedState.from_json(state_path.read_text(encoding="utf-8"))
         assert "claude-code" in state.installed_agents
         assert (tmp_path / "CLAUDE.md").is_file()
 
@@ -131,7 +131,9 @@ class TestMultiAgentLifecycle:
             ["install", "--agent", "claude-code", "--config", str(config)],
         )
         assert result.exit_code == 0
-        state = GeneratedState.from_json((tmp_path / STATE_FILE).read_text())
+        state = GeneratedState.from_json(
+            (tmp_path / STATE_FILE).read_text(encoding="utf-8")
+        )
         assert state.installed_agents == ["claude-code"]
 
         # install second agent (incremental)
@@ -140,7 +142,9 @@ class TestMultiAgentLifecycle:
             ["install", "--agent", "cursor", "--config", str(config)],
         )
         assert result.exit_code == 0
-        state = GeneratedState.from_json((tmp_path / STATE_FILE).read_text())
+        state = GeneratedState.from_json(
+            (tmp_path / STATE_FILE).read_text(encoding="utf-8")
+        )
         assert "claude-code" in state.installed_agents
         assert "cursor" in state.installed_agents
 
@@ -173,7 +177,9 @@ class TestMultiAgentLifecycle:
             ],
         )
         assert result.exit_code == 0
-        state = GeneratedState.from_json((tmp_path / STATE_FILE).read_text())
+        state = GeneratedState.from_json(
+            (tmp_path / STATE_FILE).read_text(encoding="utf-8")
+        )
         assert len(state.installed_agents) == 3
         assert "claude-code" in state.installed_agents
         assert "cursor" in state.installed_agents
@@ -214,6 +220,7 @@ class TestDriftDetection:
                 },
                 default_flow_style=False,
             ),
+            encoding="utf-8",
         )
 
         # Status should detect drift
@@ -249,6 +256,7 @@ class TestErrorRecovery:
                 {"version": 1, "project": {"name": "t", "language": "python"}},
                 default_flow_style=False,
             ),
+            encoding="utf-8",
         )
         result = runner.invoke(app, ["update", "--config", str(config)])
         assert result.exit_code == 1
@@ -262,6 +270,7 @@ class TestErrorRecovery:
                 {"version": 1, "project": {"name": "t", "language": "python"}},
                 default_flow_style=False,
             ),
+            encoding="utf-8",
         )
         result = runner.invoke(
             app,
@@ -278,6 +287,7 @@ class TestErrorRecovery:
                 {"version": 1, "project": {"name": "t", "language": "python"}},
                 default_flow_style=False,
             ),
+            encoding="utf-8",
         )
         result = runner.invoke(app, ["status", "--config", str(config)])
         assert result.exit_code == 0
@@ -291,6 +301,7 @@ class TestErrorRecovery:
                 {"version": 1, "project": {"name": "t", "language": "python"}},
                 default_flow_style=False,
             ),
+            encoding="utf-8",
         )
         result = runner.invoke(
             app,
@@ -309,11 +320,11 @@ class TestRuleDocMarkers:
 
     def _bump_config(self, config: Path) -> None:
         """Mutate guard.yaml so `update` has something to regenerate."""
-        data = yaml.safe_load(config.read_text())
+        data = yaml.safe_load(config.read_text(encoding="utf-8"))
         data.setdefault("behavior", {}).setdefault("write", {}).setdefault(
             "forbidden", []
         ).append({"pattern": "file:marker-bump/**", "reason": "test"})
-        config.write_text(yaml.dump(data, default_flow_style=False))
+        config.write_text(yaml.dump(data, default_flow_style=False), encoding="utf-8")
 
     def test_install_and_update_keep_single_marker_pair(self, tmp_path: Path) -> None:
         config = tmp_path / "guard.yaml"
@@ -324,12 +335,13 @@ class TestRuleDocMarkers:
         )
 
         claude = tmp_path / "CLAUDE.md"
-        assert claude.read_text().count(self._BEGIN) == 1
-        assert claude.read_text().count(self._END) == 1
+        assert claude.read_text(encoding="utf-8").count(self._BEGIN) == 1
+        assert claude.read_text(encoding="utf-8").count(self._END) == 1
 
         # Add a user section outside the managed block
         claude.write_text(
-            claude.read_text() + "\n\n## My Custom Section\nuser content\n"
+            claude.read_text(encoding="utf-8")
+            + "\n\n## My Custom Section\nuser content\n"
         )
 
         # Two updates in a row — markers must stay at 1+1 each time
@@ -337,7 +349,7 @@ class TestRuleDocMarkers:
             self._bump_config(config)
             r = runner.invoke(app, ["update", "--config", str(config)])
             assert r.exit_code == 0, r.output
-            text = claude.read_text()
+            text = claude.read_text(encoding="utf-8")
             assert text.count(self._BEGIN) == 1, text
             assert text.count(self._END) == 1, text
             assert "My Custom Section" in text

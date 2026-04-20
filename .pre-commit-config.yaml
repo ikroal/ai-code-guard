@@ -82,6 +82,21 @@ repos:
         exclude: ^tests/
 
   # -------------------------------------------------------------------
+  # Tests must pass encoding="utf-8" to read_text/write_text so Windows
+  # (cp1252 default pre-PEP 686) doesn't break on non-ASCII rendered
+  # output. See #108.
+  # -------------------------------------------------------------------
+  - repo: local
+    hooks:
+      - id: forbid-bare-read-write-text
+        name: Tests must pass encoding="utf-8" to read_text/write_text
+        entry: python3 scripts/check_tests_utf8.py
+        language: system
+        types: [python]
+        files: ^tests/
+        pass_filenames: true
+
+  # -------------------------------------------------------------------
   # Docstring coverage — ≥80% (carried over from check_docstrings.py)
   # -------------------------------------------------------------------
   - repo: https://github.com/econchick/interrogate

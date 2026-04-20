@@ -229,8 +229,10 @@ class TestWriteArtifacts:
         written = write_artifacts(tmp_path, artifacts)
         assert "test.txt" in written
         assert "subdir/nested.txt" in written
-        assert (tmp_path / "test.txt").read_text() == "hello"
-        assert (tmp_path / "subdir" / "nested.txt").read_text() == "nested content"
+        assert (tmp_path / "test.txt").read_text(encoding="utf-8") == "hello"
+        assert (tmp_path / "subdir" / "nested.txt").read_text(
+            encoding="utf-8"
+        ) == "nested content"
 
     def test_creates_parent_directories(self, tmp_path: Path) -> None:
         artifacts = [
@@ -257,7 +259,7 @@ class TestWriteArtifacts:
             FileSpec(path="CLAUDE.md", content="# Rules\n\nDo this."),
         ]
         write_artifacts(tmp_path, artifacts)
-        content = (tmp_path / "CLAUDE.md").read_text()
+        content = (tmp_path / "CLAUDE.md").read_text(encoding="utf-8")
         assert MARKER_BEGIN in content
         assert MARKER_END in content
         assert "# Rules" in content
@@ -267,14 +269,14 @@ class TestWriteArtifacts:
             FileSpec(path="config.yaml", content="key: value"),
         ]
         write_artifacts(tmp_path, artifacts)
-        content = (tmp_path / "config.yaml").read_text()
+        content = (tmp_path / "config.yaml").read_text(encoding="utf-8")
         assert MARKER_BEGIN not in content
         assert content == "key: value"
 
     def test_replaces_managed_block_in_existing_file(self, tmp_path: Path) -> None:
         # Create existing file with managed block
         existing = f"User header\n{MARKER_BEGIN}\nOld rules\n{MARKER_END}\nUser footer"
-        (tmp_path / "CLAUDE.md").write_text(existing)
+        (tmp_path / "CLAUDE.md").write_text(existing, encoding="utf-8")
 
         # Write new content
         artifacts = [
@@ -282,7 +284,7 @@ class TestWriteArtifacts:
         ]
         write_artifacts(tmp_path, artifacts)
 
-        content = (tmp_path / "CLAUDE.md").read_text()
+        content = (tmp_path / "CLAUDE.md").read_text(encoding="utf-8")
         assert "User header" in content
         assert "User footer" in content
         assert "Old rules" not in content
@@ -290,14 +292,14 @@ class TestWriteArtifacts:
 
     def test_overwrites_file_without_markers(self, tmp_path: Path) -> None:
         # Create existing file without markers
-        (tmp_path / "config.yaml").write_text("old: content")
+        (tmp_path / "config.yaml").write_text("old: content", encoding="utf-8")
 
         artifacts = [
             FileSpec(path="config.yaml", content="new: content"),
         ]
         write_artifacts(tmp_path, artifacts)
 
-        content = (tmp_path / "config.yaml").read_text()
+        content = (tmp_path / "config.yaml").read_text(encoding="utf-8")
         assert content == "new: content"
 
     def test_dry_run_returns_paths_without_writing(self, tmp_path: Path) -> None:
@@ -350,7 +352,7 @@ class TestMarkerDuplication:
         """First-time write of a .md artifact yields exactly one BEGIN/END pair."""
         artifact = FileSpec(path="CLAUDE.md", content="# Rules\n\nDo this.")
         write_artifacts(tmp_path, [artifact])
-        content = (tmp_path / "CLAUDE.md").read_text()
+        content = (tmp_path / "CLAUDE.md").read_text(encoding="utf-8")
         assert self._count(content, MARKER_BEGIN) == 1
         assert self._count(content, MARKER_END) == 1
         assert "# Rules" in content
@@ -359,7 +361,7 @@ class TestMarkerDuplication:
         """A second write (update) still leaves exactly one BEGIN/END pair."""
         write_artifacts(tmp_path, [FileSpec(path="CLAUDE.md", content="v1")])
         write_artifacts(tmp_path, [FileSpec(path="CLAUDE.md", content="v2")])
-        content = (tmp_path / "CLAUDE.md").read_text()
+        content = (tmp_path / "CLAUDE.md").read_text(encoding="utf-8")
         assert self._count(content, MARKER_BEGIN) == 1
         assert self._count(content, MARKER_END) == 1
         assert "v2" in content
@@ -371,7 +373,9 @@ class TestMarkerDuplication:
             tmp_path,
             [FileSpec(path=".cursor/rules/behavior.mdc", content="raw")],
         )
-        content = (tmp_path / ".cursor" / "rules" / "behavior.mdc").read_text()
+        content = (tmp_path / ".cursor" / "rules" / "behavior.mdc").read_text(
+            encoding="utf-8"
+        )
         assert self._count(content, MARKER_BEGIN) == 1
         assert self._count(content, MARKER_END) == 1
 
@@ -381,14 +385,32 @@ class TestMarkerDuplication:
         """User content added outside markers survives the next update."""
         write_artifacts(tmp_path, [FileSpec(path="CLAUDE.md", content="v1")])
         md = tmp_path / "CLAUDE.md"
-        md.write_text(md.read_text() + "\n\n## My Custom Section\nuser notes\n")
+        md.write_text(
+            md.read_text(encoding="utf-8") + "\n\n## My Custom Section\nuser notes\n"
+        )
         write_artifacts(tmp_path, [FileSpec(path="CLAUDE.md", content="v2")])
-        content = md.read_text()
+        content = md.read_text(encoding="utf-8")
         assert self._count(content, MARKER_BEGIN) == 1
         assert self._count(content, MARKER_END) == 1
         assert "My Custom Section" in content
         assert "user notes" in content
         assert "v2" in content
+
+    def test_rule_doc_round_trip_preserves_non_ascii(self, tmp_path: Path) -> None:
+        """Non-ASCII content (em-dash, CJK) round-trips cleanly through write+read.
+
+        Regression for #108: on Windows, `Path.read_text()` without an
+        explicit encoding defaults to cp1252 and blows up on any
+        non-ASCII bytes. This test catches both sides: that the
+        generator writes UTF-8 and that we read it back with the same
+        encoding.
+        """
+        body = "# Rules — 规则\n\n禁止 `git push --force`。"
+        write_artifacts(tmp_path, [FileSpec(path="CLAUDE.md", content=body)])
+        content = (tmp_path / "CLAUDE.md").read_text(encoding="utf-8")
+        assert "规则" in content
+        assert "禁止" in content
+        assert "—" in content
 
 
 class TestDeleteArtifacts:
@@ -396,9 +418,9 @@ class TestDeleteArtifacts:
 
     def test_deletes_existing_files(self, tmp_path: Path) -> None:
         # Create some files
-        (tmp_path / "file1.txt").write_text("x")
+        (tmp_path / "file1.txt").write_text("x", encoding="utf-8")
         (tmp_path / "subdir").mkdir()
-        (tmp_path / "subdir" / "file2.txt").write_text("y")
+        (tmp_path / "subdir" / "file2.txt").write_text("y", encoding="utf-8")
 
         deleted = delete_artifacts(tmp_path, ["file1.txt", "subdir/file2.txt"])
         assert "file1.txt" in deleted
@@ -410,8 +432,8 @@ class TestDeleteArtifacts:
         assert deleted == []
 
     def test_returns_deleted_paths(self, tmp_path: Path) -> None:
-        (tmp_path / "a.txt").write_text("x")
-        (tmp_path / "b.txt").write_text("y")
+        (tmp_path / "a.txt").write_text("x", encoding="utf-8")
+        (tmp_path / "b.txt").write_text("y", encoding="utf-8")
         deleted = delete_artifacts(tmp_path, ["a.txt", "b.txt", "c.txt"])
         assert "a.txt" in deleted
         assert "b.txt" in deleted
@@ -863,7 +885,7 @@ class TestPrecommitManagedBlock:
         languages = {"python": LanguageTools(format="black", lint="ruff")}
         spec = generate_precommit_config(code, languages)
         write_artifacts(tmp_path, [spec])
-        return (tmp_path / ".pre-commit-config.yaml").read_text()
+        return (tmp_path / ".pre-commit-config.yaml").read_text(encoding="utf-8")
 
     def test_template_uses_hash_markers(self) -> None:
         """Generated content embeds the YAML-safe marker style."""
@@ -894,19 +916,19 @@ class TestPrecommitManagedBlock:
         """External repo entries added AFTER the END marker survive update."""
         self._write_precommit(tmp_path)
         cfg = tmp_path / ".pre-commit-config.yaml"
-        existing = cfg.read_text()
+        existing = cfg.read_text(encoding="utf-8")
         user_addition = (
             "\n  - repo: https://github.com/PyCQA/bandit\n"
             "    rev: 1.8.0\n"
             "    hooks:\n"
             "      - id: bandit\n"
         )
-        cfg.write_text(existing + user_addition)
+        cfg.write_text(existing + user_addition, encoding="utf-8")
 
         # Re-generate with different toggles — still only one marker pair,
         # and the user addition stays intact.
         self._write_precommit(tmp_path, format_on=False, lint_on=True)
-        updated = cfg.read_text()
+        updated = cfg.read_text(encoding="utf-8")
         assert updated.count(MARKER_BEGIN_HASH) == 1
         assert updated.count(MARKER_END_HASH) == 1
         assert "PyCQA/bandit" in updated
@@ -922,7 +944,7 @@ class TestPrecommitManagedBlock:
         """Repo entries inserted BEFORE the BEGIN marker also survive."""
         self._write_precommit(tmp_path)
         cfg = tmp_path / ".pre-commit-config.yaml"
-        existing = cfg.read_text()
+        existing = cfg.read_text(encoding="utf-8")
         # Insert an external repo between `repos:` and `# AI-GUARD:BEGIN`.
         injected = existing.replace(
             "repos:\n",
@@ -933,10 +955,10 @@ class TestPrecommitManagedBlock:
             "      - id: ruff\n",
             1,
         )
-        cfg.write_text(injected)
+        cfg.write_text(injected, encoding="utf-8")
 
         self._write_precommit(tmp_path)
-        updated = cfg.read_text()
+        updated = cfg.read_text(encoding="utf-8")
         assert updated.count(MARKER_BEGIN_HASH) == 1
         assert "astral-sh/ruff-pre-commit" in updated
 
@@ -946,7 +968,7 @@ class TestPrecommitManagedBlock:
         # Re-write with identical config — would double-nest without
         # the _unwrap_self_embedded_block logic.
         self._write_precommit(tmp_path)
-        content = (tmp_path / ".pre-commit-config.yaml").read_text()
+        content = (tmp_path / ".pre-commit-config.yaml").read_text(encoding="utf-8")
         assert content.count(MARKER_BEGIN_HASH) == 1
         assert content.count(MARKER_END_HASH) == 1
 
@@ -955,9 +977,9 @@ class TestPrecommitManagedBlock:
     ) -> None:
         """Legacy file without markers is fully replaced (no partial merge)."""
         cfg = tmp_path / ".pre-commit-config.yaml"
-        cfg.write_text("# legacy hand-written config\nrepos: []\n")
+        cfg.write_text("# legacy hand-written config\nrepos: []\n", encoding="utf-8")
         self._write_precommit(tmp_path)
-        content = cfg.read_text()
+        content = cfg.read_text(encoding="utf-8")
         assert content.count(MARKER_BEGIN_HASH) == 1
         # Legacy content is gone — user has to re-add their repos once.
         assert "legacy" not in content
