@@ -1,0 +1,32 @@
+; Import-linter contract for ac-guard.
+;
+; Mirrors the module-dependency table from the retired
+; scripts/checks/_config.ALLOWED_DEPS so the layering invariant keeps
+; holding after the self-built checker was replaced with mature tooling
+; in Track B.1 of the M6 cleanup.
+;
+; Allowed dependencies (each module implicitly depends on itself):
+;   config, templates  — leaves (no internal deps)
+;   adapters           → config
+;   checker            → config
+;   reporter           → config
+;   generator          → config, adapters
+;   enforcer           → config, checker, reporter
+;   cli                → config, generator, adapters, enforcer, checker, reporter
+;
+; Within the same layer, modules may NOT import each other — e.g.
+; enforcer must not import generator, checker must not import adapters.
+
+[importlinter]
+root_package = ac_guard
+
+[importlinter:contract:layers]
+name = ac-guard module layering
+type = layers
+layers =
+    cli
+    enforcer | generator
+    checker | reporter | adapters
+    config | templates
+containers =
+    ac_guard

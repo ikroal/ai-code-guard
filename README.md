@@ -132,10 +132,17 @@ flowchart LR
 ## Development
 
 ```bash
-pip install -e ".[dev]"
-pytest                    # 816 tests
+pip install -e ".[dev]"   # installs ruff, pytest, interrogate, bandit, import-linter
+pre-commit install        # wires ruff + interrogate + bandit + import-linter hooks
+pytest                    # 900+ tests
 ruff check .
+pre-commit run --all-files
 ```
+
+The repository's own quality gate runs the same suite in CI
+(`lint` + `pre-commit` + `test` jobs in `.github/workflows/ci.yml`).
+Import layering rules live in `.importlinter`; docstring coverage
+threshold and bandit skips in `pyproject.toml`.
 
 ## Changelog
 

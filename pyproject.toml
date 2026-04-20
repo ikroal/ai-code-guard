@@ -49,6 +49,12 @@ dev = [
     "pytest-cov>=5.0",
     "ruff>=0.15",
     "build>=1.0",
+    # Pre-commit tooling — each has a matching hook in
+    # .pre-commit-config.yaml, but listing here lets developers run
+    # them directly from the project venv.
+    "interrogate>=1.7",
+    "bandit[toml]>=1.8",
+    "import-linter>=2.3",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -108,6 +114,50 @@ known-first-party = ["ac_guard"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["D", "ANN", "ARG", "PLR0913", "C408", "TC"]  # relax requirements for tests
+
+[tool.ruff.lint.pep8-naming]
+# Private conventions inherited from the retired scripts/checks/_config.py:
+# these module-level identifiers look like "constants" but aren't, so we
+# don't want N816/N806 grumbling about them.
+extend-ignore-names = ["_"]
+
+# ---------------------------------------------------------------------------
+# Docstring coverage (interrogate)
+# ---------------------------------------------------------------------------
+[tool.interrogate]
+# 80% threshold carried over from the retired
+# scripts/checks/rules/check_docstrings.py (DOCSTRING_THRESHOLD).
+fail-under = 80
+ignore-init-method = true
+ignore-init-module = true
+ignore-magic = true
+ignore-private = true
+ignore-module = false
+ignore-semiprivate = false
+ignore-nested-functions = true
+ignore-nested-classes = true
+exclude = ["tests", "build", "dist", ".venv", "scripts"]
+verbose = 1
+
+# ---------------------------------------------------------------------------
+# Security scanning (bandit)
+# ---------------------------------------------------------------------------
+[tool.bandit]
+exclude_dirs = ["tests", "build", "dist", ".venv"]
+# The retired scripts/checks/rules/check_security.py denied {eval, exec,
+# __import__, compile} and {pickle, shelve, marshal}. Bandit's built-in
+# B102/B301/B307/B322 rules cover the same ground.
+#
+# Skipped checks are intentional for this project:
+# - B310  urllib.request.urlopen — reporters call github/gitlab APIs
+# - B404  subprocess import — CLI wraps git/pytest; unavoidable
+# - B603  subprocess without shell=True — the safe form, bandit's note is
+#         generic and doesn't apply when inputs come from our own config
+# - B607  start_process_with_partial_path — shelling to "git" by name is
+#         the documented contract; hard-coding /usr/bin/git breaks users
+# - B701  jinja2 autoescape=False — templates emit shell / python / yaml,
+#         not HTML; autoescape would break every generated artifact
+skips = ["B310", "B404", "B603", "B607", "B701"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests/unit", "tests/integration"]
