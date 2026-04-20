@@ -19,6 +19,8 @@ behavior:
     require_approval:
       - pattern: "file:.importlinter"
         message: "Editing the import-linter contract changes module layering"
+      - pattern: "file:scripts/**"
+        message: "scripts/ contains guard infrastructure (lint checkers etc.); edits weaken enforcement"
 
 code:
   commit:

@@ -14,7 +14,7 @@ The following rules define what operations are permitted, blocked, or require ap
 
 
 **Require Approval** (ask user):
-- `file:.importlinter` — Editing the import-linter contract changes module layering- `file:guard.yaml`- `file:.ac-guard/**`- `file:.pre-commit-config.yaml`- `file:.git/hooks/**`
+- `file:.importlinter` — Editing the import-linter contract changes module layering- `file:scripts/**` — scripts/ contains guard infrastructure (lint checkers etc.); edits weaken enforcement- `file:guard.yaml`- `file:.ac-guard/**`- `file:.pre-commit-config.yaml`- `file:.git/hooks/**`
 
 ### Execute Operations
 
