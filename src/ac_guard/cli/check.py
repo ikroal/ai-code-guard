@@ -188,32 +188,73 @@ def run_command(
     raise SystemExit(0 if report.passed else 1)
 
 
+_GATING_STAGES = frozenset(
+    {"pre-commit", "commit-msg", "pre-merge-commit", "pre-push", "pre-rebase"}
+)
+
+# Map schema-v2 stage names onto the legacy ``run_stage`` stage values
+# ("commit" / "push") for stages where ac-guard has bucket-aware logic.
+# Other gating stages delegate straight to pre-commit via subprocess.
+_LEGACY_STAGE_ALIAS = {"pre-commit": "commit", "pre-push": "push"}
+
+
 def gate_run_command(
     stage: str,
     config_path: Path,
+    *,
+    argv: list[str] | None = None,
 ) -> None:
     """Execute the gate run command (Git Hook entry).
 
     Args:
-        stage: Check stage ("commit" or "push").
+        stage: One of the five pre-commit gating stages
+            (``pre-commit`` / ``commit-msg`` / ``pre-merge-commit`` /
+            ``pre-push`` / ``pre-rebase``). Schema-v1 values
+            (``commit`` / ``push``) are rejected.
         config_path: Path to guard.yaml.
+        argv: Pass-through positional args (e.g. commit-msg hook
+            receives the message file path as $1).
     """
+    if stage not in _GATING_STAGES:
+        print(
+            f"Error: unknown stage '{stage}'. Expected one of "
+            f"{sorted(_GATING_STAGES)}.",
+            flush=True,
+        )
+        raise SystemExit(2)
+
     resolved = _load_config(config_path)
     project_root = config_path.parent.resolve()
-    build_cmd = resolved.build_command if stage == "push" else None
 
-    report = run_stage(
-        stage,
-        resolved.code,
-        project_root,
-        build_command=build_cmd,
-        languages=list(resolved.languages),
-    )
+    if stage in _LEGACY_STAGE_ALIAS:
+        legacy = _LEGACY_STAGE_ALIAS[stage]
+        build_cmd = resolved.build_command if legacy == "push" else None
+        report = run_stage(
+            legacy,
+            resolved.code,
+            project_root,
+            build_command=build_cmd,
+            languages=list(resolved.languages),
+        )
+        message, exit_code = format_gate(report)
+        print(message)
+        post_pr_comment(report, resolved.output.pr_report, resolved.output.locale)
+        raise SystemExit(exit_code)
 
-    message, exit_code = format_gate(report)
-    print(message)
-    post_pr_comment(report, resolved.output.pr_report, resolved.output.locale)
-    raise SystemExit(exit_code)
+    # commit-msg / pre-merge-commit / pre-rebase — ac-guard doesn't
+    # yet model these in its bucket-aware checker. Delegate to
+    # pre-commit's native stage runner; it reads the generated
+    # .pre-commit-config.yaml and executes hooks declared for this
+    # stage via their ``stages:`` field.
+    import subprocess
+
+    cmd = ["pre-commit", "run", "--hook-stage", stage]
+    if stage == "commit-msg" and argv:
+        cmd.extend(["--commit-msg-filename", argv[0]])
+    else:
+        cmd.append("--all-files")
+    result = subprocess.run(cmd, cwd=project_root, check=False)
+    raise SystemExit(result.returncode)
 
 
 def _format_report(

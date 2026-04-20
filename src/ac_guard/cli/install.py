@@ -108,7 +108,11 @@ def _run_generator_pipeline(
 
     # G4: Pre-commit config
     artifacts.append(
-        generate_precommit_config(resolved_config.code, resolved_config.languages)
+        generate_precommit_config(
+            resolved_config.code,
+            resolved_config.languages,
+            resolved_config.pre_commit_meta,
+        )
     )
 
     # G5: Policy cache (runtime.json — behavior + audit config)
@@ -121,7 +125,7 @@ def _run_generator_pipeline(
     )
 
     # G6: Git hooks
-    git_hooks = generate_git_hooks(project_root)
+    git_hooks = generate_git_hooks(project_root, resolved_config.code)
     if not git_hooks:
         print("Warning: .git directory not found. Git hooks were not installed.")
     artifacts.extend(git_hooks)

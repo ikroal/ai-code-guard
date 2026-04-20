@@ -1,0 +1,9 @@
+#!/bin/bash
+# AI Code Guard commit-msg hook
+# Managed by ac-guard - do not edit manually
+# Run 'ac-guard install' to regenerate
+#
+# Receives the commit message file path as $1; forward to the gate
+# runner so pre-commit hooks for the commit-msg stage can inspect it.
+
+ac-guard gate run --stage commit-msg "$@"

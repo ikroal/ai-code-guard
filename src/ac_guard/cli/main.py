@@ -324,19 +324,30 @@ def run_single(
 gate_app = typer.Typer(name="gate", help="Git Hook entry points.")
 
 
-@gate_app.command(name="run")
+@gate_app.command(
+    name="run",
+    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
+)
 def gate_run(
+    ctx: typer.Context,
     stage: Annotated[
         str,
-        typer.Option("--stage", "-s", help="Check stage (commit or push)"),
-    ] = "commit",
+        typer.Option(
+            "--stage",
+            "-s",
+            help=(
+                "pre-commit gating stage (pre-commit / commit-msg / "
+                "pre-merge-commit / pre-push / pre-rebase)"
+            ),
+        ),
+    ] = "pre-commit",
     config: Annotated[
         Path,
         typer.Option("--config", "-c", help="Path to guard.yaml"),
     ] = Path("guard.yaml"),
 ) -> None:
     """Internal entry point for Git hooks."""
-    gate_run_command(stage=stage, config_path=config)
+    gate_run_command(stage=stage, config_path=config, argv=ctx.args)
 
 
 app.add_typer(gate_app)

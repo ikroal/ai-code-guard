@@ -334,7 +334,7 @@ class TestCliPrReportIntegration:
             patch("ac_guard.reporter.channel_github.GitHubChannel.send") as mock_send,
         ):
             result = runner.invoke(
-                app, ["gate", "run", "--stage", "commit", "--config", str(config)]
+                app, ["gate", "run", "--stage", "pre-commit", "--config", str(config)]
             )
         assert result.exit_code == 0
         assert mock_send.call_count == 1

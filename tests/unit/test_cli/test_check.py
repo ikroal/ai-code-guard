@@ -194,7 +194,7 @@ class TestGateRunCommand:
         config = _write_config(tmp_path)
         with patch("ac_guard.checker.core.get_changed_files", return_value=[]):
             result = runner.invoke(
-                app, ["gate", "run", "--stage", "commit", "--config", str(config)]
+                app, ["gate", "run", "--stage", "pre-commit", "--config", str(config)]
             )
         assert result.exit_code == 0
         assert "passed" in result.output
@@ -220,7 +220,7 @@ class TestGateRunCommand:
         )
         with patch("ac_guard.checker.core.get_changed_files", return_value=[]):
             result = runner.invoke(
-                app, ["gate", "run", "--stage", "commit", "--config", str(config)]
+                app, ["gate", "run", "--stage", "pre-commit", "--config", str(config)]
             )
         assert result.exit_code == 1
         assert "failed" in result.output
@@ -230,7 +230,7 @@ class TestGateRunCommand:
         config = _write_config(tmp_path)
         with patch("ac_guard.checker.core.get_changed_files", return_value=[]):
             result = runner.invoke(
-                app, ["gate", "run", "--stage", "push", "--config", str(config)]
+                app, ["gate", "run", "--stage", "pre-push", "--config", str(config)]
             )
         assert result.exit_code == 0
         assert "passed" in result.output
@@ -367,7 +367,7 @@ class TestCliAutoPostPrComment:
             patch("ac_guard.cli.check.post_pr_comment") as mock_post,
         ):
             result = runner.invoke(
-                app, ["gate", "run", "--stage", "commit", "--config", str(config)]
+                app, ["gate", "run", "--stage", "pre-commit", "--config", str(config)]
             )
         assert result.exit_code == 0
         assert mock_post.call_count == 1
