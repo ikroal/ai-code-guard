@@ -167,9 +167,9 @@ class TestCodeConfig:
 
     def test_defaults_values(self):
         cfg = CodeConfig()
-        # Dataclass defaults: every bucket empty. The merger applies
-        # project-level defaults (pre-commit.format=True, pre-push.lint=
-        # True) via _DEFAULT_CONFIG — not this constructor.
+        # Dataclass defaults: every bucket empty. Project-level
+        # defaults (pre-commit.format=True, pre-push.lint=True) come
+        # from the merger's _DEFAULT_CONFIG, not this constructor.
         assert cfg.pre_commit.format is False
         assert cfg.pre_commit.lint is False
         assert cfg.pre_commit.checks == {}
@@ -177,8 +177,6 @@ class TestCodeConfig:
         assert cfg.pre_push.lint is False
         assert cfg.pre_push.hooks == []
         assert cfg.extra_repos == []
-        # Legacy shim: commit_naming is always False (D8, dead flag).
-        assert cfg.commit_naming is False
 
     def test_with_check_items(self):
         from ac_guard.config.models import StageBucket
@@ -193,9 +191,6 @@ class TestCodeConfig:
         )
         assert "license" in cfg.pre_commit.checks
         assert cfg.pre_push.checks["test"].timeout == 600
-        # Legacy shim access
-        assert "license" in cfg.commit_checks
-        assert cfg.push_checks["test"].timeout == 600
 
     def test_default_factory_independence(self):
         a = CodeConfig()

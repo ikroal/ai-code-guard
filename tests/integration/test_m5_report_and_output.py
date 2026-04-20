@@ -237,9 +237,8 @@ class TestValidationDiscovery:
         assert result.exit_code == 0
 
         output = result.output
-        # Builtin checks present
+        # Builtin checks present (D8: naming dropped).
         assert "format" in output
-        assert "naming" in output
         assert "lint" in output
         # Custom checks present
         assert "unit-test" in output
@@ -272,7 +271,6 @@ class TestValidationDiscovery:
         output = result.output
         assert "builtin" in output.lower()
         assert "format" in output
-        assert "naming" in output
         assert "lint" in output
 
 

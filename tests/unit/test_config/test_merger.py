@@ -72,13 +72,12 @@ class TestResolveConfigMinimal:
     def test_default_code_config(self, tmp_path: Path) -> None:
         path = _write_yaml(tmp_path, _minimal_guard())
         result = resolve_config(path)
-        # Defaults: pre-commit.format=True, pre-push.lint=True (from
-        # _DEFAULT_CONFIG); commit_naming is D8 dead-flag shim.
+        # Defaults from _DEFAULT_CONFIG: pre-commit.format=True,
+        # pre-push.lint=True.
         assert result.code.pre_commit.format is True
         assert result.code.pre_push.lint is True
         assert result.code.pre_commit.checks == {}
         assert result.code.pre_push.checks == {}
-        assert result.code.commit_naming is False
 
     def test_default_output_config(self, tmp_path: Path) -> None:
         path = _write_yaml(tmp_path, _minimal_guard())
@@ -144,16 +143,12 @@ class TestScalarOverride:
         path = _write_yaml(tmp_path, data)
         result = resolve_config(path)
         assert result.code.pre_commit.format is False
-        assert result.code.commit_format is False  # legacy shim
-        # D8: commit_naming shim always False
-        assert result.code.commit_naming is False
 
     def test_override_push_lint(self, tmp_path: Path) -> None:
         data = _minimal_guard(code={"pre-push": {"lint": False}})
         path = _write_yaml(tmp_path, data)
         result = resolve_config(path)
         assert result.code.pre_push.lint is False
-        assert result.code.push_lint is False  # legacy shim
 
     def test_build_command(self, tmp_path: Path) -> None:
         data = _minimal_guard(build={"command": "make build"})
@@ -857,7 +852,7 @@ class TestEdgeCases:
         path = _write_yaml(tmp_path, _minimal_guard())
         result = resolve_config(path)
         assert result.behavior.read.forbidden == []
-        assert result.code.commit_format is True
+        assert result.code.pre_commit.format is True
 
     def test_no_mutation_of_input(self, tmp_path: Path) -> None:
         """resolve_config must not mutate the ruleset RawConfig dicts."""

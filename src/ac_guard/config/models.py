@@ -262,34 +262,6 @@ class CodeConfig:
         """
         return [name for name, bucket in self.buckets() if not bucket.is_empty()]
 
-    # ---- Legacy read-only shims (Phase 1a, drop in Phase 1c) -----------
-    # These let checker / generator / CLI continue to read ``commit_*`` /
-    # ``push_*`` attributes during the transition to the new bucket API.
-    # Write-paths (merger, test constructors) must use the new fields
-    # directly; shims are read-only.
-
-    @property
-    def commit_format(self) -> bool:
-        return self.pre_commit.format
-
-    @property
-    def commit_naming(self) -> bool:
-        # D8: commit_naming is a dead flag; shim always returns False so
-        # the old checker branch becomes a no-op without removal yet.
-        return False
-
-    @property
-    def commit_checks(self) -> dict[str, CheckItem]:
-        return self.pre_commit.checks
-
-    @property
-    def push_lint(self) -> bool:
-        return self.pre_push.lint
-
-    @property
-    def push_checks(self) -> dict[str, CheckItem]:
-        return self.pre_push.checks
-
 
 @dataclass
 class PreCommitMeta:

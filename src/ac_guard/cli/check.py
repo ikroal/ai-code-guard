@@ -157,15 +157,20 @@ def run_command(
                     )
                 )
     else:
-        # Search custom checks in both stages
-        check_item = resolved.code.commit_checks.get(name)
+        # Search custom checks across every gating stage bucket. A check
+        # ID is unique across the config; first hit wins.
+        check_item = None
+        for _stage_name, bucket in resolved.code.buckets():
+            if name in bucket.checks:
+                check_item = bucket.checks[name]
+                break
         if check_item is None:
-            check_item = resolved.code.push_checks.get(name)
-        if check_item is None:
-            print(f"Error: Check '{name}' not found in {stage} stage.")
-            available = list(resolved.code.commit_checks) + list(
-                resolved.code.push_checks
-            )
+            print(f"Error: Check '{name}' not found.")
+            available = [
+                check_name
+                for _stage_name, bucket in resolved.code.buckets()
+                for check_name in bucket.checks
+            ]
             if available:
                 print(f"Available checks: {', '.join(available)}")
             raise SystemExit(1)

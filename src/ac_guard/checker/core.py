@@ -366,12 +366,7 @@ def run_stage(
     )
 
 
-# Naming check is declared in the schema but not yet implemented — see
-# https://github.com/ikroal/ai-code-guard/issues/95
-_NAMING_NOT_IMPLEMENTED_MSG = (
-    "Naming check is not yet implemented — tracked in "
-    "https://github.com/ikroal/ai-code-guard/issues/95"
-)
+_BUILD_FAILED_SKIP_REASON = "Skipped: build failed"
 
 
 def _run_commit_checks(
@@ -380,31 +375,29 @@ def _run_commit_checks(
     project_root: Path,
     languages: list[str],
 ) -> list[CheckResult]:
-    """Run commit-stage checks."""
-    results: list[CheckResult] = []
+    """Run commit-stage (pre-commit bucket) checks.
 
-    if config.commit_format:
+    Schema v2 (#123): reads ``config.pre_commit.*`` directly. The dead
+    ``naming`` shortcut (D8) is gone — ruff N-rules via ``lint: true``
+    replaced it.
+    """
+    results: list[CheckResult] = []
+    bucket = config.pre_commit
+
+    if bucket.format:
         results.extend(
             run_precommit(f"format-{lang}", files, project_root) for lang in languages
         )
 
-    if config.commit_naming:
-        results.append(
-            CheckResult(
-                name="naming",
-                passed=True,
-                skipped=True,
-                output=_NAMING_NOT_IMPLEMENTED_MSG,
-            )
+    if bucket.lint:
+        results.extend(
+            run_precommit(f"lint-{lang}", files, project_root) for lang in languages
         )
 
-    for name, check_item in config.commit_checks.items():
+    for name, check_item in bucket.checks.items():
         results.append(run_check(name, check_item, files, project_root))
 
     return results
-
-
-_BUILD_FAILED_SKIP_REASON = "Skipped: build failed"
 
 
 def _run_push_checks(
@@ -414,14 +407,14 @@ def _run_push_checks(
     build_command: str | None,
     languages: list[str],
 ) -> list[CheckResult]:
-    """Run push-stage checks.
+    """Run push-stage (pre-push bucket) checks.
 
     Build is a precondition: if it fails, lint and custom push checks
     are not executed and are instead appended as ``skipped`` results
-    with a ``Skipped: build failed`` marker. This mirrors the existing
-    commit→push fail-fast pattern in :func:`run_stage`.
+    with a ``Skipped: build failed`` marker.
     """
     results: list[CheckResult] = []
+    bucket = config.pre_push
 
     if build_command:
         build_result = run_build(build_command, project_root)
@@ -430,12 +423,12 @@ def _run_push_checks(
             _append_skipped_downstream(results, config, languages)
             return results
 
-    if config.push_lint:
+    if bucket.lint:
         results.extend(
             run_precommit(f"lint-{lang}", files, project_root) for lang in languages
         )
 
-    for name, check_item in config.push_checks.items():
+    for name, check_item in bucket.checks.items():
         results.append(run_check(name, check_item, files, project_root))
 
     return results
@@ -447,7 +440,7 @@ def _append_skipped_downstream(
     languages: list[str],
 ) -> None:
     """Mark lint + push.checks as skipped when build has already failed."""
-    if config.push_lint:
+    if config.pre_push.lint:
         results.extend(
             CheckResult(
                 name=f"pre-commit:lint-{lang}",
@@ -464,5 +457,5 @@ def _append_skipped_downstream(
             skipped=True,
             output=_BUILD_FAILED_SKIP_REASON,
         )
-        for name in config.push_checks
+        for name in config.pre_push.checks
     )
