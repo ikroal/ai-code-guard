@@ -64,7 +64,7 @@ _BUILTIN_DEFAULTS: RawConfig = {  # type: ignore[typeddict-unknown-key]
         "pr_report": {
             "enabled": False,
             "platform": "github",
-            "token_env": "GITHUB_TOKEN",
+            "token_env": "GITHUB_TOKEN",  # nosec B105 — env-var name, not a secret
         },
     },
 }
@@ -480,7 +480,7 @@ def _to_output(raw: dict[str, Any]) -> OutputConfig:
             enabled=pr_raw.get("enabled", False),
             platform=pr_raw.get("platform", "github"),
             api_url=pr_raw.get("api_url"),
-            token_env=pr_raw.get("token_env", "GITHUB_TOKEN"),
+            token_env=pr_raw.get("token_env", "GITHUB_TOKEN"),  # nosec B105
         ),
     )
 

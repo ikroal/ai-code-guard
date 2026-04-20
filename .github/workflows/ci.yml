@@ -20,6 +20,19 @@ jobs:
       - run: pip install -e ".[dev]"
       - run: ruff check .
 
+  pre-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      # `pip install -e .[dev]` is required because the import-linter
+      # hook runs via `language: system` and needs ac_guard + lint-imports
+      # on PATH.
+      - run: pip install -e ".[dev]"
+      - uses: pre-commit/action@v3.0.1
+
   test:
     runs-on: ${{ matrix.os }}
     strategy:

@@ -132,10 +132,16 @@ flowchart LR
 ## 开发
 
 ```bash
-pip install -e ".[dev]"
-pytest                    # 816 个测试
+pip install -e ".[dev]"   # 安装 ruff、pytest、interrogate、bandit、import-linter
+pre-commit install        # 配置 ruff + interrogate + bandit + import-linter 钩子
+pytest                    # 900+ 个测试
 ruff check .
+pre-commit run --all-files
 ```
+
+本仓库自身在 CI 中运行同一套门禁（`.github/workflows/ci.yml` 的
+`lint` + `pre-commit` + `test` 三个 job）。模块分层约束放在
+`.importlinter`，docstring 覆盖阈值与 bandit 豁免在 `pyproject.toml`。
 
 ## 版本记录
 
