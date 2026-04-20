@@ -51,8 +51,8 @@ class TestValidationList:
         result = runner.invoke(app, ["validation", "list", "--config", str(config)])
         assert result.exit_code == 0
         assert "format" in result.output
-        assert "naming" in result.output
         assert "lint" in result.output
+        # D8 (#123): naming shortcut removed; ruff N-rules cover it via lint.
 
     def test_lists_custom_checks(self, tmp_path: Path) -> None:
         config = _write_config(tmp_path, custom_checks=True)
