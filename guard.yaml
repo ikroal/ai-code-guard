@@ -19,10 +19,19 @@ behavior:
     require_approval:
       - pattern: "file:.importlinter"
         message: "Editing the import-linter contract changes module layering"
+      - pattern: "file:scripts/**"
+        message: "scripts/ contains guard infrastructure (lint checkers etc.); edits weaken enforcement"
 
 code:
   commit:
     format: true    # → format-python hook, populated inside the managed block
+    checks:
+      forbid-noqa:
+        command: "python3 scripts/check_no_noqa.py"
+        types: [python]
+      require-explicit-encoding:
+        command: "python3 scripts/check_encoding.py"
+        types: [python]
   push:
     lint: true      # → lint-python hook, populated inside the managed block
 

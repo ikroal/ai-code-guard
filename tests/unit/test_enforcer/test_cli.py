@@ -121,5 +121,7 @@ class TestEnforcerCliAudit:
         )
         audit_path = tmp_path / ".ac-guard" / "audit.jsonl"
         assert audit_path.is_file()
-        record = json.loads(audit_path.read_text().strip().split("\n")[0])
+        record = json.loads(
+            audit_path.read_text(encoding="utf-8").strip().split("\n")[0]
+        )
         assert record["agent"] == "cursor"

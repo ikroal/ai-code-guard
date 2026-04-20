@@ -21,6 +21,7 @@ def _write_config(tmp_path: Path) -> Path:
             {"version": 1, "project": {"name": "test", "language": "python"}},
             default_flow_style=False,
         ),
+        encoding="utf-8",
     )
     return config
 
@@ -51,6 +52,7 @@ def _write_config_with_checks(tmp_path: Path) -> Path:
             },
             default_flow_style=False,
         ),
+        encoding="utf-8",
     )
     return config
 
@@ -90,6 +92,7 @@ class TestCheckCommand:
                 },
                 default_flow_style=False,
             ),
+            encoding="utf-8",
         )
         with patch("ac_guard.checker.core.get_changed_files", return_value=[]):
             result = runner.invoke(app, ["check", "--config", str(config)])
@@ -216,6 +219,7 @@ class TestGateRunCommand:
                 },
                 default_flow_style=False,
             ),
+            encoding="utf-8",
         )
         with patch("ac_guard.checker.core.get_changed_files", return_value=[]):
             result = runner.invoke(
@@ -300,6 +304,7 @@ def _write_config_with_pr_report(tmp_path: Path, *, enabled: bool) -> Path:
             },
             default_flow_style=False,
         ),
+        encoding="utf-8",
     )
     return config
 

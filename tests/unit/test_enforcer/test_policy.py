@@ -33,7 +33,7 @@ class TestLoadPolicy:
         """Corrupted JSON raises PolicyCorruptError."""
         policy_dir = tmp_path / ".ac-guard"
         policy_dir.mkdir(parents=True)
-        (policy_dir / "runtime.json").write_text("not valid json{{{")
+        (policy_dir / "runtime.json").write_text("not valid json{{{", encoding="utf-8")
         with pytest.raises(PolicyCorruptError):
             load_policy(tmp_path)
 

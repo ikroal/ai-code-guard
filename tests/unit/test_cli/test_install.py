@@ -47,9 +47,9 @@ def installed_project(project_with_config: Path) -> Path:
     state_path.parent.mkdir(parents=True, exist_ok=True)
     state_path.write_text(state.to_json(), encoding="utf-8")
     # Create the artifact files so uninstall can delete them
-    (project_with_config / "CLAUDE.md").write_text("# Rules\n")
+    (project_with_config / "CLAUDE.md").write_text("# Rules\n", encoding="utf-8")
     policy_dir = project_with_config / ".ac-guard"
-    (policy_dir / "runtime.json").write_text("{}")
+    (policy_dir / "runtime.json").write_text("{}", encoding="utf-8")
     return project_with_config
 
 
@@ -69,6 +69,7 @@ class TestInstallCommand:
                 {"version": 1, "project": {"name": "t", "language": "python"}},
                 default_flow_style=False,
             ),
+            encoding="utf-8",
         )
         result = runner.invoke(
             app,
@@ -91,7 +92,7 @@ class TestInstallCommand:
         # State file should exist
         state_path = project_with_config / STATE_FILE
         assert state_path.is_file()
-        state = GeneratedState.from_json(state_path.read_text())
+        state = GeneratedState.from_json(state_path.read_text(encoding="utf-8"))
         assert "claude-code" in state.installed_agents
         # Rule doc should exist
         assert (project_with_config / "CLAUDE.md").is_file()
@@ -105,7 +106,7 @@ class TestInstallCommand:
         )
         assert result.exit_code == 0
         state_path = project_with_config / STATE_FILE
-        state = GeneratedState.from_json(state_path.read_text())
+        state = GeneratedState.from_json(state_path.read_text(encoding="utf-8"))
         assert "claude-code" in state.installed_agents
         assert "cursor" in state.installed_agents
 
@@ -118,7 +119,7 @@ class TestInstallCommand:
         )
         assert result.exit_code == 0
         state_path = installed_project / STATE_FILE
-        state = GeneratedState.from_json(state_path.read_text())
+        state = GeneratedState.from_json(state_path.read_text(encoding="utf-8"))
         assert "claude-code" in state.installed_agents
         assert "cursor" in state.installed_agents
 
@@ -133,7 +134,7 @@ class TestInstallCommand:
         )
         assert result.exit_code == 0
         state_path = installed_project / STATE_FILE
-        state = GeneratedState.from_json(state_path.read_text())
+        state = GeneratedState.from_json(state_path.read_text(encoding="utf-8"))
         assert state.installed_agents.count("claude-code") == 1
 
     def test_install_unknown_agent_fails(self, project_with_config: Path) -> None:
@@ -163,6 +164,7 @@ class TestInstallCommand:
                 {"version": 1, "project": {"name": "t", "language": "python"}},
                 default_flow_style=False,
             ),
+            encoding="utf-8",
         )
         # No .git directory
         result = runner.invoke(
@@ -184,7 +186,7 @@ class TestInstallCommand:
         )
         assert result.exit_code == 0
         state_path = project_with_config / STATE_FILE
-        state = GeneratedState.from_json(state_path.read_text())
+        state = GeneratedState.from_json(state_path.read_text(encoding="utf-8"))
         assert state.ac_guard_version
         assert state.config_hash
         assert len(state.artifacts) > 0
@@ -209,7 +211,7 @@ class TestUpdateCommand:
         assert result.exit_code == 0
         # State should still have claude-code
         state_path = installed_project / STATE_FILE
-        state = GeneratedState.from_json(state_path.read_text())
+        state = GeneratedState.from_json(state_path.read_text(encoding="utf-8"))
         assert "claude-code" in state.installed_agents
 
     def test_update_no_state_fails(self, project_with_config: Path) -> None:
@@ -226,7 +228,7 @@ class TestUpdateCommand:
         """update picks up config changes (new hash)."""
         config = installed_project / "guard.yaml"
         old_state = GeneratedState.from_json(
-            (installed_project / STATE_FILE).read_text()
+            (installed_project / STATE_FILE).read_text(encoding="utf-8")
         )
         # Modify config
         config.write_text(
@@ -237,6 +239,7 @@ class TestUpdateCommand:
                 },
                 default_flow_style=False,
             ),
+            encoding="utf-8",
         )
         result = runner.invoke(
             app,
@@ -244,7 +247,7 @@ class TestUpdateCommand:
         )
         assert result.exit_code == 0
         new_state = GeneratedState.from_json(
-            (installed_project / STATE_FILE).read_text()
+            (installed_project / STATE_FILE).read_text(encoding="utf-8")
         )
         assert new_state.config_hash != old_state.config_hash
 

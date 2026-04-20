@@ -85,7 +85,7 @@ class TestEvaluateNoPolicy:
         """Corrupt runtime.json results in deny."""
         policy_dir = tmp_path / ".ac-guard"
         policy_dir.mkdir(parents=True)
-        (policy_dir / "runtime.json").write_text("{{invalid json")
+        (policy_dir / "runtime.json").write_text("{{invalid json", encoding="utf-8")
         result = evaluate("Write", {"file_path": "test.py"}, tmp_path)
         assert result.decision == Decision.DENY
         assert result.tier == "error"
@@ -411,7 +411,7 @@ class TestEvaluateAuditWiring:
         )
         audit_path = tmp_path / ".ac-guard" / "audit.jsonl"
         assert audit_path.is_file()
-        lines = audit_path.read_text().strip().split("\n")
+        lines = audit_path.read_text(encoding="utf-8").strip().split("\n")
         assert len(lines) == 1
         record = json.loads(lines[0])
         assert record["agent"] == "claude-code"
@@ -452,5 +452,7 @@ class TestEvaluateAuditWiring:
         _write_policy(tmp_path, _policy_with_audit(enabled=True))
         evaluate("Write", {"file_path": "guard.yaml"}, tmp_path, agent="cursor")
         audit_path = tmp_path / ".ac-guard" / "audit.jsonl"
-        record = json.loads(audit_path.read_text().strip().split("\n")[0])
+        record = json.loads(
+            audit_path.read_text(encoding="utf-8").strip().split("\n")[0]
+        )
         assert record["agent"] == "cursor"

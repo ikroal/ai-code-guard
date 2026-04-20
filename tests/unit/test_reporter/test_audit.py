@@ -43,7 +43,7 @@ class TestAppendAuditLog:
     def test_appends_record(self, tmp_path: Path) -> None:
         """Appends a JSON record to audit log."""
         append_audit_log(_make_record(), tmp_path)
-        content = (tmp_path / ".ac-guard" / "audit.jsonl").read_text()
+        content = (tmp_path / ".ac-guard" / "audit.jsonl").read_text(encoding="utf-8")
         records = [json.loads(line) for line in content.strip().split("\n")]
         assert len(records) == 1
 
@@ -51,14 +51,14 @@ class TestAppendAuditLog:
         """Multiple calls append multiple records."""
         for _ in range(3):
             append_audit_log(_make_record(), tmp_path)
-        content = (tmp_path / ".ac-guard" / "audit.jsonl").read_text()
+        content = (tmp_path / ".ac-guard" / "audit.jsonl").read_text(encoding="utf-8")
         records = [json.loads(line) for line in content.strip().split("\n")]
         assert len(records) == 3
 
     def test_record_fields(self, tmp_path: Path) -> None:
         """Audit record contains all expected fields."""
         append_audit_log(_make_record(), tmp_path)
-        content = (tmp_path / ".ac-guard" / "audit.jsonl").read_text()
+        content = (tmp_path / ".ac-guard" / "audit.jsonl").read_text(encoding="utf-8")
         record = json.loads(content.strip())
         assert record["agent"] == "claude-code"
         assert record["tool"] == "Write"
@@ -75,7 +75,7 @@ class TestAppendAuditLog:
         """Allow decision with no matched rule has null reason."""
         record = _make_record(decision="allow", reason=None)
         append_audit_log(record, tmp_path)
-        content = (tmp_path / ".ac-guard" / "audit.jsonl").read_text()
+        content = (tmp_path / ".ac-guard" / "audit.jsonl").read_text(encoding="utf-8")
         parsed = json.loads(content.strip())
         assert parsed["decision"] == "allow"
         assert parsed["reason"] is None
@@ -148,12 +148,13 @@ class TestApplyRetention:
             + "\n"
             + json.dumps({"timestamp": new_ts, "decision": "allow"})
             + "\n",
+            encoding="utf-8",
         )
 
         removed = apply_retention(tmp_path, retention_days=30)
         assert removed == 1
 
-        content = audit_path.read_text()
+        content = audit_path.read_text(encoding="utf-8")
         records = [json.loads(line) for line in content.strip().split("\n")]
         assert len(records) == 1
         assert records[0]["decision"] == "allow"
@@ -166,6 +167,7 @@ class TestApplyRetention:
         old_ts = "2020-01-01T00:00:00+00:00"
         audit_path.write_text(
             json.dumps({"timestamp": old_ts, "decision": "deny"}) + "\n",
+            encoding="utf-8",
         )
 
         removed = apply_retention(tmp_path, retention_days=0)

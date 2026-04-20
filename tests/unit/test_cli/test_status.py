@@ -67,11 +67,11 @@ def installed_project(tmp_path: Path) -> Path:
         artifacts=["CLAUDE.md", ".ac-guard/runtime.json", ".pre-commit-config.yaml"],
     )
     # Create actual artifact files
-    (tmp_path / "CLAUDE.md").write_text("# Rules\n")
+    (tmp_path / "CLAUDE.md").write_text("# Rules\n", encoding="utf-8")
     (tmp_path / ".ac-guard" / "runtime.json").write_text(
-        json.dumps({"config_hash": config_hash})
+        json.dumps({"config_hash": config_hash}), encoding="utf-8"
     )
-    (tmp_path / ".pre-commit-config.yaml").write_text("repos: []\n")
+    (tmp_path / ".pre-commit-config.yaml").write_text("repos: []\n", encoding="utf-8")
     return tmp_path
 
 
@@ -107,6 +107,7 @@ class TestStatusCommand:
                 {"version": 1, "project": {"name": "changed", "language": "go"}},
                 default_flow_style=False,
             ),
+            encoding="utf-8",
         )
         result = runner.invoke(app, ["status", "--config", str(config)])
         assert result.exit_code == 0
@@ -143,9 +144,9 @@ class TestStatusCommand:
         config = installed_project / "guard.yaml"
         # Set state version to something different
         state_path = installed_project / STATE_FILE
-        state = GeneratedState.from_json(state_path.read_text())
+        state = GeneratedState.from_json(state_path.read_text(encoding="utf-8"))
         state.ac_guard_version = "99.99.99"
-        state_path.write_text(state.to_json())
+        state_path.write_text(state.to_json(), encoding="utf-8")
         result = runner.invoke(app, ["status", "--config", str(config)])
         assert result.exit_code == 0
         assert "version" in result.output.lower()
@@ -277,7 +278,7 @@ class TestStatusJsonOutput:
     def test_status_json_not_installed(self, tmp_path: Path) -> None:
         """JSON output when not installed."""
         config = tmp_path / "guard.yaml"
-        config.write_text("version: 1\n")
+        config.write_text("version: 1\n", encoding="utf-8")
         result = runner.invoke(
             app, ["status", "--config", str(config), "--format", "json"]
         )

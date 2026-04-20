@@ -31,7 +31,7 @@ def _write_config(tmp_path: Path, extra: dict | None = None) -> Path:
     if extra:
         base.update(extra)
     config = tmp_path / "guard.yaml"
-    config.write_text(yaml.dump(base, default_flow_style=False))
+    config.write_text(yaml.dump(base, default_flow_style=False), encoding="utf-8")
     return config
 
 
@@ -83,7 +83,8 @@ class TestFullCheckLifecycle:
                     },
                 },
                 default_flow_style=False,
-            )
+            ),
+            encoding="utf-8",
         )
 
         # install
@@ -358,7 +359,8 @@ class TestMultiLanguageE2E:
                     },
                 },
                 default_flow_style=False,
-            )
+            ),
+            encoding="utf-8",
         )
         with patch("ac_guard.checker.core.run_precommit") as mock_run:
             stub = CheckResult(name="stub", passed=True, duration_ms=0)
@@ -401,7 +403,9 @@ class TestSystemExecuteRulesE2E:
 
         import json
 
-        policy = json.loads((tmp_path / ".ac-guard" / "runtime.json").read_text())
+        policy = json.loads(
+            (tmp_path / ".ac-guard" / "runtime.json").read_text(encoding="utf-8")
+        )
         rules = policy["behavior"]["execute"]["forbidden"]
         patterns = {rule["pattern"] for rule in rules}
         assert "shell:git commit --no-verify*" in patterns
@@ -437,7 +441,7 @@ class TestPrecommitManagedBlockE2E:
 
         pre_commit = tmp_path / ".pre-commit-config.yaml"
         assert pre_commit.is_file()
-        original = pre_commit.read_text()
+        original = pre_commit.read_text(encoding="utf-8")
         assert "# AI-GUARD:BEGIN" in original
         assert "# AI-GUARD:END" in original
 
@@ -446,13 +450,14 @@ class TestPrecommitManagedBlockE2E:
             original
             + "\n  - repo: https://github.com/PyCQA/bandit\n"
             + "    rev: 1.8.0\n"
-            + "    hooks:\n      - id: bandit\n"
+            + "    hooks:\n      - id: bandit\n",
+            encoding="utf-8",
         )
 
         r = runner.invoke(app, ["update", "-c", str(config)])
         assert r.exit_code == 0
 
-        updated = pre_commit.read_text()
+        updated = pre_commit.read_text(encoding="utf-8")
         assert updated.count("# AI-GUARD:BEGIN") == 1
         assert updated.count("# AI-GUARD:END") == 1
         assert "PyCQA/bandit" in updated

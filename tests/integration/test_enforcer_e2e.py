@@ -76,6 +76,7 @@ class TestEnforcerPipeline:
                 },
                 default_flow_style=False,
             ),
+            encoding="utf-8",
         )
         runner.invoke(app, ["update", "--config", str(config)])
 
@@ -94,7 +95,7 @@ class TestHookEnforcerIntegration:
         _init_and_install(tmp_path)
         hook_path = tmp_path / ".claude" / "hooks" / "interceptor.py"
         assert hook_path.is_file()
-        content = hook_path.read_text()
+        content = hook_path.read_text(encoding="utf-8")
         assert "from ac_guard.enforcer.engine import evaluate" in content
 
     def test_cursor_hook_calls_enforcer(self, tmp_path: Path) -> None:
@@ -102,7 +103,7 @@ class TestHookEnforcerIntegration:
         _init_and_install(tmp_path, agents="cursor")
         hook_path = tmp_path / ".cursor" / "hooks" / "check.sh"
         assert hook_path.is_file()
-        content = hook_path.read_text()
+        content = hook_path.read_text(encoding="utf-8")
         assert "python3 -m ac_guard.enforcer" in content
 
     def test_multi_agent_hooks(self, tmp_path: Path) -> None:
@@ -123,7 +124,7 @@ class TestAuditLoggingE2E:
 
         audit_path = tmp_path / ".ac-guard" / "audit.jsonl"
         assert audit_path.is_file()
-        lines = audit_path.read_text().strip().split("\n")
+        lines = audit_path.read_text(encoding="utf-8").strip().split("\n")
         assert len(lines) == 1
         parsed = json.loads(lines[0])
         assert parsed["agent"] == "claude-code"
@@ -145,7 +146,7 @@ class TestAuditLoggingE2E:
 
         audit_path = tmp_path / ".ac-guard" / "audit.jsonl"
         assert audit_path.is_file()
-        lines = audit_path.read_text().strip().split("\n")
+        lines = audit_path.read_text(encoding="utf-8").strip().split("\n")
         assert len(lines) == 3
 
     def test_retention_cleanup(self, tmp_path: Path) -> None:
@@ -161,7 +162,7 @@ class TestAuditLoggingE2E:
                 "decision": "deny",
             }
         )
-        audit_path.write_text(old_record + "\n")
+        audit_path.write_text(old_record + "\n", encoding="utf-8")
 
         # Add a fresh record via evaluate (auto-audits)
         evaluate("Read", {"file_path": "src/main.py"}, tmp_path, agent="claude-code")
@@ -170,7 +171,7 @@ class TestAuditLoggingE2E:
         removed = apply_retention(tmp_path, retention_days=30)
         assert removed == 1
 
-        lines = audit_path.read_text().strip().split("\n")
+        lines = audit_path.read_text(encoding="utf-8").strip().split("\n")
         assert len(lines) == 1
 
 
@@ -187,7 +188,7 @@ class TestErrorRecovery:
         """Corrupt runtime.json results in deny (fail-closed)."""
         policy_dir = tmp_path / ".ac-guard"
         policy_dir.mkdir(parents=True)
-        (policy_dir / "runtime.json").write_text("{{{bad json")
+        (policy_dir / "runtime.json").write_text("{{{bad json", encoding="utf-8")
         result = evaluate("Write", {"file_path": "test.py"}, tmp_path)
         assert result.decision == Decision.DENY
         assert result.tier == "error"
