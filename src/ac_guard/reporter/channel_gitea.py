@@ -7,13 +7,11 @@ via the ``api_url`` configuration.
 
 from __future__ import annotations
 
-import json
 import os
-import urllib.request
 from typing import TYPE_CHECKING
-from urllib.error import HTTPError, URLError
 
 from ac_guard.reporter._git_info import get_current_branch, get_remote_repo
+from ac_guard.reporter._http import request_json
 from ac_guard.reporter.channel_base import (
     ChannelError,
     NoPrContextError,
@@ -163,59 +161,24 @@ class GiteaChannel(ReportChannel):
 
     @staticmethod
     def _post_json(url: str, body: dict, token: str) -> None:
-        """POST JSON to a URL with token auth.
-
-        Args:
-            url: API endpoint URL.
-            body: JSON body dict.
-            token: API token.
-
-        Raises:
-            ChannelError: On HTTP or connection error.
-        """
-        data = json.dumps(body).encode("utf-8")
-        req = urllib.request.Request(
+        """POST JSON with token auth via the shared retry layer."""
+        request_json(
             url,
-            data=data,
             method="POST",
             headers={
                 "Authorization": f"token {token}",
                 "Content-Type": "application/json",
             },
+            body=body,
+            api_name="Gitea",
         )
-        try:
-            with urllib.request.urlopen(req) as resp:
-                resp.read()
-        except HTTPError as exc:
-            raise ChannelError(f"Gitea API returned {exc.code}: {exc.reason}") from exc
-        except URLError as exc:
-            raise ChannelError(f"Failed to connect to Gitea API: {exc.reason}") from exc
 
     @staticmethod
     def _get_json(url: str, token: str) -> list | dict | None:
-        """GET JSON from a URL with token auth.
-
-        Args:
-            url: API endpoint URL.
-            token: API token.
-
-        Returns:
-            Parsed JSON response.
-
-        Raises:
-            ChannelError: On HTTP or connection error.
-        """
-        req = urllib.request.Request(
+        """GET JSON with token auth via the shared retry layer."""
+        return request_json(
             url,
             method="GET",
-            headers={
-                "Authorization": f"token {token}",
-            },
+            headers={"Authorization": f"token {token}"},
+            api_name="Gitea",
         )
-        try:
-            with urllib.request.urlopen(req) as resp:
-                return json.loads(resp.read())
-        except HTTPError as exc:
-            raise ChannelError(f"Gitea API returned {exc.code}: {exc.reason}") from exc
-        except URLError as exc:
-            raise ChannelError(f"Failed to connect to Gitea API: {exc.reason}") from exc

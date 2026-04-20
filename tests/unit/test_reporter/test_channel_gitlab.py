@@ -165,3 +165,21 @@ class TestGitLabChannel:
             pytest.raises(NoPrContextError, match="MR IID"),
         ):
             GitLabChannel().send("r", self._make_config())
+
+    def test_send_retries_transient_urlerror(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Transient URLError is retried by the shared HTTP layer."""
+        from urllib.error import URLError
+
+        monkeypatch.setenv("GITLAB_TOKEN", "glpat-test123")
+        monkeypatch.setenv("CI_PROJECT_ID", "12345")
+        monkeypatch.setenv("CI_MERGE_REQUEST_IID", "42")
+
+        side_effect = [URLError("transient"), self._mock_urlopen()]
+        with (
+            patch("urllib.request.urlopen", side_effect=side_effect) as m,
+            patch("ac_guard.reporter._http.time.sleep"),
+        ):
+            GitLabChannel().send("## Report", self._make_config())
+        assert m.call_count == 2

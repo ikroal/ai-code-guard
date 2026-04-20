@@ -85,13 +85,10 @@ class TestFullLifecycle:
         )
         assert result.exit_code == 0, f"update failed: {result.output}"
 
-        # 8. uninstall --keep-config
-        result = runner.invoke(
-            app,
-            ["uninstall", "--keep-config"],
-        )
-        # uninstall uses cwd, but our state is in tmp_path
-        # Use monkeypatch approach via separate test below
+        # Step 8 (uninstall) is covered by ``test_uninstall_lifecycle``
+        # below, which ``monkeypatch.chdir(tmp_path)``. Running uninstall
+        # here would act on pytest's real cwd and — now that ac-guard
+        # dogfoods itself — wipe this repo's installed hooks.
 
     def test_uninstall_lifecycle(self, tmp_path: Path, monkeypatch: object) -> None:
         """Test uninstall as part of lifecycle (requires chdir)."""
