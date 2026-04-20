@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sys
 
 from ac_guard.adapters._render import render_hook
@@ -40,8 +41,9 @@ class TestClaudeCodeHook:
     def test_bakes_install_python_path(self) -> None:
         """Hook bakes the absolute path of the Python that ran `ac-guard install`."""
         content = render_hook("claude_code", BehaviorConfig.empty())
-        # sys.executable is embedded as a JSON-safe Python string literal
-        assert f'_INSTALL_PY = "{sys.executable}"' in content
+        # The template uses Jinja's `| tojson` filter so Windows backslashes
+        # are properly escaped; match the JSON-encoded form.
+        assert f"_INSTALL_PY = {json.dumps(sys.executable)}" in content
 
     def test_has_reexec_shim(self) -> None:
         """Hook re-execs into the baked interpreter when sys.executable differs."""
