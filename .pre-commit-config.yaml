@@ -62,39 +62,19 @@ repos:
         language: system
         types: [python]
         pass_filenames: true
-# AI-GUARD:END
-
-  # -------------------------------------------------------------------
-  # Forbid `# noqa` lint suppressions in production source.
-  # Discovered during WP6.2 review: per-line suppressions hide real lint
-  # signal under the rug. If a rule is right, fix the code; if it's wrong,
-  # disable it at config level (pyproject.toml), not per-line. Tests are
-  # excluded since `tests/*` already has legitimate per-file-ignores for
-  # F401-style test imports.
-  # -------------------------------------------------------------------
-  - repo: local
-    hooks:
-      - id: forbid-noqa
-        name: Forbid "# noqa" lint suppressions
-        entry: '(?<!\w)#\s*noqa(\b|:)'
-        language: pygrep
-        types: [python]
-        exclude: ^tests/
-
-  # -------------------------------------------------------------------
-  # Tests must pass encoding="utf-8" to read_text/write_text so Windows
-  # (cp1252 default pre-PEP 686) doesn't break on non-ASCII rendered
-  # output. See #108.
-  # -------------------------------------------------------------------
-  - repo: local
-    hooks:
-      - id: forbid-bare-read-write-text
-        name: Tests must pass encoding="utf-8" to read_text/write_text
-        entry: python3 scripts/check_tests_utf8.py
+      - id: custom-forbid-noqa
+        name: forbid-noqa
+        entry: python3 scripts/check_no_noqa.py
         language: system
         types: [python]
-        files: ^tests/
-        pass_filenames: true
+        pass_filenames: True
+      - id: custom-require-explicit-encoding
+        name: require-explicit-encoding
+        entry: python3 scripts/check_encoding.py
+        language: system
+        types: [python]
+        pass_filenames: True
+# AI-GUARD:END
 
   # -------------------------------------------------------------------
   # Docstring coverage — ≥80% (carried over from check_docstrings.py)

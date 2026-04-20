@@ -149,7 +149,7 @@ _DEFAULT_LANGUAGES_YAML = Path(__file__).parent / "defaults" / "languages.yaml"
 @lru_cache(maxsize=1)
 def _load_default_language_tools() -> dict[str, dict[str, str]]:
     """Read defaults/languages.yaml into a ``{lang: {format, lint}}`` map."""
-    data = yaml.safe_load(_DEFAULT_LANGUAGES_YAML.read_text()) or {}
+    data = yaml.safe_load(_DEFAULT_LANGUAGES_YAML.read_text(encoding="utf-8")) or {}
     return {
         lang: {"format": entry.get("format", ""), "lint": entry.get("lint", "")}
         for lang, entry in data.items()
