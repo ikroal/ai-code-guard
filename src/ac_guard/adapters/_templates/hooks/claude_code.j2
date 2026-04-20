@@ -45,8 +45,9 @@ except ImportError as _exc:
     json.dump(
         {
             "hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
                 "permissionDecision": "ask",
-                "reason": (
+                "permissionDecisionReason": (
                     f"ac-guard hook could not import ac_guard ({_exc}); "
                     "reinstall ac-guard or re-run `ac-guard install`"
                 ),
@@ -76,13 +77,14 @@ def main():
     # Output Claude Code expected format
     output = {
         "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
             "permissionDecision": result.decision.value,
         }
     }
 
     # Add reason for deny/ask
     if reason and result.decision.value != "allow":
-        output["hookSpecificOutput"]["reason"] = reason
+        output["hookSpecificOutput"]["permissionDecisionReason"] = reason
 
     json.dump(output, sys.stdout)
     print()  # Ensure newline for Claude Code to read properly

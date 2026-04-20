@@ -32,6 +32,11 @@ class TestClaudeCodeHook:
         content = render_hook("claude_code", BehaviorConfig.empty())
         assert "permissionDecision" in content
 
+    def test_includes_hook_event_name(self) -> None:
+        """Hook output includes hookEventName (required by Claude Code schema)."""
+        content = render_hook("claude_code", BehaviorConfig.empty())
+        assert '"hookEventName": "PreToolUse"' in content
+
     def test_bakes_install_python_path(self) -> None:
         """Hook bakes the absolute path of the Python that ran `ac-guard install`."""
         content = render_hook("claude_code", BehaviorConfig.empty())
