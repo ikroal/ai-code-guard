@@ -341,7 +341,8 @@ class TestRuleDocMarkers:
         # Add a user section outside the managed block
         claude.write_text(
             claude.read_text(encoding="utf-8")
-            + "\n\n## My Custom Section\nuser content\n"
+            + "\n\n## My Custom Section\nuser content\n",
+            encoding="utf-8",
         )
 
         # Two updates in a row — markers must stay at 1+1 each time

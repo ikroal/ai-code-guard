@@ -386,7 +386,8 @@ class TestMarkerDuplication:
         write_artifacts(tmp_path, [FileSpec(path="CLAUDE.md", content="v1")])
         md = tmp_path / "CLAUDE.md"
         md.write_text(
-            md.read_text(encoding="utf-8") + "\n\n## My Custom Section\nuser notes\n"
+            md.read_text(encoding="utf-8") + "\n\n## My Custom Section\nuser notes\n",
+            encoding="utf-8",
         )
         write_artifacts(tmp_path, [FileSpec(path="CLAUDE.md", content="v2")])
         content = md.read_text(encoding="utf-8")

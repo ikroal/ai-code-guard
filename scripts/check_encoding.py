@@ -90,6 +90,44 @@ def _find_close(src: str, open_paren: int) -> int:
     return -1
 
 
+def _top_level_has_encoding(inner: str) -> bool:
+    """Return True iff ``encoding=`` appears as a top-level kwarg of this call.
+
+    Nested calls (e.g. ``foo(bar(encoding="x"))``) must not trick us: we
+    walk the string tracking paren depth and string-literal state, and
+    only accept an ``encoding=`` match at depth 0 outside any string.
+    """
+    depth = 0
+    in_str: str | None = None
+    i = 0
+    n = len(inner)
+    while i < n:
+        c = inner[i]
+        if in_str:
+            if c == "\\":
+                i += 2
+                continue
+            if c == in_str:
+                in_str = None
+        elif c in ("'", '"'):
+            triple = inner[i : i + 3]
+            if triple in ('"""', "'''"):
+                end = inner.find(triple, i + 3)
+                if end == -1:
+                    return False
+                i = end + 3
+                continue
+            in_str = c
+        elif c == "(":
+            depth += 1
+        elif c == ")":
+            depth -= 1
+        elif depth == 0 and inner.startswith("encoding=", i):
+            return True
+        i += 1
+    return False
+
+
 def violations(path: Path) -> list[tuple[int, str]]:
     src = path.read_text(encoding="utf-8")
     regions = _string_regions(src)
@@ -103,7 +141,7 @@ def violations(path: Path) -> list[tuple[int, str]]:
         if close == -1:
             continue
         inner = src[open_paren + 1 : close]
-        if "encoding=" in inner:
+        if _top_level_has_encoding(inner):
             continue
         line = src[: m.start()].count("\n") + 1
         snippet = src[m.start() : close + 1].replace("\n", " ")[:80]
