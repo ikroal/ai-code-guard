@@ -143,6 +143,16 @@ pre-commit run --all-files
 `lint` + `pre-commit` + `test` 三个 job）。模块分层约束放在
 `.importlinter`，docstring 覆盖阈值与 bandit 豁免在 `pyproject.toml`。
 
+### 自项目 dogfood
+
+本仓库自身由 ac-guard 管理：根目录的
+[`guard.yaml`](guard.yaml) 声明策略，通过
+`ac-guard install --agent claude-code` 安装 Claude Code PreToolUse 钩子。
+由 ac-guard 管理的 ruff format / lint 条目位于 `.pre-commit-config.yaml`
+的 `# AI-GUARD:BEGIN` / `# AI-GUARD:END` 块内；其余外部 repo
+（interrogate、bandit、import-linter、conventional-pre-commit、
+pre-commit-hooks 通用卫生）在块外保留，`ac-guard install` 不会触碰。
+
 ## 版本记录
 
 发布说明与已知限制见 [CHANGELOG.md](CHANGELOG.md)。

@@ -11,6 +11,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- ac-guard is now self-hosted via dogfooding on its own repository.
+  The repo ships a committed `guard.yaml` and runs its commit gate
+  through `ac-guard install --agent claude-code`; ruff format / lint
+  live inside the ac-guard managed block of `.pre-commit-config.yaml`,
+  while interrogate, bandit, import-linter, conventional-pre-commit
+  and the pre-commit-hooks hygiene suite sit outside the block and
+  survive every regeneration (see
+  [#73](https://github.com/ikroal/ai-code-guard/issues/73) and
+  [#74](https://github.com/ikroal/ai-code-guard/issues/74)).
+- `.pre-commit-config.yaml` now participates in the managed-block
+  preservation mechanism via YAML-safe `# AI-GUARD:BEGIN` / `# AI-GUARD:END`
+  markers. Projects can add their own pre-commit repos outside the block
+  and `ac-guard install` / `ac-guard update` will leave them untouched
+  while regenerating the ac-guard-owned hooks inside.
+  ([#113](https://github.com/ikroal/ai-code-guard/issues/113))
+- Default `execute.forbidden` picks up four more hardening rules on
+  top of the `--no-verify` family: `CI=<val> git commit/push`
+  (CI env-var bypass), `--force-with-lease`, short `-f`, and the
+  `<remote> +<branch>` shorthand — all scoped to `main` / `master`.
+  ([#105](https://github.com/ikroal/ai-code-guard/issues/105))
+- Enforcer escalates `git commit` to `ask` when the repository has no
+  pre-commit hook installed, with guidance to run `ac-guard install`
+  or `pre-commit install` — no silent auto-install.
+  ([#106](https://github.com/ikroal/ai-code-guard/issues/106))
 - `check`, `verify`, and `gate run` now auto-dispatch `post_pr_comment`
   when `output.pr_report.enabled: true`, closing the last mile of the
   PR-report feature (previously callers had to invoke the primitive by

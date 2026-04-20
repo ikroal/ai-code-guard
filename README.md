@@ -144,6 +144,16 @@ The repository's own quality gate runs the same suite in CI
 Import layering rules live in `.importlinter`; docstring coverage
 threshold and bandit skips in `pyproject.toml`.
 
+### Self-hosted via ac-guard
+
+This repo is dogfooded: its own behavior gate is managed by a committed
+[`guard.yaml`](guard.yaml) and installed via `ac-guard install --agent
+claude-code`. The ac-guard-owned ruff format / lint hooks live inside
+the `# AI-GUARD:BEGIN` / `# AI-GUARD:END` block of
+`.pre-commit-config.yaml`; everything else (interrogate, bandit,
+import-linter, conventional-pre-commit, pre-commit-hooks hygiene) sits
+outside the block and is preserved across `ac-guard install` runs.
+
 ## Changelog
 
 See [CHANGELOG.md](CHANGELOG.md) for release notes and known limitations.
