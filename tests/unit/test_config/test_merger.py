@@ -72,13 +72,13 @@ class TestResolveConfigMinimal:
     def test_default_code_config(self, tmp_path: Path) -> None:
         path = _write_yaml(tmp_path, _minimal_guard())
         result = resolve_config(path)
-        assert result.code.commit_format is True
-        # naming defaults to False because the shortcut is not yet
-        # implemented (see checker skip path and issue #95).
+        # Defaults: pre-commit.format=True, pre-push.lint=True (from
+        # _DEFAULT_CONFIG); commit_naming is D8 dead-flag shim.
+        assert result.code.pre_commit.format is True
+        assert result.code.pre_push.lint is True
+        assert result.code.pre_commit.checks == {}
+        assert result.code.pre_push.checks == {}
         assert result.code.commit_naming is False
-        assert result.code.push_lint is True
-        assert result.code.commit_checks == {}
-        assert result.code.push_checks == {}
 
     def test_default_output_config(self, tmp_path: Path) -> None:
         path = _write_yaml(tmp_path, _minimal_guard())
@@ -140,18 +140,20 @@ class TestScalarOverride:
         assert result.output.locale == "zh-CN"
 
     def test_override_commit_format(self, tmp_path: Path) -> None:
-        data = _minimal_guard(code={"commit": {"format": False}})
+        data = _minimal_guard(code={"pre-commit": {"format": False}})
         path = _write_yaml(tmp_path, data)
         result = resolve_config(path)
-        assert result.code.commit_format is False
-        # naming remains False (default; shortcut unimplemented — see #95)
+        assert result.code.pre_commit.format is False
+        assert result.code.commit_format is False  # legacy shim
+        # D8: commit_naming shim always False
         assert result.code.commit_naming is False
 
     def test_override_push_lint(self, tmp_path: Path) -> None:
-        data = _minimal_guard(code={"push": {"lint": False}})
+        data = _minimal_guard(code={"pre-push": {"lint": False}})
         path = _write_yaml(tmp_path, data)
         result = resolve_config(path)
-        assert result.code.push_lint is False
+        assert result.code.pre_push.lint is False
+        assert result.code.push_lint is False  # legacy shim
 
     def test_build_command(self, tmp_path: Path) -> None:
         data = _minimal_guard(build={"command": "make build"})
@@ -558,7 +560,7 @@ class TestDeepMergeChecks:
     def test_override_check_field(self, tmp_path: Path) -> None:
         rs: dict = {
             "code": {
-                "commit": {
+                "pre-commit": {
                     "checks": {
                         "mytest": {"command": "pytest", "timeout": 300},
                     },
@@ -567,7 +569,7 @@ class TestDeepMergeChecks:
         }
         data = _minimal_guard(
             code={
-                "commit": {
+                "pre-commit": {
                     "checks": {
                         "mytest": {"command": "pytest -x", "timeout": 600},
                     },
@@ -576,14 +578,14 @@ class TestDeepMergeChecks:
         )
         path = _write_yaml(tmp_path, data)
         result = resolve_config(path, rulesets=[("rs", rs)])
-        check = result.code.commit_checks["mytest"]
+        check = result.code.pre_commit.checks["mytest"]
         assert check.command == "pytest -x"
         assert check.timeout == 600
 
     def test_add_new_check(self, tmp_path: Path) -> None:
         rs: dict = {
             "code": {
-                "push": {
+                "pre-push": {
                     "checks": {
                         "lint": {"command": "ruff check ."},
                     },
@@ -592,7 +594,7 @@ class TestDeepMergeChecks:
         }
         data = _minimal_guard(
             code={
-                "push": {
+                "pre-push": {
                     "checks": {
                         "typecheck": {"command": "mypy src/"},
                     },
@@ -601,13 +603,13 @@ class TestDeepMergeChecks:
         )
         path = _write_yaml(tmp_path, data)
         result = resolve_config(path, rulesets=[("rs", rs)])
-        assert "lint" in result.code.push_checks
-        assert "typecheck" in result.code.push_checks
+        assert "lint" in result.code.pre_push.checks
+        assert "typecheck" in result.code.pre_push.checks
 
     def test_preserve_unmentioned_check(self, tmp_path: Path) -> None:
         rs: dict = {
             "code": {
-                "commit": {
+                "pre-commit": {
                     "checks": {
                         "existing": {"command": "echo ok"},
                     },
@@ -616,7 +618,7 @@ class TestDeepMergeChecks:
         }
         data = _minimal_guard(
             code={
-                "commit": {
+                "pre-commit": {
                     "checks": {
                         "new": {"command": "echo new"},
                     },
@@ -625,25 +627,23 @@ class TestDeepMergeChecks:
         )
         path = _write_yaml(tmp_path, data)
         result = resolve_config(path, rulesets=[("rs", rs)])
-        assert "existing" in result.code.commit_checks
-        assert "new" in result.code.commit_checks
+        assert "existing" in result.code.pre_commit.checks
+        assert "new" in result.code.pre_commit.checks
 
     def test_partial_field_override(self, tmp_path: Path) -> None:
         """Overlay changes only timeout; command preserved from base."""
         rs: dict = {
             "code": {
-                "commit": {
+                "pre-commit": {
                     "checks": {
                         "test": {"command": "pytest", "timeout": 300},
                     },
                 },
             },
         }
-        # User guard.yaml must pass validation, so command is required.
-        # But two rulesets can do partial override between them.
         rs2: dict = {
             "code": {
-                "commit": {
+                "pre-commit": {
                     "checks": {
                         "test": {"command": "pytest", "timeout": 600},
                     },
@@ -652,7 +652,7 @@ class TestDeepMergeChecks:
         }
         path = _write_yaml(tmp_path, _minimal_guard())
         result = resolve_config(path, rulesets=[("rs1", rs), ("rs2", rs2)])
-        check = result.code.commit_checks["test"]
+        check = result.code.pre_commit.checks["test"]
         assert check.command == "pytest"
         assert check.timeout == 600
 

@@ -18,20 +18,19 @@ def _write_config(tmp_path: Path, *, custom_checks: bool = False) -> Path:
         "version": 1,
         "project": {"name": "test", "language": "python"},
         "code": {
-            "commit": {
+            "pre-commit": {
                 "format": True,
-                "naming": True,
             },
-            "push": {
+            "pre-push": {
                 "lint": True,
             },
         },
     }
     if custom_checks:
-        config["code"]["commit"]["checks"] = {
+        config["code"]["pre-commit"]["checks"] = {
             "test": {"command": "pytest --cov", "timeout": 120},
         }
-        config["code"]["push"]["checks"] = {
+        config["code"]["pre-push"]["checks"] = {
             "typecheck": {
                 "command": "mypy src/",
                 "timeout": 60,

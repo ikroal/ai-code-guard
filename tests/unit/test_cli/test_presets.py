@@ -19,7 +19,7 @@ class TestLoadPreset:
         config = load_preset("minimal")
         assert isinstance(config, dict)
         assert "code" in config
-        assert config["code"]["commit"]["format"] is True
+        assert config["code"]["pre-commit"]["format"] is True
         assert config["output"]["audit"]["enabled"] is False
 
     def test_load_preset_standard(self) -> None:
@@ -27,10 +27,10 @@ class TestLoadPreset:
         config = load_preset("standard")
         assert isinstance(config, dict)
         assert "code" in config
-        assert config["code"]["commit"]["format"] is True
-        # naming shortcut is not shipped in presets (see issue #95)
-        assert "naming" not in config["code"]["commit"]
-        assert config["code"]["push"]["lint"] is True
+        assert config["code"]["pre-commit"]["format"] is True
+        # D8: naming flag removed; lint via ruff N-rules covers it.
+        assert "naming" not in config["code"]["pre-commit"]
+        assert config["code"]["pre-push"]["lint"] is True
         assert config["output"]["audit"]["enabled"] is True
 
     def test_load_preset_strict(self) -> None:

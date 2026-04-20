@@ -159,32 +159,73 @@ class TestCheckItem:
 
 
 class TestCodeConfig:
+    """CodeConfig is keyed by pre-commit gating stage (schema v2, #123)."""
+
     def test_all_defaults(self):
         cfg = CodeConfig()
         assert cfg is not None
 
     def test_defaults_values(self):
         cfg = CodeConfig()
-        assert cfg.commit_format is True
-        # naming defaults to False — shortcut unimplemented (issue #95)
+        # Dataclass defaults: every bucket empty. The merger applies
+        # project-level defaults (pre-commit.format=True, pre-push.lint=
+        # True) via _DEFAULT_CONFIG — not this constructor.
+        assert cfg.pre_commit.format is False
+        assert cfg.pre_commit.lint is False
+        assert cfg.pre_commit.checks == {}
+        assert cfg.pre_commit.hooks == []
+        assert cfg.pre_push.lint is False
+        assert cfg.pre_push.hooks == []
+        assert cfg.extra_repos == []
+        # Legacy shim: commit_naming is always False (D8, dead flag).
         assert cfg.commit_naming is False
-        assert cfg.commit_checks == {}
-        assert cfg.push_lint is True
-        assert cfg.push_checks == {}
 
     def test_with_check_items(self):
+        from ac_guard.config.models import StageBucket
+
         cfg = CodeConfig(
-            commit_checks={"license": CheckItem(command="check-license")},
-            push_checks={"test": CheckItem(command="pytest", timeout=600)},
+            pre_commit=StageBucket(
+                checks={"license": CheckItem(command="check-license")}
+            ),
+            pre_push=StageBucket(
+                checks={"test": CheckItem(command="pytest", timeout=600)}
+            ),
         )
+        assert "license" in cfg.pre_commit.checks
+        assert cfg.pre_push.checks["test"].timeout == 600
+        # Legacy shim access
         assert "license" in cfg.commit_checks
         assert cfg.push_checks["test"].timeout == 600
 
     def test_default_factory_independence(self):
         a = CodeConfig()
         b = CodeConfig()
-        a.commit_checks["x"] = CheckItem(command="x")
-        assert "x" not in b.commit_checks
+        a.pre_commit.checks["x"] = CheckItem(command="x")
+        assert "x" not in b.pre_commit.checks
+
+    def test_buckets_helper_returns_all_five(self):
+        cfg = CodeConfig()
+        names = [name for name, _ in cfg.buckets()]
+        assert names == [
+            "pre-commit",
+            "commit-msg",
+            "pre-merge-commit",
+            "pre-push",
+            "pre-rebase",
+        ]
+
+    def test_active_stages_empty_when_all_buckets_empty(self):
+        cfg = CodeConfig()
+        assert cfg.active_stages() == []
+
+    def test_active_stages_reports_non_empty(self):
+        from ac_guard.config.models import StageBucket
+
+        cfg = CodeConfig(
+            pre_commit=StageBucket(format=True),
+            pre_push=StageBucket(checks={"test": CheckItem(command="pytest")}),
+        )
+        assert cfg.active_stages() == ["pre-commit", "pre-push"]
 
 
 # ---------------------------------------------------------------------------

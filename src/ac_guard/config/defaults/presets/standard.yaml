@@ -2,9 +2,9 @@
 # format + lint + test + coverage + audit
 
 code:
-  commit:
+  pre-commit:
     format: true
-  push:
+  pre-push:
     lint: true
     checks:
       test:

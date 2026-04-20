@@ -42,12 +42,11 @@ def _config_with_checks(tmp_path: Path, *, fail: bool = False) -> Path:
         tmp_path,
         {
             "code": {
-                "commit": {
+                "pre-commit": {
                     "format": False,
-                    "naming": False,
                     "checks": {"custom-commit": {"command": cmd}},
                 },
-                "push": {
+                "pre-push": {
                     "lint": False,
                     "checks": {"custom-push": {"command": "echo push-ok"}},
                 },
@@ -78,8 +77,8 @@ class TestFullCheckLifecycle:
                     "version": 1,
                     "project": {"name": "test", "language": "python"},
                     "code": {
-                        "commit": {"format": False, "naming": False},
-                        "push": {"lint": False},
+                        "pre-commit": {"format": False},
+                        "pre-push": {"lint": False},
                     },
                 },
                 default_flow_style=False,
@@ -210,8 +209,8 @@ class TestVerifyCommand:
             {
                 "build": {"command": "echo built"},
                 "code": {
-                    "commit": {"format": False, "naming": False},
-                    "push": {"lint": False},
+                    "pre-commit": {"format": False},
+                    "pre-push": {"lint": False},
                 },
             },
         )
@@ -234,8 +233,8 @@ class TestVerifyCommand:
                     "python": {"tools": {"format": "black", "lint": "ruff"}},
                 },
                 "code": {
-                    "commit": {"format": False, "naming": False},
-                    "push": {
+                    "pre-commit": {"format": False},
+                    "pre-push": {
                         "lint": True,
                         "checks": {
                             "custom": {
@@ -354,8 +353,8 @@ class TestMultiLanguageE2E:
                         },
                     },
                     "code": {
-                        "commit": {"format": True, "naming": False},
-                        "push": {"lint": True},
+                        "pre-commit": {"format": True},
+                        "pre-push": {"lint": True},
                     },
                 },
                 default_flow_style=False,
@@ -485,9 +484,8 @@ class TestLocalePropagation:
                     "python": {"tools": {"format": "black", "lint": "ruff"}},
                 },
                 "code": {
-                    "commit": {
+                    "pre-commit": {
                         "format": False,
-                        "naming": False,
                         "checks": {
                             "demo": {
                                 "command": "echo ok",
@@ -495,7 +493,7 @@ class TestLocalePropagation:
                             }
                         },
                     },
-                    "push": {"lint": False},
+                    "pre-push": {"lint": False},
                 },
             },
         )

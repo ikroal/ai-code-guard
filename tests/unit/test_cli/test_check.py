@@ -35,14 +35,13 @@ def _write_config_with_checks(tmp_path: Path) -> Path:
                 "version": 1,
                 "project": {"name": "test", "language": "python"},
                 "code": {
-                    "commit": {
+                    "pre-commit": {
                         "format": False,
-                        "naming": False,
                         "checks": {
                             "echo-test": {"command": "echo ok"},
                         },
                     },
-                    "push": {
+                    "pre-push": {
                         "lint": False,
                         "checks": {
                             "fail-test": {"command": "exit 1"},
@@ -83,9 +82,8 @@ class TestCheckCommand:
                     "version": 1,
                     "project": {"name": "test", "language": "python"},
                     "code": {
-                        "commit": {
+                        "pre-commit": {
                             "format": False,
-                            "naming": False,
                             "checks": {"fail": {"command": "exit 1"}},
                         },
                     },
@@ -210,9 +208,8 @@ class TestGateRunCommand:
                     "version": 1,
                     "project": {"name": "test", "language": "python"},
                     "code": {
-                        "commit": {
+                        "pre-commit": {
                             "format": False,
-                            "naming": False,
                             "checks": {"fail": {"command": "exit 1"}},
                         },
                     },

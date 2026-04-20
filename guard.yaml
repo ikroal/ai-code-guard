@@ -23,8 +23,13 @@ behavior:
         message: "scripts/ contains guard infrastructure (lint checkers etc.); edits weaken enforcement"
 
 code:
-  commit:
-    format: true    # → format-python hook, populated inside the managed block
+  # Schema v2 (#123): keyed by pre-commit gating stage name. Most
+  # project hooks live under `pre-commit`; add `pre-push`, `commit-msg`
+  # etc. as needed. `format`/`lint` toggles auto-generate per-language
+  # local hooks from the `languages:` tool map.
+  pre-commit:
+    format: true
+    lint: true      # ruff check --fix at pre-commit stage
     checks:
       forbid-noqa:
         command: "python3 scripts/check_no_noqa.py"
@@ -32,8 +37,6 @@ code:
       require-explicit-encoding:
         command: "python3 scripts/check_encoding.py"
         types: [python]
-  push:
-    lint: true      # → lint-python hook, populated inside the managed block
 
 output:
   audit:

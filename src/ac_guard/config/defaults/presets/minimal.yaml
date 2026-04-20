@@ -2,9 +2,9 @@
 # 仅内置默认 + format + test
 
 code:
-  commit:
+  pre-commit:
     format: true
-  push:
+  pre-push:
     checks:
       test:
         command: "pytest"

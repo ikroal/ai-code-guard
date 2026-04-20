@@ -65,20 +65,52 @@ class RawCheckItemDict(TypedDict, total=False):
     pass_filenames: bool
 
 
-class RawCodeStageDict(TypedDict, total=False):
-    """Raw code stage (commit or push)."""
+class RawPreCommitHookDict(TypedDict, total=False):
+    """Raw pre-commit hook entry. Only ``id`` is required; all other
+    pre-commit fields pass through verbatim."""
+
+    id: str
+
+
+class RawPreCommitRepoDict(TypedDict, total=False):
+    """Raw pre-commit repo entry."""
+
+    repo: str
+    rev: str
+    hooks: list[RawPreCommitHookDict]
+
+
+class RawStageBucketDict(TypedDict, total=False):
+    """Raw per-stage bucket under ``code.<stage>``."""
 
     format: bool
-    naming: bool
     lint: bool
     checks: dict[str, RawCheckItemDict]
+    hooks: list[RawPreCommitRepoDict]
+
+
+class RawExtraDict(TypedDict, total=False):
+    """Raw ``code._extra`` block (passthrough for non-gating stages)."""
+
+    repos: list[RawPreCommitRepoDict]
 
 
 class RawCodeDict(TypedDict, total=False):
-    """Raw code quality config."""
+    """Raw ``code:`` config, keyed by pre-commit gating stage names."""
 
-    commit: RawCodeStageDict
-    push: RawCodeStageDict
+    # YAML keys use hyphens: pre-commit, commit-msg, pre-merge-commit,
+    # pre-push, pre-rebase. We cannot declare hyphenated identifiers as
+    # TypedDict attributes; the loader uses dict lookups with the yaml
+    # string keys directly.
+    _extra: RawExtraDict
+
+
+class RawPreCommitMetaDict(TypedDict, total=False):
+    """Raw ``_pre_commit:`` top-level block."""
+
+    minimum_version: str
+    default_install_hook_types: list[str]
+    default_language_version: dict[str, str]
 
 
 class RawLanguageToolsDict(TypedDict, total=False):
@@ -149,6 +181,7 @@ class RawConfig(TypedDict, total=False):
     code: RawCodeDict
     build: RawBuildDict
     output: RawOutputDict
+    _pre_commit: RawPreCommitMetaDict
 
 
 # --- Public API ---

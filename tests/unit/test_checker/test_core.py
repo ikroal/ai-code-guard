@@ -12,7 +12,7 @@ from ac_guard.checker.core import (
     run_check,
     run_stage,
 )
-from ac_guard.config.models import CheckItem, CodeConfig
+from ac_guard.config.models import CheckItem, CodeConfig, StageBucket
 
 
 class TestGetChangedFiles:
@@ -140,7 +140,7 @@ class TestRunStage:
 
     def test_commit_stage_runs_checks(self, tmp_path: Path) -> None:
         """Commit stage runs format + naming checks."""
-        config = CodeConfig(commit_format=True, commit_naming=True)
+        config = CodeConfig(pre_commit=StageBucket(format=True))
         with patch("ac_guard.checker.core.get_changed_files", return_value=[]):
             report = run_stage("commit", config, tmp_path)
         assert report.stage == "commit"
@@ -150,9 +150,10 @@ class TestRunStage:
     def test_commit_stage_with_custom_checks(self, tmp_path: Path) -> None:
         """Commit stage runs custom checks."""
         config = CodeConfig(
-            commit_format=False,
-            commit_naming=False,
-            commit_checks={"echo": CheckItem(command="echo ok")},
+            pre_commit=StageBucket(
+                format=False,
+                checks={"echo": CheckItem(command="echo ok")},
+            ),
         )
         with patch("ac_guard.checker.core.get_changed_files", return_value=[]):
             report = run_stage("commit", config, tmp_path)
@@ -162,7 +163,9 @@ class TestRunStage:
     def test_push_stage_fail_fast(self, tmp_path: Path) -> None:
         """Push stage fails fast if commit stage fails."""
         config = CodeConfig(
-            commit_checks={"fail": CheckItem(command="exit 1")},
+            pre_commit=StageBucket(
+                checks={"fail": CheckItem(command="exit 1")},
+            ),
         )
         with patch("ac_guard.checker.core.get_changed_files", return_value=[]):
             report = run_stage("push", config, tmp_path)
@@ -172,9 +175,7 @@ class TestRunStage:
     def test_push_stage_with_build(self, tmp_path: Path) -> None:
         """Push stage runs build command."""
         config = CodeConfig(
-            commit_format=False,
-            commit_naming=False,
-            push_lint=False,
+            pre_commit=StageBucket(format=False), pre_push=StageBucket(lint=False)
         )
         with patch("ac_guard.checker.core.get_changed_files", return_value=[]):
             report = run_stage("push", config, tmp_path, build_command="echo build")
@@ -183,7 +184,7 @@ class TestRunStage:
 
     def test_format_iterates_per_language(self, tmp_path: Path) -> None:
         """commit_format=True emits one pre-commit call per configured language."""
-        config = CodeConfig(commit_format=True, commit_naming=False)
+        config = CodeConfig(pre_commit=StageBucket(format=True))
         with patch("ac_guard.checker.core.run_precommit") as mock_run:
             mock_run.return_value.passed = True
             mock_run.return_value.name = "stub"
@@ -204,7 +205,9 @@ class TestRunStage:
 
     def test_lint_iterates_per_language(self, tmp_path: Path) -> None:
         """push_lint=True emits one pre-commit call per configured language."""
-        config = CodeConfig(commit_format=False, commit_naming=False, push_lint=True)
+        config = CodeConfig(
+            pre_commit=StageBucket(format=False), pre_push=StageBucket(lint=True)
+        )
         with patch("ac_guard.checker.core.run_precommit") as mock_run:
             mock_run.return_value.passed = True
             mock_run.return_value.name = "stub"
@@ -225,19 +228,16 @@ class TestRunStage:
         assert "lint-python" in hook_ids
         assert "lint-typescript" in hook_ids
 
-    def test_naming_returns_skipped_when_enabled(self, tmp_path: Path) -> None:
-        """commit_naming=True returns a skipped CheckResult (not a pre-commit call)."""
-        config = CodeConfig(commit_format=False, commit_naming=True)
-        with patch("ac_guard.checker.core.get_changed_files", return_value=["a.py"]):
-            report = run_stage("commit", config, tmp_path, languages=["python"])
-        naming_results = [r for r in report.results if r.name == "naming"]
-        assert len(naming_results) == 1
-        assert naming_results[0].skipped is True
-        assert "not yet implemented" in naming_results[0].output.lower()
+    # D8: ``commit_naming`` flag removed in schema v2 (#123). Shim in
+    # CodeConfig always returns False, so the checker's naming branch
+    # is now unreachable. The dedicated "naming returns skipped" test
+    # is obsolete; ruff N-rules (via ``lint: true``) replaced it.
 
     def test_no_languages_skips_format_and_lint(self, tmp_path: Path) -> None:
         """Empty languages list silently skips format/lint shortcuts."""
-        config = CodeConfig(commit_format=True, commit_naming=False, push_lint=True)
+        config = CodeConfig(
+            pre_commit=StageBucket(format=True), pre_push=StageBucket(lint=True)
+        )
         with (
             patch("ac_guard.checker.core.run_precommit") as mock_run,
             patch("ac_guard.checker.core.get_changed_files", return_value=["a.py"]),
@@ -250,10 +250,11 @@ class TestRunStage:
         from ac_guard.checker.models import CheckResult
 
         config = CodeConfig(
-            commit_format=False,
-            commit_naming=False,
-            push_lint=True,
-            push_checks={"custom": CheckItem(command="echo should-not-run")},
+            pre_commit=StageBucket(format=False),
+            pre_push=StageBucket(
+                lint=True,
+                checks={"custom": CheckItem(command="echo should-not-run")},
+            ),
         )
         failing_build = CheckResult(
             name="build", passed=False, duration_ms=10, output="build broke"
@@ -293,10 +294,11 @@ class TestRunStage:
         from ac_guard.checker.models import CheckResult
 
         config = CodeConfig(
-            commit_format=False,
-            commit_naming=False,
-            push_lint=True,
-            push_checks={"custom": CheckItem(command="echo ok")},
+            pre_commit=StageBucket(format=False),
+            pre_push=StageBucket(
+                lint=True,
+                checks={"custom": CheckItem(command="echo ok")},
+            ),
         )
         passing_build = CheckResult(name="build", passed=True, duration_ms=10)
         with (

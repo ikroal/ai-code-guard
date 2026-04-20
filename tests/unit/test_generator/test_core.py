@@ -16,6 +16,7 @@ from ac_guard.config.models import (
     LanguageTools,
     OperationRules,
     Rule,
+    StageBucket,
 )
 from ac_guard.generator.core import (
     MARKER_BEGIN,
@@ -825,30 +826,32 @@ class TestGeneratePrecommitConfig:
         assert "repo: local" in result.content
 
     def test_includes_format_hooks_when_enabled(self) -> None:
-        code = CodeConfig(commit_format=True)
+        code = CodeConfig(pre_commit=StageBucket(format=True))
         languages = {"python": LanguageTools(format="black", lint="ruff")}
         result = generate_precommit_config(code, languages)
         assert "format-python" in result.content
         assert "black" in result.content
 
     def test_includes_lint_hooks_when_enabled(self) -> None:
-        code = CodeConfig(push_lint=True)
+        code = CodeConfig(pre_push=StageBucket(lint=True))
         languages = {"python": LanguageTools(format="black", lint="ruff")}
         result = generate_precommit_config(code, languages)
         assert "lint-python" in result.content
         assert "ruff" in result.content
 
     def test_omits_format_when_disabled(self) -> None:
-        code = CodeConfig(commit_format=False)
+        code = CodeConfig(pre_commit=StageBucket(format=False))
         languages = {"python": LanguageTools(format="black", lint="ruff")}
         result = generate_precommit_config(code, languages)
         assert "format-python" not in result.content
 
     def test_includes_custom_checks(self) -> None:
         code = CodeConfig(
-            commit_checks={
-                "test": CheckItem(command="pytest", pass_filenames=False),
-            },
+            pre_commit=StageBucket(
+                checks={
+                    "test": CheckItem(command="pytest", pass_filenames=False),
+                }
+            ),
         )
         languages = {}
         result = generate_precommit_config(code, languages)
@@ -856,13 +859,15 @@ class TestGeneratePrecommitConfig:
         assert "pytest" in result.content
 
     def test_includes_language_types(self) -> None:
-        code = CodeConfig(commit_format=True)
+        code = CodeConfig(pre_commit=StageBucket(format=True))
         languages = {"python": LanguageTools(format="black", lint="ruff")}
         result = generate_precommit_config(code, languages)
         assert "types: [python]" in result.content
 
     def test_handles_multiple_languages(self) -> None:
-        code = CodeConfig(commit_format=True, push_lint=True)
+        code = CodeConfig(
+            pre_commit=StageBucket(format=True), pre_push=StageBucket(lint=True)
+        )
         languages = {
             "python": LanguageTools(format="black", lint="ruff"),
             "typescript": LanguageTools(format="prettier", lint="eslint"),
@@ -882,7 +887,9 @@ class TestPrecommitManagedBlock:
         tmp_path: Path, *, format_on: bool = True, lint_on: bool = True
     ) -> str:
         """Run generator + write_artifacts; return the on-disk content."""
-        code = CodeConfig(commit_format=format_on, push_lint=lint_on)
+        code = CodeConfig(
+            pre_commit=StageBucket(format=format_on), pre_push=StageBucket(lint=lint_on)
+        )
         languages = {"python": LanguageTools(format="black", lint="ruff")}
         spec = generate_precommit_config(code, languages)
         write_artifacts(tmp_path, [spec])
