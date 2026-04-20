@@ -43,7 +43,7 @@ def _parse_retry_after(value: str | None) -> float | None:
         return None
 
 
-def request_json(
+def request_json(  # noqa: PLR0913 - public API needs all these knobs
     url: str,
     *,
     method: str,
@@ -84,7 +84,7 @@ def request_json(
     for attempt in range(1, max_attempts + 1):
         req = urllib.request.Request(url, data=data, method=method, headers=headers)
         try:
-            with urllib.request.urlopen(req) as resp:  # noqa: S310 - URL is controlled by caller
+            with urllib.request.urlopen(req) as resp:
                 raw = resp.read()
                 if not raw:
                     return None

@@ -98,16 +98,18 @@ class TestRequestJson:
         """Persistent 503 exhausts retries and raises with attempt count."""
         sleeper = _SleepRecorder()
         side_effect = [_http_error(503) for _ in range(3)]
-        with patch("urllib.request.urlopen", side_effect=side_effect):
-            with pytest.raises(ChannelError, match="after 3 attempts"):
-                request_json(
-                    "https://example/api",
-                    method="POST",
-                    headers=_headers(),
-                    body={"x": 1},
-                    api_name="GitHub",
-                    sleep=sleeper,
-                )
+        with (
+            patch("urllib.request.urlopen", side_effect=side_effect),
+            pytest.raises(ChannelError, match="after 3 attempts"),
+        ):
+            request_json(
+                "https://example/api",
+                method="POST",
+                headers=_headers(),
+                body={"x": 1},
+                api_name="GitHub",
+                sleep=sleeper,
+            )
 
     def test_retries_on_500_then_succeeds(self) -> None:
         """500 is retryable; next 200 completes the request."""
@@ -127,29 +129,33 @@ class TestRequestJson:
     def test_404_fails_immediately(self) -> None:
         """Non-retryable 4xx raises without consuming retry budget."""
         sleeper = _SleepRecorder()
-        with patch("urllib.request.urlopen", side_effect=_http_error(404)):
-            with pytest.raises(ChannelError, match="404"):
-                request_json(
-                    "https://example/api",
-                    method="GET",
-                    headers=_headers(),
-                    api_name="Gitea",
-                    sleep=sleeper,
-                )
+        with (
+            patch("urllib.request.urlopen", side_effect=_http_error(404)),
+            pytest.raises(ChannelError, match="404"),
+        ):
+            request_json(
+                "https://example/api",
+                method="GET",
+                headers=_headers(),
+                api_name="Gitea",
+                sleep=sleeper,
+            )
         assert sleeper.calls == []
 
     def test_401_fails_immediately(self) -> None:
         """Auth errors must not be retried."""
         sleeper = _SleepRecorder()
-        with patch("urllib.request.urlopen", side_effect=_http_error(401)):
-            with pytest.raises(ChannelError, match="401"):
-                request_json(
-                    "https://example/api",
-                    method="GET",
-                    headers=_headers(),
-                    api_name="Bitbucket",
-                    sleep=sleeper,
-                )
+        with (
+            patch("urllib.request.urlopen", side_effect=_http_error(401)),
+            pytest.raises(ChannelError, match="401"),
+        ):
+            request_json(
+                "https://example/api",
+                method="GET",
+                headers=_headers(),
+                api_name="Bitbucket",
+                sleep=sleeper,
+            )
         assert sleeper.calls == []
 
     def test_respects_retry_after_header(self) -> None:
