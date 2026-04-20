@@ -301,10 +301,7 @@ def run_build(build_command: str, project_root: Path) -> CheckResult:
 # ---------------------------------------------------------------------------
 
 
-def run_stage(  # noqa: PLR0913 — orchestrator intentionally exposes
-    # five distinct inputs (stage, code_config, project_root, build_command,
-    # files, languages); collapsing them into a dataclass would hurt callsite
-    # readability for no gain.
+def run_stage(
     stage: str,
     code_config: CodeConfig,
     project_root: Path,

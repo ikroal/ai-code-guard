@@ -43,7 +43,7 @@ def _parse_retry_after(value: str | None) -> float | None:
         return None
 
 
-def request_json(  # noqa: PLR0913 - public API needs all these knobs
+def request_json(
     url: str,
     *,
     method: str,

@@ -160,13 +160,17 @@ def post_pr_comment(
         print(f"Warning: PR comment failed to post: {exc}", file=sys.stderr)
 
 
-# Ensure built-in channels are registered on import
-def _auto_register() -> None:
+# Ensure built-in channels are registered on import.
+# Dynamic import avoids binding unused module names (would trigger F401).
+_BUILTIN_CHANNELS = ("bitbucket", "gitea", "github", "gitlab")
+
+
+def _register_builtins() -> None:
     """Import built-in channel modules to trigger registration."""
-    import ac_guard.reporter.channel_bitbucket
-    import ac_guard.reporter.channel_gitea
-    import ac_guard.reporter.channel_github
-    import ac_guard.reporter.channel_gitlab  # noqa: F401
+    import importlib
+
+    for name in _BUILTIN_CHANNELS:
+        importlib.import_module(f"ac_guard.reporter.channel_{name}")
 
 
-_auto_register()
+_register_builtins()
