@@ -165,3 +165,21 @@ class TestGiteaChannel:
             pytest.raises(NoPrContextError, match="PR number"),
         ):
             GiteaChannel().send("r", self._make_config())
+
+    def test_send_retries_transient_urlerror(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Transient URLError is retried by the shared HTTP layer."""
+        from urllib.error import URLError
+
+        monkeypatch.setenv("GITEA_TOKEN", "gt_test123")
+        monkeypatch.setenv("GITEA_REPOSITORY", "owner/repo")
+        monkeypatch.setenv("AI_GUARD_PR_NUMBER", "42")
+
+        side_effect = [URLError("transient"), self._mock_urlopen()]
+        with (
+            patch("urllib.request.urlopen", side_effect=side_effect) as m,
+            patch("ac_guard.reporter._http.time.sleep"),
+        ):
+            GiteaChannel().send("## Report", self._make_config())
+        assert m.call_count == 2
