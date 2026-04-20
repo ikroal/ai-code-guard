@@ -11,6 +11,7 @@ This module provides:
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -96,6 +97,11 @@ def render_hook(template_name: str, behavior: BehaviorConfig) -> str:
 
     context = {
         "behavior": behavior,
+        # Absolute path of the Python running `ac-guard install`.
+        # Baked into the rendered hook so it can re-exec into an interpreter
+        # that can actually import `ac_guard`, even when Claude Code launches
+        # the hook from a shell whose `$PATH` lacks the project's venv.
+        "python_executable": sys.executable,
     }
 
     return template.render(context)

@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+import sys
+
 from ac_guard.adapters._render import render_hook
 from ac_guard.config.models import BehaviorConfig
 
@@ -29,6 +32,35 @@ class TestClaudeCodeHook:
         """Claude Code hook outputs permissionDecision format."""
         content = render_hook("claude_code", BehaviorConfig.empty())
         assert "permissionDecision" in content
+
+    def test_includes_hook_event_name(self) -> None:
+        """Hook output includes hookEventName (required by Claude Code schema)."""
+        content = render_hook("claude_code", BehaviorConfig.empty())
+        assert '"hookEventName": "PreToolUse"' in content
+
+    def test_bakes_install_python_path(self) -> None:
+        """Hook bakes the absolute path of the Python that ran `ac-guard install`."""
+        content = render_hook("claude_code", BehaviorConfig.empty())
+        # The template uses Jinja's `| tojson` filter so Windows backslashes
+        # are properly escaped; match the JSON-encoded form.
+        assert f"_INSTALL_PY = {json.dumps(sys.executable)}" in content
+
+    def test_has_reexec_shim(self) -> None:
+        """Hook re-execs into the baked interpreter when sys.executable differs."""
+        content = render_hook("claude_code", BehaviorConfig.empty())
+        assert "sys.executable != _INSTALL_PY" in content
+        assert "os.execv(_INSTALL_PY" in content
+
+    def test_has_import_safe_deny(self) -> None:
+        """Hook emits an ask decision when ac_guard cannot be imported."""
+        content = render_hook("claude_code", BehaviorConfig.empty())
+        assert "except ImportError" in content
+        assert '"permissionDecision": "ask"' in content
+
+    def test_generated_hook_is_valid_python(self) -> None:
+        """Rendered hook compiles as valid Python (no syntax errors)."""
+        content = render_hook("claude_code", BehaviorConfig.empty())
+        compile(content, "<generated claude_code hook>", "exec")
 
 
 class TestCursorHook:
