@@ -19,10 +19,43 @@ the managed block are preserved.
 """
 
 import json
+import os
 import sys
 from pathlib import Path
 
-from ac_guard.enforcer.engine import evaluate
+# --- PATH-resilient re-exec shim ---
+# Claude Code runs this hook via the `python3` on $PATH of the shell that
+# launched `claude`. When that shell did not activate the project's venv
+# (Finder / Raycast / IDE launcher / fresh terminal), `python3` resolves to
+# a system interpreter that cannot import ac_guard. To stay correct under
+# any launch path, we bake the absolute path of the Python that ran
+# `ac-guard install` (which, by definition, can import ac_guard) and
+# re-exec into it when they differ.
+_INSTALL_PY = {{ python_executable | tojson }}
+if sys.executable != _INSTALL_PY and os.path.exists(_INSTALL_PY):
+    os.execv(_INSTALL_PY, [_INSTALL_PY, __file__, *sys.argv[1:]])
+
+# --- Safe-deny on import failure ---
+# If ac_guard is still not importable after the shim (e.g. baked path was
+# removed, venv rebuilt, package uninstalled), never let the tool call
+# silently pass — emit an `ask` decision so the user sees the problem.
+try:
+    from ac_guard.enforcer.engine import evaluate
+except ImportError as _exc:
+    json.dump(
+        {
+            "hookSpecificOutput": {
+                "permissionDecision": "ask",
+                "reason": (
+                    f"ac-guard hook could not import ac_guard ({_exc}); "
+                    "reinstall ac-guard or re-run `ac-guard install`"
+                ),
+            }
+        },
+        sys.stdout,
+    )
+    print()
+    sys.exit(0)
 
 
 def main():
