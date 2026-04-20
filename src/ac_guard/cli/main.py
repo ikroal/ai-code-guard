@@ -305,8 +305,8 @@ def run_single(
     name: Annotated[str, typer.Argument(help="Check name to run")],
     stage: Annotated[
         str,
-        typer.Option("--stage", "-s", help="Check stage (commit or push)"),
-    ] = "commit",
+        typer.Option("--stage", "-s", help="Check stage (pre-commit or pre-push)"),
+    ] = "pre-commit",
     files: Annotated[
         list[str] | None,
         typer.Option("--files", help="Explicit file paths to check"),

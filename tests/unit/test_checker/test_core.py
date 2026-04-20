@@ -23,7 +23,7 @@ class TestGetChangedFiles:
         with patch("ac_guard.checker.core.subprocess.run") as mock_run:
             mock_run.return_value.returncode = 0
             mock_run.return_value.stdout = "a.py\nb.py\n"
-            files = get_changed_files("commit", tmp_path)
+            files = get_changed_files("pre-commit", tmp_path)
             assert files == ["a.py", "b.py"]
             cmd = mock_run.call_args[0][0]
             assert "--cached" in cmd
@@ -33,7 +33,7 @@ class TestGetChangedFiles:
         with patch("ac_guard.checker.core.subprocess.run") as mock_run:
             mock_run.return_value.returncode = 0
             mock_run.return_value.stdout = "c.py\n"
-            files = get_changed_files("push", tmp_path)
+            files = get_changed_files("pre-push", tmp_path)
             assert files == ["c.py"]
             cmd = mock_run.call_args[0][0]
             assert "origin/main..HEAD" in cmd
@@ -43,7 +43,7 @@ class TestGetChangedFiles:
         with patch("ac_guard.checker.core.subprocess.run") as mock_run:
             mock_run.return_value.returncode = 0
             mock_run.return_value.stdout = ""
-            files = get_changed_files("commit", tmp_path)
+            files = get_changed_files("pre-commit", tmp_path)
             assert files == []
 
     def test_git_error_returns_empty(self, tmp_path: Path) -> None:
@@ -51,7 +51,7 @@ class TestGetChangedFiles:
         with patch("ac_guard.checker.core.subprocess.run") as mock_run:
             mock_run.return_value.returncode = 1
             mock_run.return_value.stdout = ""
-            files = get_changed_files("commit", tmp_path)
+            files = get_changed_files("pre-commit", tmp_path)
             assert files == []
 
 
@@ -139,11 +139,11 @@ class TestRunStage:
     """Tests for run_stage orchestration (K6)."""
 
     def test_commit_stage_runs_checks(self, tmp_path: Path) -> None:
-        """Commit stage runs format + naming checks."""
+        """pre-commit stage runs format + custom checks."""
         config = CodeConfig(pre_commit=StageBucket(format=True))
         with patch("ac_guard.checker.core.get_changed_files", return_value=[]):
-            report = run_stage("commit", config, tmp_path)
-        assert report.stage == "commit"
+            report = run_stage("pre-commit", config, tmp_path)
+        assert report.stage == "pre-commit"
         # Format and naming are pre-commit hooks — skipped with no files
         assert report.passed is True
 
@@ -156,7 +156,7 @@ class TestRunStage:
             ),
         )
         with patch("ac_guard.checker.core.get_changed_files", return_value=[]):
-            report = run_stage("commit", config, tmp_path)
+            report = run_stage("pre-commit", config, tmp_path)
         assert report.passed is True
         assert any(r.name == "echo" for r in report.results)
 
@@ -168,8 +168,8 @@ class TestRunStage:
             ),
         )
         with patch("ac_guard.checker.core.get_changed_files", return_value=[]):
-            report = run_stage("push", config, tmp_path)
-        assert report.stage == "push"
+            report = run_stage("pre-push", config, tmp_path)
+        assert report.stage == "pre-push"
         assert report.passed is False
 
     def test_push_stage_with_build(self, tmp_path: Path) -> None:
@@ -178,7 +178,7 @@ class TestRunStage:
             pre_commit=StageBucket(format=False), pre_push=StageBucket(lint=False)
         )
         with patch("ac_guard.checker.core.get_changed_files", return_value=[]):
-            report = run_stage("push", config, tmp_path, build_command="echo build")
+            report = run_stage("pre-push", config, tmp_path, build_command="echo build")
         assert report.passed is True
         assert any(r.name == "build" for r in report.results)
 
@@ -193,7 +193,7 @@ class TestRunStage:
             mock_run.return_value.violations = []
             mock_run.return_value.output = ""
             run_stage(
-                "commit",
+                "pre-commit",
                 config,
                 tmp_path,
                 files=["a.py"],
@@ -219,7 +219,7 @@ class TestRunStage:
                 "ac_guard.checker.core.get_changed_files", return_value=["a.py"]
             ):
                 run_stage(
-                    "push",
+                    "pre-push",
                     config,
                     tmp_path,
                     languages=["python", "typescript"],
@@ -242,7 +242,7 @@ class TestRunStage:
             patch("ac_guard.checker.core.run_precommit") as mock_run,
             patch("ac_guard.checker.core.get_changed_files", return_value=["a.py"]),
         ):
-            run_stage("push", config, tmp_path, languages=[])
+            run_stage("pre-push", config, tmp_path, languages=[])
         mock_run.assert_not_called()
 
     def test_push_build_failure_skips_lint_and_checks(self, tmp_path: Path) -> None:
@@ -268,7 +268,7 @@ class TestRunStage:
             patch("ac_guard.checker.core.get_changed_files", return_value=["a.py"]),
         ):
             report = run_stage(
-                "push",
+                "pre-push",
                 config,
                 tmp_path,
                 build_command="make build",
@@ -314,7 +314,7 @@ class TestRunStage:
                 name="custom", passed=True, duration_ms=1
             )
             run_stage(
-                "push",
+                "pre-push",
                 config,
                 tmp_path,
                 build_command="make build",

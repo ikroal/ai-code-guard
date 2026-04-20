@@ -82,7 +82,7 @@ class TestPostPrComment:
         from ac_guard.checker.models import CheckReport
 
         config = PrReportConfig(enabled=True, platform="github")
-        report = CheckReport(stage="commit", passed=True)
+        report = CheckReport(stage="pre-commit", passed=True)
 
         # Ensure send will fail (no env vars set)
         monkeypatch.delenv("GITHUB_TOKEN", raising=False)
@@ -111,7 +111,7 @@ class TestNoPrContextError:
         from ac_guard.reporter import channel_base
 
         config = PrReportConfig(enabled=True, platform="fake-no-pr")
-        report = CheckReport(stage="commit", passed=True)
+        report = CheckReport(stage="pre-commit", passed=True)
 
         class _NoPrChannel(ReportChannel):
             @property
@@ -139,7 +139,7 @@ class TestNoPrContextError:
         from ac_guard.reporter import channel_base
 
         config = PrReportConfig(enabled=True, platform="fake-api-500")
-        report = CheckReport(stage="commit", passed=True)
+        report = CheckReport(stage="pre-commit", passed=True)
 
         class _ApiFailChannel(ReportChannel):
             @property
