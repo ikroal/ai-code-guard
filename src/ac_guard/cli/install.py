@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 import yaml
 
 from ac_guard.adapters.registry import AdapterNotFoundError, get_adapter, list_adapters
+from ac_guard.audit import prune_by_age
 from ac_guard.config.exceptions import (
     ConfigError,
 )
@@ -33,7 +34,6 @@ from ac_guard.generator.core import (
 )
 from ac_guard.generator.exceptions import ArtifactWriteError
 from ac_guard.generator.models import STATE_FILE
-from ac_guard.reporter.audit import apply_retention
 from ac_guard.ruleset.cache import get_cache_dir
 
 _LEGACY_RUNTIME_CACHE = ".ac-guard/policy.json"
@@ -251,7 +251,11 @@ def _run_post_install_audit_maintenance(
 
     audit_cfg = resolved.output.audit
     if audit_cfg.enabled and audit_cfg.retention > 0:
-        apply_retention(project_root, audit_cfg.path, audit_cfg.retention)
+        prune_by_age(
+            project_root,
+            audit_cfg.path,
+            max_age_days=audit_cfg.retention,
+        )
 
 
 def install_command(

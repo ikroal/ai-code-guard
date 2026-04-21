@@ -1,6 +1,10 @@
-"""Reporter module — audit logging, report formatting, and PR posting."""
+"""Reporter module — report formatting and PR posting.
 
-from ac_guard.reporter.audit import append_audit_log, apply_retention
+Audit logging was extracted to :mod:`ac_guard.audit` as an
+independent module with its own primitive-derived API (see that
+module for details).
+"""
+
 from ac_guard.reporter.channel_base import ChannelError, post_pr_comment
 from ac_guard.reporter.formatting import (
     format_gate,
@@ -11,8 +15,6 @@ from ac_guard.reporter.formatting import (
 
 __all__ = [
     "ChannelError",
-    "append_audit_log",
-    "apply_retention",
     "format_gate",
     "format_json",
     "format_markdown",

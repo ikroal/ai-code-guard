@@ -9,6 +9,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **BREAKING — Audit module extracted** to an independent top-level
+  module with a primitive-derived public API. Audit logging is no
+  longer conceptually part of "reporter"; it now lives at
+  `ac_guard.audit` with its own 4-primitive API derived via the
+  `deriving-module-api` methodology (S/B/Q 9-dimensional analysis
+  + coverage + minimality proof).
+
+  **API rename**:
+  - `ac_guard.reporter.audit.append_audit_log(record, root, path)` →
+    `ac_guard.audit.append_record(record, root, path)`
+  - `ac_guard.reporter.audit.apply_retention(root, path, retention_days=X)` →
+    `ac_guard.audit.prune_by_age(root, path, max_age_days=X)`
+
+  **New primitives exposed**:
+  - `iter_records(root, path) -> Iterator[dict]` — streaming read.
+  - `rewrite_records(records, root, path) -> None` — **atomic**
+    full-file replacement (temp + `os.replace`), crash-safe.
+
+  **Other changes**:
+  - `prune_by_age` and `rewrite_records` now use atomic writes;
+    partial-state corruption on mid-write crash is no longer
+    possible.
+  - `reporter/__init__.py` no longer re-exports `append_audit_log`
+    / `apply_retention`.
+
+  **Migration**:
+  ```
+  reporter.audit   → audit
+  append_audit_log → append_record
+  apply_retention(..., retention_days=X) → prune_by_age(..., max_age_days=X)
+  ```
+  See `src/ac_guard/audit/__init__.py` for responsibility contract
+  and derivation rationale.
+
 ### Added
 
 - ac-guard is now self-hosted via dogfooding on its own repository.

@@ -9,6 +9,7 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING, Any
 
+from ac_guard.audit import append_record
 from ac_guard.config.models import Rule
 from ac_guard.enforcer.classifier import classify
 from ac_guard.enforcer.exceptions import PolicyCorruptError
@@ -19,7 +20,6 @@ from ac_guard.enforcer.matcher import (
     evaluate_rules,
 )
 from ac_guard.enforcer.policy import load_policy
-from ac_guard.reporter.audit import append_audit_log
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -48,7 +48,7 @@ def evaluate(
 
     Orchestrates the full Enforcer pipeline:
     E1 (load_policy) -> E2 (classify) -> E3/E4 (match + decide) ->
-    R3 (append_audit_log when enabled).
+    R3 (audit.append_record when enabled).
 
     Args:
         tool_name: Tool name from the AI agent.
@@ -203,4 +203,4 @@ def _maybe_audit(
     if not audit_cfg.enabled:
         return
     record = decision.to_audit_record(tool_name, agent)
-    append_audit_log(record, project_root, audit_cfg.path)
+    append_record(record, project_root, audit_cfg.path)
