@@ -14,24 +14,25 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: astral-sh/setup-uv@v5
         with:
-          python-version: "3.13"
-      - run: pip install -e ".[dev]"
-      - run: ruff check .
+          enable-cache: true
+      - run: uv sync --frozen
+      - run: uv run ruff check .
 
   pre-commit:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: astral-sh/setup-uv@v5
         with:
-          python-version: "3.13"
-      # `pip install -e .[dev]` is required because the import-linter
-      # hook runs via `language: system` and needs ac_guard + lint-imports
-      # on PATH.
-      - run: pip install -e ".[dev]"
-      - uses: pre-commit/action@v3.0.1
+          enable-cache: true
+      # `uv sync --frozen` installs ac_guard + all dev deps into .venv.
+      # The local hooks in .pre-commit-config.yaml run via `language: system`
+      # and expect ruff / lint-imports / ac_guard on PATH, which `uv run`
+      # provides by prepending .venv/bin.
+      - run: uv sync --frozen
+      - run: uv run pre-commit run --all-files --show-diff-on-failure
 
   test:
     runs-on: ${{ matrix.os }}
@@ -41,8 +42,8 @@ jobs:
         python-version: ["3.10", "3.11", "3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: astral-sh/setup-uv@v5
         with:
-          python-version: ${{ matrix.python-version }}
-      - run: pip install -e ".[dev]"
-      - run: pytest
+          enable-cache: true
+      - run: uv sync --frozen --python ${{ matrix.python-version }}
+      - run: uv run --no-sync pytest
