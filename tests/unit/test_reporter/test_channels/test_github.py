@@ -8,8 +8,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from ac_guard.config.models import PrReportConfig
-from ac_guard.reporter.channel_base import ChannelError, NoPrContextError
-from ac_guard.reporter.channel_github import GitHubChannel
+from ac_guard.reporter.channels.base import ChannelError, NoPrContextError
+from ac_guard.reporter.channels.github import GitHubChannel
 
 
 class TestGitHubChannel:
@@ -127,7 +127,7 @@ class TestGitHubChannel:
 
         with (
             patch(
-                "ac_guard.reporter.channel_github.get_current_branch",
+                "ac_guard.reporter.channels.github.get_current_branch",
                 return_value="feat/test",
             ),
             patch("urllib.request.urlopen", side_effect=urlopen_side_effect) as m,
@@ -145,7 +145,7 @@ class TestGitHubChannel:
 
         with (
             patch(
-                "ac_guard.reporter.channel_github.get_remote_repo",
+                "ac_guard.reporter.channels.github.get_remote_repo",
                 return_value="org/my-repo",
             ),
             patch("urllib.request.urlopen", return_value=self._mock_urlopen()) as m,
@@ -160,7 +160,7 @@ class TestGitHubChannel:
 
         with (
             patch(
-                "ac_guard.reporter.channel_github.get_remote_repo", return_value=None
+                "ac_guard.reporter.channels.github.get_remote_repo", return_value=None
             ),
             pytest.raises(ChannelError, match="repository"),
         ):
@@ -175,7 +175,8 @@ class TestGitHubChannel:
 
         with (
             patch(
-                "ac_guard.reporter.channel_github.get_current_branch", return_value=None
+                "ac_guard.reporter.channels.github.get_current_branch",
+                return_value=None,
             ),
             pytest.raises(ChannelError, match="PR number"),
         ):
@@ -192,7 +193,8 @@ class TestGitHubChannel:
 
         with (
             patch(
-                "ac_guard.reporter.channel_github.get_current_branch", return_value=None
+                "ac_guard.reporter.channels.github.get_current_branch",
+                return_value=None,
             ),
             pytest.raises(ChannelError, match="PR number"),
         ):
@@ -209,7 +211,8 @@ class TestGitHubChannel:
 
         with (
             patch(
-                "ac_guard.reporter.channel_github.get_current_branch", return_value=None
+                "ac_guard.reporter.channels.github.get_current_branch",
+                return_value=None,
             ),
             pytest.raises(NoPrContextError, match="PR number"),
         ):
@@ -228,7 +231,7 @@ class TestGitHubChannel:
         side_effect = [URLError("transient"), self._mock_urlopen()]
         with (
             patch("urllib.request.urlopen", side_effect=side_effect) as m,
-            patch("ac_guard.reporter._http.time.sleep"),
+            patch("ac_guard.reporter.channels._http.time.sleep"),
         ):
             GitHubChannel().send("## Report", self._make_config())
         assert m.call_count == 2

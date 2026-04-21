@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from ac_guard.config.models import PrReportConfig
-from ac_guard.reporter.channel_base import (
+from ac_guard.reporter.channels.base import (
     ChannelError,
     NoPrContextError,
     ReportChannel,
@@ -108,7 +108,7 @@ class TestNoPrContextError:
     ) -> None:
         """NoPrContextError from channel.send => no stderr output, normal return."""
         from ac_guard.checker.models import StageOutcome
-        from ac_guard.reporter import channel_base
+        from ac_guard.reporter.channels import base as channel_base
 
         config = PrReportConfig(enabled=True, platform="fake-no-pr")
         report = StageOutcome(stage="pre-commit", passed=True)
@@ -136,7 +136,7 @@ class TestNoPrContextError:
     ) -> None:
         """ChannelError (not NoPrContextError) => stderr warning."""
         from ac_guard.checker.models import StageOutcome
-        from ac_guard.reporter import channel_base
+        from ac_guard.reporter.channels import base as channel_base
 
         config = PrReportConfig(enabled=True, platform="fake-api-500")
         report = StageOutcome(stage="pre-commit", passed=True)

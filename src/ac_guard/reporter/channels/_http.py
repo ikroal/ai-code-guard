@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 from urllib.error import HTTPError, URLError
 
-from ac_guard.reporter.channel_base import ChannelError
+from ac_guard.reporter.channels.base import ChannelError
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -195,7 +195,7 @@ def _wait(retry: RetryPolicy, retry_after: float | None, attempt: int) -> None:
     """Sleep between attempts honoring ``Retry-After`` when present.
 
     Resolves the sleep function at call time so test patches on
-    ``ac_guard.reporter._http.time.sleep`` remain effective even when
+    ``ac_guard.reporter.channels._http.time.sleep`` remain effective even when
     the default :class:`RetryPolicy` is reused across calls.
     """
     sleep_fn = retry.sleep if retry.sleep is not None else time.sleep

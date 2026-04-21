@@ -8,8 +8,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from ac_guard.config.models import PrReportConfig
-from ac_guard.reporter.channel_base import ChannelError, NoPrContextError
-from ac_guard.reporter.channel_bitbucket import BitbucketChannel
+from ac_guard.reporter.channels.base import ChannelError, NoPrContextError
+from ac_guard.reporter.channels.bitbucket import BitbucketChannel
 
 
 class TestBitbucketChannel:
@@ -98,7 +98,7 @@ class TestBitbucketChannel:
 
         with (
             patch(
-                "ac_guard.reporter.channel_bitbucket.get_remote_repo",
+                "ac_guard.reporter.channels.bitbucket.get_remote_repo",
                 return_value="org/my-repo",
             ),
             patch("urllib.request.urlopen", return_value=self._mock_urlopen()) as m,
@@ -137,7 +137,7 @@ class TestBitbucketChannel:
 
         with (
             patch(
-                "ac_guard.reporter.channel_bitbucket.get_current_branch",
+                "ac_guard.reporter.channels.bitbucket.get_current_branch",
                 return_value="feat/test",
             ),
             patch("urllib.request.urlopen", side_effect=urlopen_side_effect) as m,
@@ -156,7 +156,7 @@ class TestBitbucketChannel:
 
         with (
             patch(
-                "ac_guard.reporter.channel_bitbucket.get_current_branch",
+                "ac_guard.reporter.channels.bitbucket.get_current_branch",
                 return_value=None,
             ),
             pytest.raises(ChannelError, match="PR ID"),
@@ -174,7 +174,7 @@ class TestBitbucketChannel:
 
         with (
             patch(
-                "ac_guard.reporter.channel_bitbucket.get_current_branch",
+                "ac_guard.reporter.channels.bitbucket.get_current_branch",
                 return_value=None,
             ),
             pytest.raises(NoPrContextError, match="PR ID"),
@@ -194,7 +194,7 @@ class TestBitbucketChannel:
         side_effect = [URLError("transient"), self._mock_urlopen()]
         with (
             patch("urllib.request.urlopen", side_effect=side_effect) as m,
-            patch("ac_guard.reporter._http.time.sleep"),
+            patch("ac_guard.reporter.channels._http.time.sleep"),
         ):
             BitbucketChannel().send("## Report", self._make_config())
         assert m.call_count == 2

@@ -10,9 +10,9 @@ from __future__ import annotations
 import os
 from typing import TYPE_CHECKING
 
-from ac_guard.reporter._git_info import get_current_branch, get_remote_repo
-from ac_guard.reporter._http import get_json, post_json
-from ac_guard.reporter.channel_base import (
+from ac_guard.reporter.channels._git_info import get_current_branch, get_remote_repo
+from ac_guard.reporter.channels._http import get_json, post_json
+from ac_guard.reporter.channels.base import (
     ChannelError,
     NoPrContextError,
     ReportChannel,

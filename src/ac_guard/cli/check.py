@@ -19,7 +19,7 @@ from ac_guard.checker.core import (
 from ac_guard.checker.models import CheckResult, StageOutcome
 from ac_guard.config.exceptions import ConfigError
 from ac_guard.config.merger import resolve_config
-from ac_guard.reporter.channel_base import post_pr_comment
+from ac_guard.reporter.channels.base import post_pr_comment
 from ac_guard.reporter.formatting import format_gate, format_json, format_terminal
 
 if TYPE_CHECKING:

@@ -11,8 +11,8 @@ from urllib.error import HTTPError, URLError
 
 import pytest
 
-from ac_guard.reporter._http import RetryPolicy, get_json, post_json
-from ac_guard.reporter.channel_base import ChannelError
+from ac_guard.reporter.channels._http import RetryPolicy, get_json, post_json
+from ac_guard.reporter.channels.base import ChannelError
 
 
 class _FakeResponse:
@@ -233,7 +233,7 @@ class TestPostJson:
 class TestRetryPolicyDefaults:
     """Default RetryPolicy falls back to module-level time.sleep.
 
-    Keeps ``patch('ac_guard.reporter._http.time.sleep', ...)`` style hooks
+    Keeps ``patch('ac_guard.reporter.channels._http.time.sleep', ...)`` style hooks
     in channel tests working without per-call RetryPolicy overrides.
     """
 
@@ -241,7 +241,7 @@ class TestRetryPolicyDefaults:
         side_effect = [_http_error(503), _ok({"ok": 1})]
         with (
             patch("urllib.request.urlopen", side_effect=side_effect),
-            patch("ac_guard.reporter._http.time.sleep") as mock_sleep,
+            patch("ac_guard.reporter.channels._http.time.sleep") as mock_sleep,
         ):
             result = get_json(
                 "https://example/api",

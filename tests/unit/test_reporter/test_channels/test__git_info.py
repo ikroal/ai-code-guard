@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-from ac_guard.reporter._git_info import (
+from ac_guard.reporter.channels._git_info import (
     get_current_branch,
     get_remote_repo,
     parse_repo_url,
@@ -42,14 +42,14 @@ class TestGetRemoteRepo:
 
     def test_returns_parsed_repo(self) -> None:
         with patch(
-            "ac_guard.reporter._git_info._run_git",
+            "ac_guard.reporter.channels._git_info._run_git",
             return_value="https://github.com/owner/repo.git",
         ):
             assert get_remote_repo() == "owner/repo"
 
     def test_returns_none_on_failure(self) -> None:
         with patch(
-            "ac_guard.reporter._git_info._run_git",
+            "ac_guard.reporter.channels._git_info._run_git",
             return_value=None,
         ):
             assert get_remote_repo() is None
@@ -60,21 +60,21 @@ class TestGetCurrentBranch:
 
     def test_returns_branch_name(self) -> None:
         with patch(
-            "ac_guard.reporter._git_info._run_git",
+            "ac_guard.reporter.channels._git_info._run_git",
             return_value="feat/my-feature",
         ):
             assert get_current_branch() == "feat/my-feature"
 
     def test_returns_none_on_failure(self) -> None:
         with patch(
-            "ac_guard.reporter._git_info._run_git",
+            "ac_guard.reporter.channels._git_info._run_git",
             return_value=None,
         ):
             assert get_current_branch() is None
 
     def test_strips_whitespace(self) -> None:
         with patch(
-            "ac_guard.reporter._git_info._run_git",
+            "ac_guard.reporter.channels._git_info._run_git",
             return_value="  main\n",
         ):
             assert get_current_branch() == "main"

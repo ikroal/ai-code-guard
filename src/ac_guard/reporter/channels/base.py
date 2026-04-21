@@ -170,7 +170,7 @@ def _register_builtins() -> None:
     import importlib
 
     for name in _BUILTIN_CHANNELS:
-        importlib.import_module(f"ac_guard.reporter.channel_{name}")
+        importlib.import_module(f"ac_guard.reporter.channels.{name}")
 
 
 _register_builtins()
