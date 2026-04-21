@@ -10,6 +10,7 @@ import shlex
 import shutil
 import subprocess
 import time
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from ac_guard.checker.models import CheckReport, CheckResult
@@ -22,6 +23,7 @@ if TYPE_CHECKING:
 __all__ = [
     "BUCKET_AWARE_STAGES",
     "TYPE_EXTENSIONS",
+    "StageOptions",
     "detect_language",
     "get_changed_files",
     "run_build",
@@ -29,6 +31,31 @@ __all__ = [
     "run_precommit",
     "run_stage",
 ]
+
+
+@dataclass(frozen=True)
+class StageOptions:
+    """Optional refinements for :func:`run_stage`.
+
+    Keeps the primary orchestration signature short while still allowing
+    callers to override the file list, language set, or build command
+    used by a stage run.
+
+    Attributes:
+        build_command: Shell command to execute for the build check
+            (``pre-push`` stage only). ``None`` disables the build.
+        files: Explicit file list. ``None`` means auto-detect via git.
+        languages: Language identifiers used to resolve pre-commit hook
+            IDs (``format-<lang>`` / ``lint-<lang>``). ``None`` or empty
+            means format/lint shortcuts are silently skipped.
+    """
+
+    build_command: str | None = None
+    files: list[str] | None = None
+    languages: list[str] | None = None
+
+
+_DEFAULT_STAGE_OPTIONS = StageOptions()
 
 
 # Stages where ac-guard provides bucket-aware orchestration (format/lint
@@ -331,9 +358,8 @@ def run_stage(
     stage: str,
     code_config: CodeConfig,
     project_root: Path,
-    build_command: str | None = None,
-    files: list[str] | None = None,
-    languages: list[str] | None = None,
+    *,
+    options: StageOptions = _DEFAULT_STAGE_OPTIONS,
 ) -> CheckReport:
     """Orchestrate all checks for a stage.
 
@@ -344,22 +370,23 @@ def run_stage(
         stage: Check stage ("pre-commit" or "pre-push").
         code_config: CodeConfig with enabled flags and checks.
         project_root: Path to project root directory.
-        build_command: Optional build command (pre-push stage only).
-        files: Explicit file list. If None, auto-detect via git.
-        languages: Language identifiers used to resolve pre-commit
-            hook IDs (``format-<lang>`` / ``lint-<lang>``). Empty list
-            or None means format/lint shortcuts are silently skipped.
+        options: Optional refinements (build command, explicit file list,
+            language identifiers). See :class:`StageOptions`.
 
     Returns:
         CheckReport with aggregated results.
     """
     start = time.monotonic()
-    langs = list(languages or [])
+    langs = list(options.languages or [])
 
     if stage == "pre-push":
-        # Fail-fast: run pre-commit stage first
+        # Fail-fast: run pre-commit stage first, propagating file/language
+        # overrides but suppressing the build command (pre-commit has no build).
         commit_report = run_stage(
-            "pre-commit", code_config, project_root, files=files, languages=langs
+            "pre-commit",
+            code_config,
+            project_root,
+            options=StageOptions(files=options.files, languages=langs),
         )
         if not commit_report.passed:
             elapsed = int((time.monotonic() - start) * 1000)
@@ -370,6 +397,7 @@ def run_stage(
                 duration_ms=elapsed,
             )
 
+    files = options.files
     if files is None:
         files = get_changed_files(stage, project_root)
     results: list[CheckResult] = []
@@ -378,7 +406,9 @@ def run_stage(
         results.extend(_run_commit_checks(code_config, files, project_root, langs))
     else:
         results.extend(
-            _run_push_checks(code_config, files, project_root, build_command, langs)
+            _run_push_checks(
+                code_config, files, project_root, options.build_command, langs
+            )
         )
 
     elapsed = int((time.monotonic() - start) * 1000)

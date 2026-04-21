@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 
 from ac_guard.checker.core import (
     BUCKET_AWARE_STAGES,
+    StageOptions,
     get_changed_files,
     run_check,
     run_precommit,
@@ -59,8 +60,10 @@ def check_command(
         "pre-commit",
         resolved.code,
         project_root,
-        files=file_list,
-        languages=list(resolved.languages),
+        options=StageOptions(
+            files=file_list,
+            languages=list(resolved.languages),
+        ),
     )
 
     print(
@@ -96,8 +99,10 @@ def verify_command(
         "pre-push",
         resolved.code,
         project_root,
-        build_command=build_cmd,
-        languages=list(resolved.languages),
+        options=StageOptions(
+            build_command=build_cmd,
+            languages=list(resolved.languages),
+        ),
     )
 
     print(
@@ -233,8 +238,10 @@ def gate_run_command(
             stage,
             resolved.code,
             project_root,
-            build_command=build_cmd,
-            languages=list(resolved.languages),
+            options=StageOptions(
+                build_command=build_cmd,
+                languages=list(resolved.languages),
+            ),
         )
         message, exit_code = format_gate(report)
         print(message)
