@@ -79,6 +79,7 @@ select = [
     "N",      # pep8-naming
     "C90",    # mccabe (complexity)
     "PLR0913", # pylint: too-many-arguments
+    "PLR0915", # pylint: too-many-statements
     "PLE",    # pylint errors
     "PLW",    # pylint warnings
     "PT",     # flake8-pytest-style
@@ -105,24 +106,34 @@ ignore = [
 ]
 
 [tool.ruff.lint.mccabe]
-# Raised from 10 → 12 to accommodate orchestrators like
-# generator.core.write_artifacts. Further tightening is tracked under
-# the modular refactor (#109); adding `# noqa: C901` per-function is
-# explicitly not allowed (see forbid-noqa pre-commit hook).
-max-complexity = 12
+# Industry-standard McCabe ceiling (NIST / SEI / McCabe 1976). Kept
+# aligned with Ruff's default; orchestrators that exceeded it were
+# refactored via helper extraction rather than relaxed at the
+# config layer. Per-function `# noqa: C901` is banned by the
+# forbid-noqa pre-commit hook.
+max-complexity = 10
 
 [tool.ruff.lint.pylint]
-# Raised from 5 → 9 to cover our genuine multi-knob public APIs
-# (reporter._http.request_json, checker.core.run_stage). Config-level
-# limit keeps the signal on new functions; per-line `# noqa: PLR0913`
-# is banned.
-max-args = 9
+# Pylint / Ruff default. Multi-knob APIs (request_json retry params,
+# run_stage orchestration) are expressed through dataclass option
+# bundles (RetryPolicy, StageOptions) rather than raising the limit.
+# Per-line `# noqa: PLR0913` is banned.
+max-args = 5
+# Pylint default. Functions approaching 50 statements should be split
+# into helpers — large bodies hide branching structure even when
+# cyclomatic complexity stays green.
+max-statements = 50
 
 [tool.ruff.lint.isort]
 known-first-party = ["ac_guard"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["D", "ANN", "ARG", "PLR0913", "C408", "TC"]  # relax requirements for tests
+# scripts/ holds one-off guard infrastructure (tokenizer-style source
+# scanners, etc.). Their cyclomatic complexity tracks the grammar they
+# parse rather than business branching, so C901 doesn't produce useful
+# signal there. All other rules (incl. PLR0913/PLR0915) still apply.
+"scripts/*" = ["C901"]
 
 [tool.ruff.lint.pep8-naming]
 # Private conventions inherited from the retired scripts/checks/_config.py:
