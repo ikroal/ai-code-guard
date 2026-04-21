@@ -1,4 +1,4 @@
-"""GitHub ReportChannel — posts check reports as PR comments.
+"""GitHub ReportChannel — posts rendered payloads as PR comments.
 
 Uses the GitHub REST API to create issue comments on pull requests.
 Supports both github.com and self-hosted GitHub Enterprise instances
@@ -31,7 +31,7 @@ _PR_REF_PATTERN = re.compile(r"^refs/pull/(\d+)/")
 
 @register_channel
 class GitHubChannel(ReportChannel):
-    """Post check reports to GitHub PR comments.
+    """Post rendered Markdown payloads to GitHub PR comments.
 
     Repository and PR number are resolved automatically:
 
@@ -48,31 +48,35 @@ class GitHubChannel(ReportChannel):
         DEFAULT_API_URL: Default GitHub API base URL.
     """
 
+    name = "github"
     DEFAULT_API_URL = "https://api.github.com"
 
-    @property
-    def name(self) -> str:
-        """Platform identifier."""
-        return "github"
-
-    def send(self, markdown: str, config: PrReportConfig) -> None:
-        """Post markdown as a comment on the associated PR.
+    def __init__(self, config: PrReportConfig) -> None:
+        """Store the PR report configuration for later use by :meth:`output`.
 
         Args:
-            markdown: Rendered Markdown report string.
-            config: PR report configuration.
+            config: PR report configuration with platform credentials
+                and API endpoint overrides.
+        """
+        self.config = config
+
+    def output(self, payload: str) -> None:
+        """Post ``payload`` as a Markdown comment on the associated PR.
+
+        Args:
+            payload: Rendered Markdown string.
 
         Raises:
             ChannelError: If token is missing, PR cannot be
                 identified, or the API request fails.
         """
-        token = self._get_token(config)
+        token = self._get_token()
         repo = self._get_repository()
-        api_url = (config.api_url or self.DEFAULT_API_URL).rstrip("/")
+        api_url = (self.config.api_url or self.DEFAULT_API_URL).rstrip("/")
         pr_number = self._get_pr_number(token, repo, api_url)
 
         url = f"{api_url}/repos/{repo}/issues/{pr_number}/comments"
-        self._post_json(url, {"body": markdown}, token)
+        self._post_json(url, {"body": payload}, token)
 
     def _get_pr_number(self, token: str, repo: str, api_url: str) -> str:
         """Determine the PR number.
@@ -91,7 +95,7 @@ class GitHubChannel(ReportChannel):
             PR number as string.
 
         Raises:
-            ChannelError: If PR number cannot be determined.
+            NoPrContextError: If PR number cannot be determined.
         """
         # 1. Explicit env var
         pr_number = os.environ.get("AI_GUARD_PR_NUMBER")
@@ -125,12 +129,8 @@ class GitHubChannel(ReportChannel):
             "and open a PR"
         )
 
-    @staticmethod
-    def _get_token(config: PrReportConfig) -> str:
+    def _get_token(self) -> str:
         """Read the API token from the environment.
-
-        Args:
-            config: PR report config with ``token_env`` field.
 
         Returns:
             The token string.
@@ -138,10 +138,10 @@ class GitHubChannel(ReportChannel):
         Raises:
             ChannelError: If the environment variable is not set.
         """
-        token = os.environ.get(config.token_env)
+        token = os.environ.get(self.config.token_env)
         if not token:
             raise ChannelError(
-                f"GitHub token not found: set the {config.token_env} "
+                f"GitHub token not found: set the {self.config.token_env} "
                 f"environment variable"
             )
         return token

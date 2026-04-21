@@ -1,8 +1,8 @@
-"""Bitbucket ReportChannel — posts check reports as PR comments.
+"""Bitbucket ReportChannel — posts rendered payloads as PR comments.
 
 Uses the Bitbucket REST API to create comments on pull requests.
-Supports both bitbucket.org and self-hosted Bitbucket instances
-via the ``api_url`` configuration.
+Supports both bitbucket.org and self-hosted Bitbucket instances via
+the ``api_url`` configuration.
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ __all__ = ["BitbucketChannel"]
 
 @register_channel
 class BitbucketChannel(ReportChannel):
-    """Post check reports to Bitbucket PR comments.
+    """Post rendered Markdown payloads to Bitbucket PR comments.
 
     Repository and PR number are resolved automatically:
 
@@ -44,31 +44,34 @@ class BitbucketChannel(ReportChannel):
         DEFAULT_API_URL: Default Bitbucket API base URL.
     """
 
+    name = "bitbucket"
     DEFAULT_API_URL = "https://api.bitbucket.org"
 
-    @property
-    def name(self) -> str:
-        """Platform identifier."""
-        return "bitbucket"
-
-    def send(self, markdown: str, config: PrReportConfig) -> None:
-        """Post markdown as a comment on the associated PR.
+    def __init__(self, config: PrReportConfig) -> None:
+        """Store the PR report configuration for later use by :meth:`output`.
 
         Args:
-            markdown: Rendered Markdown report string.
             config: PR report configuration.
+        """
+        self.config = config
+
+    def output(self, payload: str) -> None:
+        """Post ``payload`` as a Markdown comment on the associated PR.
+
+        Args:
+            payload: Rendered Markdown string.
 
         Raises:
             ChannelError: If token is missing, PR cannot be
                 identified, or the API request fails.
         """
-        token = self._get_token(config)
+        token = self._get_token()
         repo = self._get_repository()
-        api_url = (config.api_url or self.DEFAULT_API_URL).rstrip("/")
+        api_url = (self.config.api_url or self.DEFAULT_API_URL).rstrip("/")
         pr_id = self._get_pr_id(token, repo, api_url)
 
         url = f"{api_url}/2.0/repositories/{repo}/pullrequests/{pr_id}/comments"
-        self._post_json(url, {"content": {"raw": markdown}}, token)
+        self._post_json(url, {"content": {"raw": payload}}, token)
 
     def _get_pr_id(self, token: str, repo: str, api_url: str) -> str:
         """Determine the PR ID.
@@ -87,7 +90,7 @@ class BitbucketChannel(ReportChannel):
             PR ID as string.
 
         Raises:
-            ChannelError: If PR ID cannot be determined.
+            NoPrContextError: If PR ID cannot be determined.
         """
         # 1. Explicit env var
         pr_id = os.environ.get("AI_GUARD_PR_NUMBER")
@@ -119,12 +122,8 @@ class BitbucketChannel(ReportChannel):
             "BITBUCKET_PR_ID, or push your branch and open a PR"
         )
 
-    @staticmethod
-    def _get_token(config: PrReportConfig) -> str:
+    def _get_token(self) -> str:
         """Read the API token from the environment.
-
-        Args:
-            config: PR report config with ``token_env`` field.
 
         Returns:
             The token string.
@@ -132,10 +131,10 @@ class BitbucketChannel(ReportChannel):
         Raises:
             ChannelError: If the environment variable is not set.
         """
-        token = os.environ.get(config.token_env)
+        token = os.environ.get(self.config.token_env)
         if not token:
             raise ChannelError(
-                f"Bitbucket token not found: set the {config.token_env} "
+                f"Bitbucket token not found: set the {self.config.token_env} "
                 f"environment variable"
             )
         return token

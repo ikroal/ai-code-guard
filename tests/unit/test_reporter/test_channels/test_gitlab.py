@@ -38,7 +38,7 @@ class TestGitLabChannel:
         return mock_response
 
     def test_name(self) -> None:
-        assert GitLabChannel().name == "gitlab"
+        assert GitLabChannel.name == "gitlab"
 
     def test_send_success(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Successful POST with env vars."""
@@ -47,7 +47,7 @@ class TestGitLabChannel:
         monkeypatch.setenv("CI_MERGE_REQUEST_IID", "42")
 
         with patch("urllib.request.urlopen", return_value=self._mock_urlopen()) as m:
-            GitLabChannel().send("## Report", self._make_config())
+            GitLabChannel(self._make_config()).output("## Report")
             req = m.call_args[0][0]
             assert "/projects/12345/merge_requests/42/notes" in req.full_url
             assert "Report" in json.loads(req.data)["body"]
@@ -66,7 +66,7 @@ class TestGitLabChannel:
             ),
             pytest.raises(ChannelError, match="403"),
         ):
-            GitLabChannel().send("report", self._make_config())
+            GitLabChannel(self._make_config()).output("report")
 
     def test_missing_token_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv("GITLAB_TOKEN", raising=False)
@@ -74,7 +74,7 @@ class TestGitLabChannel:
         monkeypatch.setenv("CI_MERGE_REQUEST_IID", "1")
 
         with pytest.raises(ChannelError, match="token"):
-            GitLabChannel().send("report", self._make_config())
+            GitLabChannel(self._make_config()).output("report")
 
     def test_custom_api_url(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("GITLAB_TOKEN", "glpat-test123")
@@ -82,8 +82,8 @@ class TestGitLabChannel:
         monkeypatch.setenv("CI_MERGE_REQUEST_IID", "5")
 
         with patch("urllib.request.urlopen", return_value=self._mock_urlopen()) as m:
-            GitLabChannel().send(
-                "r", self._make_config(api_url="https://gitlab.corp.com")
+            GitLabChannel(self._make_config(api_url="https://gitlab.corp.com")).output(
+                "r"
             )
             assert m.call_args[0][0].full_url.startswith("https://gitlab.corp.com/")
 
@@ -100,7 +100,7 @@ class TestGitLabChannel:
             ),
             patch("urllib.request.urlopen", return_value=self._mock_urlopen()) as m,
         ):
-            GitLabChannel().send("r", self._make_config())
+            GitLabChannel(self._make_config()).output("r")
             # URL-encoded owner/repo: org%2Fmy-repo
             assert "/projects/org%2Fmy-repo/" in m.call_args[0][0].full_url
 
@@ -129,7 +129,7 @@ class TestGitLabChannel:
             ),
             patch("urllib.request.urlopen", side_effect=urlopen_side_effect) as m,
         ):
-            GitLabChannel().send("r", self._make_config())
+            GitLabChannel(self._make_config()).output("r")
             # Second call (POST) should use MR 77
             post_req = m.call_args_list[-1][0][0]
             assert "/merge_requests/77/notes" in post_req.full_url
@@ -148,7 +148,7 @@ class TestGitLabChannel:
             ),
             pytest.raises(ChannelError, match="MR IID"),
         ):
-            GitLabChannel().send("r", self._make_config())
+            GitLabChannel(self._make_config()).output("r")
 
     def test_no_mr_raises_no_pr_context_error(
         self, monkeypatch: pytest.MonkeyPatch
@@ -166,7 +166,7 @@ class TestGitLabChannel:
             ),
             pytest.raises(NoPrContextError, match="MR IID"),
         ):
-            GitLabChannel().send("r", self._make_config())
+            GitLabChannel(self._make_config()).output("r")
 
     def test_send_retries_transient_urlerror(
         self, monkeypatch: pytest.MonkeyPatch
@@ -183,5 +183,5 @@ class TestGitLabChannel:
             patch("urllib.request.urlopen", side_effect=side_effect) as m,
             patch("ac_guard.reporter.channels._http.time.sleep"),
         ):
-            GitLabChannel().send("## Report", self._make_config())
+            GitLabChannel(self._make_config()).output("## Report")
         assert m.call_count == 2

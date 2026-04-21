@@ -1,15 +1,16 @@
-"""ReportChannel ABC, registration, and R4 post_pr_comment API.
+"""ReportChannel ABC, registry, and post_pr_comment entry point.
 
-Defines the interface for posting check reports to code hosting
-platforms (GitHub, GitLab, etc.) as PR comments. Each platform
-is implemented as a separate channel file and auto-registered.
+Channel = physical output destination (terminal, file, Git platform PR
+comment). Each channel implements ``output(payload: str)`` — it receives
+an already-rendered string and delivers it to its destination. Channels
+do not render; formatting stays in :mod:`ac_guard.reporter.formatting`.
 """
 
 from __future__ import annotations
 
 import sys
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 from ac_guard.reporter.formatting import format_markdown
 
@@ -29,49 +30,39 @@ __all__ = [
 
 
 class ChannelError(Exception):
-    """Raised when a report channel operation fails.
-
-    This is caught by ``post_pr_comment`` to avoid affecting
-    the main exit code — failures are logged as warnings.
-    """
+    """Raised when a channel's ``output`` fails (I/O, auth, missing PR, ...)."""
 
 
 class NoPrContextError(ChannelError):
-    """Raised when no PR/MR can be identified in the current context.
+    """Raised when a Git-platform channel cannot identify a PR / MR.
 
-    Distinct from generic :class:`ChannelError` because it is an
-    expected condition during local development (no PR opened yet)
-    and should be silently skipped by :func:`post_pr_comment` —
-    not logged as a warning. Real failures such as missing tokens
-    or HTTP errors continue to raise plain :class:`ChannelError`.
+    Distinct from generic :class:`ChannelError` because it is an expected
+    condition during local development (no PR opened yet) and is silently
+    skipped by :func:`post_pr_comment` — not logged as a warning.
     """
 
 
 class ReportChannel(ABC):
-    """Abstract base for PR comment posting channels.
+    """Abstract base for report output channels.
 
-    Each subclass handles one platform (GitHub, GitLab, etc.).
-    Subclasses must be decorated with :func:`register_channel`
-    to be discoverable via :func:`get_channel`.
+    Subclasses must:
+        1. Set the ``name`` class attribute to a unique platform-style identifier
+           (e.g. ``"terminal"``, ``"github"``).
+        2. Implement :meth:`output` — deliver a rendered string payload to the
+           channel's physical destination.
+
+    Subclasses are registered via :func:`register_channel` so that they are
+    discoverable through :func:`get_channel`.
     """
 
-    @property
-    @abstractmethod
-    def name(self) -> str:
-        """Platform identifier matching ``output.pr_report.platform``."""
+    name: ClassVar[str] = ""
 
     @abstractmethod
-    def send(self, markdown: str, config: PrReportConfig) -> None:
-        """Post a Markdown report as a PR comment.
-
-        Args:
-            markdown: Rendered Markdown report string.
-            config: PR report configuration with platform
-                credentials and API endpoint.
+    def output(self, payload: str) -> None:
+        """Deliver ``payload`` to this channel's physical destination.
 
         Raises:
-            ChannelError: If posting fails (HTTP error,
-                missing credentials, no PR detected, etc.).
+            ChannelError: If delivery fails.
         """
 
 
@@ -83,82 +74,93 @@ _CHANNELS: dict[str, type[ReportChannel]] = {}
 
 
 def register_channel(cls: type[ReportChannel]) -> type[ReportChannel]:
-    """Register a ReportChannel subclass by its ``name``.
+    """Register a concrete :class:`ReportChannel` subclass.
 
     Intended as a class decorator::
 
         @register_channel
         class GitHubChannel(ReportChannel):
+            name = "github"
             ...
 
     Args:
-        cls: A concrete ReportChannel subclass.
+        cls: A concrete :class:`ReportChannel` subclass with a non-empty
+            ``name`` class attribute.
 
     Returns:
         The same class, unmodified.
+
+    Raises:
+        TypeError: If ``cls.name`` is empty.
     """
-    instance = cls()
-    _CHANNELS[instance.name] = cls
+    if not cls.name:
+        raise TypeError(f"{cls.__name__} must set a non-empty 'name' class attribute")
+    _CHANNELS[cls.name] = cls
     return cls
 
 
-def get_channel(platform: str) -> ReportChannel:
-    """Look up a registered channel by platform name.
+def get_channel(name: str) -> type[ReportChannel]:
+    """Look up a registered channel class by its ``name``.
 
     Args:
-        platform: Platform identifier (e.g. ``"github"``).
+        name: Channel identifier (e.g. ``"github"``, ``"terminal"``).
 
     Returns:
-        A new instance of the matching channel.
+        The registered channel class. Caller is responsible for
+        constructing an instance with channel-specific arguments.
 
     Raises:
-        ChannelError: If no channel is registered for the platform.
+        ChannelError: If no channel is registered under ``name``.
     """
-    cls = _CHANNELS.get(platform)
+    cls = _CHANNELS.get(name)
     if cls is None:
         available = ", ".join(sorted(_CHANNELS)) or "(none)"
-        raise ChannelError(f"Unknown platform '{platform}'. Available: {available}")
-    return cls()
+        raise ChannelError(f"Unknown channel '{name}'. Available: {available}")
+    return cls
 
 
 # ---------------------------------------------------------------------------
-# R4: Public API
+# post_pr_comment — Git Platform convenience wrapper
 # ---------------------------------------------------------------------------
 
 
 def post_pr_comment(
-    report: Any,
+    outcome: Any,
     config: PrReportConfig,
     locale: str = "en",
 ) -> None:
-    """Post a check report as a PR comment (R4 primitive).
+    """Render ``outcome`` as Markdown and post to the configured Git platform.
 
-    Renders the report to Markdown, looks up the appropriate
-    channel for the configured platform, and sends the comment.
+    Dispatches to the channel registered under ``config.platform`` (one of
+    ``"github"`` / ``"gitlab"`` / ``"gitea"`` / ``"bitbucket"``).
 
-    **Non-blocking:** If sending fails for any reason (missing
-    credentials, no PR detected, HTTP error), a warning is printed
-    to stderr but no exception is raised — the main exit code
-    is not affected.
+    **Non-blocking.** If posting fails for any reason (missing credentials,
+    HTTP error, unknown platform), a warning is printed to stderr but no
+    exception is raised — the main exit code is not affected.
+    :class:`NoPrContextError` (no PR/MR found locally) is silently skipped.
 
     Args:
-        report: Aggregated check report to post.
-        config: PR report configuration. If ``enabled`` is False,
-            this function returns immediately.
+        outcome: Check outcome (:class:`ac_guard.checker.StageOutcome`).
+        config: PR report configuration. If ``enabled`` is False, this
+            function returns immediately.
         locale: Locale for Markdown template (``"en"`` or ``"zh-CN"``).
     """
     if not config.enabled:
         return
 
     try:
-        markdown = format_markdown(report, locale)
-        channel = get_channel(config.platform)
-        channel.send(markdown, config)
+        payload = format_markdown(outcome, locale)
+        channel_cls = get_channel(config.platform)
+        channel_cls(config=config).output(payload)
     except NoPrContextError:
         return  # Silent skip: no PR in context (typical in local dev)
     except Exception as exc:
         print(f"Warning: PR comment failed to post: {exc}", file=sys.stderr)
 
+
+# ---------------------------------------------------------------------------
+# Built-in channel registration
+# ---------------------------------------------------------------------------
 
 # Ensure built-in channels are registered on import.
 # Dynamic import avoids binding unused module names (would trigger F401).

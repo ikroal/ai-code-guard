@@ -38,7 +38,7 @@ class TestBitbucketChannel:
         return mock_response
 
     def test_name(self) -> None:
-        assert BitbucketChannel().name == "bitbucket"
+        assert BitbucketChannel.name == "bitbucket"
 
     def test_send_success(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Successful POST with env vars."""
@@ -47,7 +47,7 @@ class TestBitbucketChannel:
         monkeypatch.setenv("BITBUCKET_PR_ID", "42")
 
         with patch("urllib.request.urlopen", return_value=self._mock_urlopen()) as m:
-            BitbucketChannel().send("## Report", self._make_config())
+            BitbucketChannel(self._make_config()).output("## Report")
             req = m.call_args[0][0]
             assert (
                 "/repositories/workspace/repo/pullrequests/42/comments" in req.full_url
@@ -69,7 +69,7 @@ class TestBitbucketChannel:
             ),
             pytest.raises(ChannelError, match="403"),
         ):
-            BitbucketChannel().send("report", self._make_config())
+            BitbucketChannel(self._make_config()).output("report")
 
     def test_missing_token_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv("BITBUCKET_TOKEN", raising=False)
@@ -77,7 +77,7 @@ class TestBitbucketChannel:
         monkeypatch.setenv("BITBUCKET_PR_ID", "1")
 
         with pytest.raises(ChannelError, match="token"):
-            BitbucketChannel().send("report", self._make_config())
+            BitbucketChannel(self._make_config()).output("report")
 
     def test_custom_api_url(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("BITBUCKET_TOKEN", "bb_test123")
@@ -85,8 +85,8 @@ class TestBitbucketChannel:
         monkeypatch.setenv("BITBUCKET_PR_ID", "5")
 
         with patch("urllib.request.urlopen", return_value=self._mock_urlopen()) as m:
-            BitbucketChannel().send(
-                "r", self._make_config(api_url="https://bb.corp.com")
+            BitbucketChannel(self._make_config(api_url="https://bb.corp.com")).output(
+                "r"
             )
             assert m.call_args[0][0].full_url.startswith("https://bb.corp.com/")
 
@@ -103,7 +103,7 @@ class TestBitbucketChannel:
             ),
             patch("urllib.request.urlopen", return_value=self._mock_urlopen()) as m,
         ):
-            BitbucketChannel().send("r", self._make_config())
+            BitbucketChannel(self._make_config()).output("r")
             assert "/repositories/org/my-repo/" in m.call_args[0][0].full_url
 
     def test_pr_from_api_query(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -142,7 +142,7 @@ class TestBitbucketChannel:
             ),
             patch("urllib.request.urlopen", side_effect=urlopen_side_effect) as m,
         ):
-            BitbucketChannel().send("r", self._make_config())
+            BitbucketChannel(self._make_config()).output("r")
             # Second call (POST) should use PR 77
             post_req = m.call_args_list[-1][0][0]
             assert "/pullrequests/77/comments" in post_req.full_url
@@ -161,7 +161,7 @@ class TestBitbucketChannel:
             ),
             pytest.raises(ChannelError, match="PR ID"),
         ):
-            BitbucketChannel().send("r", self._make_config())
+            BitbucketChannel(self._make_config()).output("r")
 
     def test_no_pr_raises_no_pr_context_error(
         self, monkeypatch: pytest.MonkeyPatch
@@ -179,7 +179,7 @@ class TestBitbucketChannel:
             ),
             pytest.raises(NoPrContextError, match="PR ID"),
         ):
-            BitbucketChannel().send("r", self._make_config())
+            BitbucketChannel(self._make_config()).output("r")
 
     def test_send_retries_transient_urlerror(
         self, monkeypatch: pytest.MonkeyPatch
@@ -196,5 +196,5 @@ class TestBitbucketChannel:
             patch("urllib.request.urlopen", side_effect=side_effect) as m,
             patch("ac_guard.reporter.channels._http.time.sleep"),
         ):
-            BitbucketChannel().send("## Report", self._make_config())
+            BitbucketChannel(self._make_config()).output("## Report")
         assert m.call_count == 2

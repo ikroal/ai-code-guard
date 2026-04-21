@@ -1,8 +1,8 @@
-"""Gitea ReportChannel — posts check reports as PR comments.
+"""Gitea ReportChannel — posts rendered payloads as PR comments.
 
 Uses the Gitea REST API to create issue comments on pull requests.
-Supports both gitea.com and self-hosted Gitea instances
-via the ``api_url`` configuration.
+Supports both gitea.com and self-hosted Gitea instances via the
+``api_url`` configuration.
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ __all__ = ["GiteaChannel"]
 
 @register_channel
 class GiteaChannel(ReportChannel):
-    """Post check reports to Gitea PR comments.
+    """Post rendered Markdown payloads to Gitea PR comments.
 
     Repository and PR number are resolved automatically:
 
@@ -43,31 +43,34 @@ class GiteaChannel(ReportChannel):
         DEFAULT_API_URL: Default Gitea API base URL.
     """
 
+    name = "gitea"
     DEFAULT_API_URL = "https://gitea.com"
 
-    @property
-    def name(self) -> str:
-        """Platform identifier."""
-        return "gitea"
-
-    def send(self, markdown: str, config: PrReportConfig) -> None:
-        """Post markdown as a comment on the associated PR.
+    def __init__(self, config: PrReportConfig) -> None:
+        """Store the PR report configuration for later use by :meth:`output`.
 
         Args:
-            markdown: Rendered Markdown report string.
             config: PR report configuration.
+        """
+        self.config = config
+
+    def output(self, payload: str) -> None:
+        """Post ``payload`` as a Markdown comment on the associated PR.
+
+        Args:
+            payload: Rendered Markdown string.
 
         Raises:
             ChannelError: If token is missing, PR cannot be
                 identified, or the API request fails.
         """
-        token = self._get_token(config)
+        token = self._get_token()
         repo = self._get_repository()
-        api_url = (config.api_url or self.DEFAULT_API_URL).rstrip("/")
+        api_url = (self.config.api_url or self.DEFAULT_API_URL).rstrip("/")
         pr_number = self._get_pr_number(token, repo, api_url)
 
         url = f"{api_url}/api/v1/repos/{repo}/issues/{pr_number}/comments"
-        self._post_json(url, {"body": markdown}, token)
+        self._post_json(url, {"body": payload}, token)
 
     def _get_pr_number(self, token: str, repo: str, api_url: str) -> str:
         """Determine the PR number.
@@ -85,7 +88,7 @@ class GiteaChannel(ReportChannel):
             PR number as string.
 
         Raises:
-            ChannelError: If PR number cannot be determined.
+            NoPrContextError: If PR number cannot be determined.
         """
         # 1. Explicit env var
         pr_number = os.environ.get("AI_GUARD_PR_NUMBER")
@@ -111,12 +114,8 @@ class GiteaChannel(ReportChannel):
             "or push your branch and open a PR"
         )
 
-    @staticmethod
-    def _get_token(config: PrReportConfig) -> str:
+    def _get_token(self) -> str:
         """Read the API token from the environment.
-
-        Args:
-            config: PR report config with ``token_env`` field.
 
         Returns:
             The token string.
@@ -124,10 +123,10 @@ class GiteaChannel(ReportChannel):
         Raises:
             ChannelError: If the environment variable is not set.
         """
-        token = os.environ.get(config.token_env)
+        token = os.environ.get(self.config.token_env)
         if not token:
             raise ChannelError(
-                f"Gitea token not found: set the {config.token_env} "
+                f"Gitea token not found: set the {self.config.token_env} "
                 f"environment variable"
             )
         return token

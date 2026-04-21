@@ -1,8 +1,8 @@
-"""GitLab ReportChannel — posts check reports as MR comments.
+"""GitLab ReportChannel — posts rendered payloads as MR comments.
 
 Uses the GitLab REST API to create note comments on merge requests.
-Supports both gitlab.com and self-hosted GitLab instances
-via the ``api_url`` configuration.
+Supports both gitlab.com and self-hosted GitLab instances via the
+``api_url`` configuration.
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ __all__ = ["GitLabChannel"]
 
 @register_channel
 class GitLabChannel(ReportChannel):
-    """Post check reports to GitLab MR comments.
+    """Post rendered Markdown payloads to GitLab MR comments.
 
     Repository and MR number are resolved automatically:
 
@@ -45,31 +45,34 @@ class GitLabChannel(ReportChannel):
         DEFAULT_API_URL: Default GitLab API base URL.
     """
 
+    name = "gitlab"
     DEFAULT_API_URL = "https://gitlab.com"
 
-    @property
-    def name(self) -> str:
-        """Platform identifier."""
-        return "gitlab"
-
-    def send(self, markdown: str, config: PrReportConfig) -> None:
-        """Post markdown as a comment on the associated MR.
+    def __init__(self, config: PrReportConfig) -> None:
+        """Store the PR report configuration for later use by :meth:`output`.
 
         Args:
-            markdown: Rendered Markdown report string.
             config: PR report configuration.
+        """
+        self.config = config
+
+    def output(self, payload: str) -> None:
+        """Post ``payload`` as a Markdown comment on the associated MR.
+
+        Args:
+            payload: Rendered Markdown string.
 
         Raises:
             ChannelError: If token is missing, MR cannot be
                 identified, or the API request fails.
         """
-        token = self._get_token(config)
+        token = self._get_token()
         project_id = self._get_project_id()
-        api_url = (config.api_url or self.DEFAULT_API_URL).rstrip("/")
+        api_url = (self.config.api_url or self.DEFAULT_API_URL).rstrip("/")
         mr_iid = self._get_mr_iid(token, project_id, api_url)
 
         url = f"{api_url}/api/v4/projects/{project_id}/merge_requests/{mr_iid}/notes"
-        self._post_json(url, {"body": markdown}, token)
+        self._post_json(url, {"body": payload}, token)
 
     def _get_mr_iid(self, token: str, project_id: str, api_url: str) -> str:
         """Determine the MR IID.
@@ -88,7 +91,7 @@ class GitLabChannel(ReportChannel):
             MR IID as string.
 
         Raises:
-            ChannelError: If MR IID cannot be determined.
+            NoPrContextError: If MR IID cannot be determined.
         """
         # 1. Explicit env var
         mr_iid = os.environ.get("AI_GUARD_PR_NUMBER")
@@ -120,12 +123,8 @@ class GitLabChannel(ReportChannel):
             "CI_MERGE_REQUEST_IID, or push your branch and open a MR"
         )
 
-    @staticmethod
-    def _get_token(config: PrReportConfig) -> str:
+    def _get_token(self) -> str:
         """Read the API token from the environment.
-
-        Args:
-            config: PR report config with ``token_env`` field.
 
         Returns:
             The token string.
@@ -133,10 +132,10 @@ class GitLabChannel(ReportChannel):
         Raises:
             ChannelError: If the environment variable is not set.
         """
-        token = os.environ.get(config.token_env)
+        token = os.environ.get(self.config.token_env)
         if not token:
             raise ChannelError(
-                f"GitLab token not found: set the {config.token_env} "
+                f"GitLab token not found: set the {self.config.token_env} "
                 f"environment variable"
             )
         return token

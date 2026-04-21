@@ -313,7 +313,9 @@ class TestCliPrReportIntegration:
         config = _write_config_pr_report(tmp_path, enabled=True)
         with (
             patch("ac_guard.checker.core.get_changed_files", return_value=[]),
-            patch("ac_guard.reporter.channels.github.GitHubChannel.send") as mock_send,
+            patch(
+                "ac_guard.reporter.channels.github.GitHubChannel.output"
+            ) as mock_send,
         ):
             result = runner.invoke(app, ["check", "--config", str(config)])
         assert result.exit_code == 0
@@ -329,7 +331,9 @@ class TestCliPrReportIntegration:
         config = _write_config_pr_report(tmp_path, enabled=True)
         with (
             patch("ac_guard.checker.core.get_changed_files", return_value=[]),
-            patch("ac_guard.reporter.channels.github.GitHubChannel.send") as mock_send,
+            patch(
+                "ac_guard.reporter.channels.github.GitHubChannel.output"
+            ) as mock_send,
         ):
             result = runner.invoke(
                 app, ["gate", "run", "--stage", "pre-commit", "--config", str(config)]
@@ -343,7 +347,7 @@ class TestCliPrReportIntegration:
         with (
             patch("ac_guard.checker.core.get_changed_files", return_value=[]),
             patch(
-                "ac_guard.reporter.channels.github.GitHubChannel.send",
+                "ac_guard.reporter.channels.github.GitHubChannel.output",
                 side_effect=NoPrContextError("Cannot determine PR number"),
             ),
         ):
@@ -365,7 +369,7 @@ class TestCliPrReportIntegration:
         with (
             patch("ac_guard.checker.core.get_changed_files", return_value=[]),
             patch(
-                "ac_guard.reporter.channels.github.GitHubChannel.send",
+                "ac_guard.reporter.channels.github.GitHubChannel.output",
                 side_effect=ChannelError("GitHub API returned 500"),
             ),
         ):
@@ -387,7 +391,9 @@ class TestCliPrReportIntegration:
         config = _write_config_pr_report(tmp_path, enabled=False)
         with (
             patch("ac_guard.checker.core.get_changed_files", return_value=[]),
-            patch("ac_guard.reporter.channels.github.GitHubChannel.send") as mock_send,
+            patch(
+                "ac_guard.reporter.channels.github.GitHubChannel.output"
+            ) as mock_send,
         ):
             result = runner.invoke(app, ["check", "--config", str(config)])
         assert result.exit_code == 0

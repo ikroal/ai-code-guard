@@ -38,7 +38,7 @@ class TestGiteaChannel:
         return mock_response
 
     def test_name(self) -> None:
-        assert GiteaChannel().name == "gitea"
+        assert GiteaChannel.name == "gitea"
 
     def test_send_success(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Successful POST with env vars."""
@@ -47,7 +47,7 @@ class TestGiteaChannel:
         monkeypatch.setenv("AI_GUARD_PR_NUMBER", "42")
 
         with patch("urllib.request.urlopen", return_value=self._mock_urlopen()) as m:
-            GiteaChannel().send("## Report", self._make_config())
+            GiteaChannel(self._make_config()).output("## Report")
             req = m.call_args[0][0]
             assert "/repos/owner/repo/issues/42/comments" in req.full_url
             assert "Report" in json.loads(req.data)["body"]
@@ -66,7 +66,7 @@ class TestGiteaChannel:
             ),
             pytest.raises(ChannelError, match="403"),
         ):
-            GiteaChannel().send("report", self._make_config())
+            GiteaChannel(self._make_config()).output("report")
 
     def test_missing_token_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv("GITEA_TOKEN", raising=False)
@@ -74,7 +74,7 @@ class TestGiteaChannel:
         monkeypatch.setenv("AI_GUARD_PR_NUMBER", "1")
 
         with pytest.raises(ChannelError, match="token"):
-            GiteaChannel().send("report", self._make_config())
+            GiteaChannel(self._make_config()).output("report")
 
     def test_custom_api_url(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("GITEA_TOKEN", "gt_test123")
@@ -82,7 +82,7 @@ class TestGiteaChannel:
         monkeypatch.setenv("AI_GUARD_PR_NUMBER", "5")
 
         with patch("urllib.request.urlopen", return_value=self._mock_urlopen()) as m:
-            GiteaChannel().send("r", self._make_config(api_url="https://git.corp.com"))
+            GiteaChannel(self._make_config(api_url="https://git.corp.com")).output("r")
             assert m.call_args[0][0].full_url.startswith("https://git.corp.com/")
 
     def test_repo_from_git_remote(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -98,7 +98,7 @@ class TestGiteaChannel:
             ),
             patch("urllib.request.urlopen", return_value=self._mock_urlopen()) as m,
         ):
-            GiteaChannel().send("r", self._make_config())
+            GiteaChannel(self._make_config()).output("r")
             assert "/repos/org/my-repo/" in m.call_args[0][0].full_url
 
     def test_pr_from_api_query(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -131,7 +131,7 @@ class TestGiteaChannel:
             ),
             patch("urllib.request.urlopen", side_effect=urlopen_side_effect) as m,
         ):
-            GiteaChannel().send("r", self._make_config())
+            GiteaChannel(self._make_config()).output("r")
             # Second call (POST) should use PR 77
             post_req = m.call_args_list[-1][0][0]
             assert "/issues/77/comments" in post_req.full_url
@@ -148,7 +148,7 @@ class TestGiteaChannel:
             ),
             pytest.raises(ChannelError, match="PR number"),
         ):
-            GiteaChannel().send("r", self._make_config())
+            GiteaChannel(self._make_config()).output("r")
 
     def test_no_pr_raises_no_pr_context_error(
         self, monkeypatch: pytest.MonkeyPatch
@@ -164,7 +164,7 @@ class TestGiteaChannel:
             ),
             pytest.raises(NoPrContextError, match="PR number"),
         ):
-            GiteaChannel().send("r", self._make_config())
+            GiteaChannel(self._make_config()).output("r")
 
     def test_send_retries_transient_urlerror(
         self, monkeypatch: pytest.MonkeyPatch
@@ -181,5 +181,5 @@ class TestGiteaChannel:
             patch("urllib.request.urlopen", side_effect=side_effect) as m,
             patch("ac_guard.reporter.channels._http.time.sleep"),
         ):
-            GiteaChannel().send("## Report", self._make_config())
+            GiteaChannel(self._make_config()).output("## Report")
         assert m.call_count == 2

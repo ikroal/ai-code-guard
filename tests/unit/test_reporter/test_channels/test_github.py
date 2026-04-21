@@ -38,7 +38,7 @@ class TestGitHubChannel:
         return mock_response
 
     def test_name_is_github(self) -> None:
-        assert GitHubChannel().name == "github"
+        assert GitHubChannel.name == "github"
 
     def test_send_success(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Successful POST with env vars."""
@@ -47,7 +47,7 @@ class TestGitHubChannel:
         monkeypatch.setenv("GITHUB_REF", "refs/pull/42/merge")
 
         with patch("urllib.request.urlopen", return_value=self._mock_urlopen()) as m:
-            GitHubChannel().send("## Report", self._make_config())
+            GitHubChannel(self._make_config()).output("## Report")
             req = m.call_args[0][0]
             assert "/repos/owner/repo/issues/42/comments" in req.full_url
             assert "Report" in json.loads(req.data)["body"]
@@ -66,7 +66,7 @@ class TestGitHubChannel:
             ),
             pytest.raises(ChannelError, match="403"),
         ):
-            GitHubChannel().send("report", self._make_config())
+            GitHubChannel(self._make_config()).output("report")
 
     def test_missing_token_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv("GITHUB_TOKEN", raising=False)
@@ -74,7 +74,7 @@ class TestGitHubChannel:
         monkeypatch.setenv("GITHUB_REF", "refs/pull/1/merge")
 
         with pytest.raises(ChannelError, match="token"):
-            GitHubChannel().send("report", self._make_config())
+            GitHubChannel(self._make_config()).output("report")
 
     def test_custom_api_url(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("GITHUB_TOKEN", "ghp_test123")
@@ -82,9 +82,9 @@ class TestGitHubChannel:
         monkeypatch.setenv("GITHUB_REF", "refs/pull/5/merge")
 
         with patch("urllib.request.urlopen", return_value=self._mock_urlopen()) as m:
-            GitHubChannel().send(
-                "r", self._make_config(api_url="https://git.corp.com/api/v3")
-            )
+            GitHubChannel(
+                self._make_config(api_url="https://git.corp.com/api/v3")
+            ).output("r")
             assert m.call_args[0][0].full_url.startswith("https://git.corp.com/api/v3/")
 
     def test_pr_number_from_ac_guard_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -94,7 +94,7 @@ class TestGitHubChannel:
         monkeypatch.setenv("AI_GUARD_PR_NUMBER", "99")
 
         with patch("urllib.request.urlopen", return_value=self._mock_urlopen()) as m:
-            GitHubChannel().send("r", self._make_config())
+            GitHubChannel(self._make_config()).output("r")
             assert "/issues/99/comments" in m.call_args[0][0].full_url
 
     def test_pr_number_from_github_ref(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -104,7 +104,7 @@ class TestGitHubChannel:
         monkeypatch.delenv("AI_GUARD_PR_NUMBER", raising=False)
 
         with patch("urllib.request.urlopen", return_value=self._mock_urlopen()) as m:
-            GitHubChannel().send("r", self._make_config())
+            GitHubChannel(self._make_config()).output("r")
             assert "/issues/123/comments" in m.call_args[0][0].full_url
 
     def test_pr_number_from_api_query(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -132,7 +132,7 @@ class TestGitHubChannel:
             ),
             patch("urllib.request.urlopen", side_effect=urlopen_side_effect) as m,
         ):
-            GitHubChannel().send("r", self._make_config())
+            GitHubChannel(self._make_config()).output("r")
             # Second call (POST) should use PR 77
             post_req = m.call_args_list[-1][0][0]
             assert "/issues/77/comments" in post_req.full_url
@@ -150,7 +150,7 @@ class TestGitHubChannel:
             ),
             patch("urllib.request.urlopen", return_value=self._mock_urlopen()) as m,
         ):
-            GitHubChannel().send("r", self._make_config())
+            GitHubChannel(self._make_config()).output("r")
             assert "/repos/org/my-repo/" in m.call_args[0][0].full_url
 
     def test_missing_repo_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -164,7 +164,7 @@ class TestGitHubChannel:
             ),
             pytest.raises(ChannelError, match="repository"),
         ):
-            GitHubChannel().send("r", self._make_config())
+            GitHubChannel(self._make_config()).output("r")
 
     def test_missing_pr_number_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """All PR detection methods fail."""
@@ -180,7 +180,7 @@ class TestGitHubChannel:
             ),
             pytest.raises(ChannelError, match="PR number"),
         ):
-            GitHubChannel().send("r", self._make_config())
+            GitHubChannel(self._make_config()).output("r")
 
     def test_non_pr_github_ref_falls_to_api(
         self, monkeypatch: pytest.MonkeyPatch
@@ -198,7 +198,7 @@ class TestGitHubChannel:
             ),
             pytest.raises(ChannelError, match="PR number"),
         ):
-            GitHubChannel().send("r", self._make_config())
+            GitHubChannel(self._make_config()).output("r")
 
     def test_no_pr_raises_no_pr_context_error(
         self, monkeypatch: pytest.MonkeyPatch
@@ -216,7 +216,7 @@ class TestGitHubChannel:
             ),
             pytest.raises(NoPrContextError, match="PR number"),
         ):
-            GitHubChannel().send("r", self._make_config())
+            GitHubChannel(self._make_config()).output("r")
 
     def test_send_retries_transient_urlerror(
         self, monkeypatch: pytest.MonkeyPatch
@@ -233,5 +233,5 @@ class TestGitHubChannel:
             patch("urllib.request.urlopen", side_effect=side_effect) as m,
             patch("ac_guard.reporter.channels._http.time.sleep"),
         ):
-            GitHubChannel().send("## Report", self._make_config())
+            GitHubChannel(self._make_config()).output("## Report")
         assert m.call_count == 2

@@ -1,10 +1,11 @@
-"""Tests for ReportChannel ABC, registration, and post_pr_comment."""
+"""Tests for ReportChannel ABC, registry, and post_pr_comment."""
 
 from __future__ import annotations
 
 import pytest
 
 from ac_guard.config.models import PrReportConfig
+from ac_guard.reporter.channels import base as channel_base
 from ac_guard.reporter.channels.base import (
     ChannelError,
     NoPrContextError,
@@ -22,7 +23,7 @@ class TestReportChannelABC:
         with pytest.raises(TypeError):
             ReportChannel()  # type: ignore[abstract]
 
-    def test_subclass_must_implement_name_and_send(self) -> None:
+    def test_subclass_must_implement_output(self) -> None:
         class Incomplete(ReportChannel):
             pass
 
@@ -31,11 +32,9 @@ class TestReportChannelABC:
 
     def test_valid_subclass(self) -> None:
         class Valid(ReportChannel):
-            @property
-            def name(self) -> str:
-                return "test"
+            name = "test"
 
-            def send(self, markdown: str, config: PrReportConfig) -> None:
+            def output(self, payload: str) -> None:
                 pass
 
         ch = Valid()
@@ -45,18 +44,30 @@ class TestReportChannelABC:
 class TestRegisterAndGetChannel:
     """Channel registration and lookup."""
 
-    def test_register_and_get(self) -> None:
+    def test_register_and_get(self, monkeypatch: pytest.MonkeyPatch) -> None:
         class FakeChannel(ReportChannel):
-            @property
-            def name(self) -> str:
-                return "fake"
+            name = "fake-register-test"
 
-            def send(self, markdown: str, config: PrReportConfig) -> None:
+            def output(self, payload: str) -> None:
                 pass
 
+        # Register without polluting the global registry beyond this test.
+        original = dict(channel_base._CHANNELS)
         register_channel(FakeChannel)
-        ch = get_channel("fake")
-        assert ch.name == "fake"
+        monkeypatch.setattr(channel_base, "_CHANNELS", dict(channel_base._CHANNELS))
+        channel_base._CHANNELS.update(original)  # restore baseline after monkeypatch
+
+        ch_cls = get_channel("fake-register-test")
+        assert ch_cls is FakeChannel
+        assert ch_cls.name == "fake-register-test"
+
+    def test_register_rejects_empty_name(self) -> None:
+        class Nameless(ReportChannel):
+            def output(self, payload: str) -> None:
+                pass
+
+        with pytest.raises(TypeError, match="name"):
+            register_channel(Nameless)
 
     def test_get_unknown_platform_raises(self) -> None:
         with pytest.raises(ChannelError, match="unknown-platform"):
@@ -64,8 +75,8 @@ class TestRegisterAndGetChannel:
 
     def test_get_github_returns_github_channel(self) -> None:
         """GitHubChannel should be auto-registered on import."""
-        ch = get_channel("github")
-        assert ch.name == "github"
+        cls = get_channel("github")
+        assert cls.name == "github"
 
 
 class TestPostPrComment:
@@ -75,23 +86,23 @@ class TestPostPrComment:
         """When pr_report.enabled=False, should not attempt to send."""
         config = PrReportConfig(enabled=False)
         # Should not raise regardless of missing env vars
-        post_pr_comment(report=None, config=config, locale="en")  # type: ignore[arg-type]
+        post_pr_comment(None, config, "en")  # type: ignore[arg-type]
 
     def test_send_failure_does_not_raise(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """If channel.send() raises, post_pr_comment catches and warns."""
+        """If channel.output() raises, post_pr_comment catches and warns."""
         from ac_guard.checker.models import StageOutcome
 
         config = PrReportConfig(enabled=True, platform="github")
-        report = StageOutcome(stage="pre-commit", passed=True)
+        outcome = StageOutcome(stage="pre-commit", passed=True)
 
-        # Ensure send will fail (no env vars set)
+        # Ensure the GitHub channel will fail (no env vars set)
         monkeypatch.delenv("GITHUB_TOKEN", raising=False)
         monkeypatch.delenv("GITHUB_REPOSITORY", raising=False)
         monkeypatch.delenv("GITHUB_REF", raising=False)
         monkeypatch.delenv("AI_GUARD_PR_NUMBER", raising=False)
 
         # Should not raise — catches internally
-        post_pr_comment(report=report, config=config, locale="en")
+        post_pr_comment(outcome, config, "en")
 
 
 class TestNoPrContextError:
@@ -106,24 +117,24 @@ class TestNoPrContextError:
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        """NoPrContextError from channel.send => no stderr output, normal return."""
+        """NoPrContextError from channel.output => no stderr output."""
         from ac_guard.checker.models import StageOutcome
-        from ac_guard.reporter.channels import base as channel_base
 
         config = PrReportConfig(enabled=True, platform="fake-no-pr")
-        report = StageOutcome(stage="pre-commit", passed=True)
+        outcome = StageOutcome(stage="pre-commit", passed=True)
 
         class _NoPrChannel(ReportChannel):
-            @property
-            def name(self) -> str:
-                return "fake-no-pr"
+            name = "fake-no-pr"
 
-            def send(self, markdown: str, config: PrReportConfig) -> None:
+            def __init__(self, config: PrReportConfig) -> None:
+                pass
+
+            def output(self, payload: str) -> None:
                 raise NoPrContextError("no PR in context")
 
         monkeypatch.setitem(channel_base._CHANNELS, "fake-no-pr", _NoPrChannel)
 
-        post_pr_comment(report=report, config=config, locale="en")
+        post_pr_comment(outcome, config, "en")
 
         captured = capsys.readouterr()
         assert captured.err == ""
@@ -136,22 +147,22 @@ class TestNoPrContextError:
     ) -> None:
         """ChannelError (not NoPrContextError) => stderr warning."""
         from ac_guard.checker.models import StageOutcome
-        from ac_guard.reporter.channels import base as channel_base
 
         config = PrReportConfig(enabled=True, platform="fake-api-500")
-        report = StageOutcome(stage="pre-commit", passed=True)
+        outcome = StageOutcome(stage="pre-commit", passed=True)
 
         class _ApiFailChannel(ReportChannel):
-            @property
-            def name(self) -> str:
-                return "fake-api-500"
+            name = "fake-api-500"
 
-            def send(self, markdown: str, config: PrReportConfig) -> None:
+            def __init__(self, config: PrReportConfig) -> None:
+                pass
+
+            def output(self, payload: str) -> None:
                 raise ChannelError("API 500")
 
         monkeypatch.setitem(channel_base._CHANNELS, "fake-api-500", _ApiFailChannel)
 
-        post_pr_comment(report=report, config=config, locale="en")
+        post_pr_comment(outcome, config, "en")
 
         captured = capsys.readouterr()
         assert "Warning: PR comment failed to post" in captured.err
