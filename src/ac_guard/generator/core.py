@@ -339,61 +339,68 @@ def write_artifacts(
 
     for artifact in artifacts:
         full_path = project_root / artifact.path
-
         try:
-            # Ensure parent directory exists
             full_path.parent.mkdir(parents=True, exist_ok=True)
-
-            # Schema v2 (#123 D4): .pre-commit-config.yaml is now a
-            # pure artifact — overwrite unconditionally, no managed-
-            # block splicing. Rule-doc files (CLAUDE.md, etc.) still
-            # honor the managed-block contract so user edits outside
-            # the block survive.
-            if artifact.path == ".pre-commit-config.yaml":
-                content = artifact.content
-            elif full_path.is_file():
-                existing = full_path.read_text(encoding="utf-8")
-                begin, end = markers_for(artifact.path)
-                if begin in existing and end in existing:
-                    new_inner = _unwrap_self_embedded_block(
-                        artifact.content, begin, end
-                    )
-                    content = replace_managed_block(
-                        existing, new_inner, path=artifact.path
-                    )
-                else:
-                    content = artifact.content
-            elif _should_wrap_new_file(artifact.path):
-                content = wrap_with_managed_block(artifact.content, path=artifact.path)
-            else:
-                content = artifact.content
-
-            # Write file
+            content = _resolve_artifact_content(artifact, full_path)
             full_path.write_text(content, encoding="utf-8")
-
-            # Set executable flag if required
             if artifact.executable:
-                current_mode = full_path.stat().st_mode
-                full_path.chmod(
-                    current_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH
-                )
-
+                _apply_executable_flag(full_path)
             written_paths.append(artifact.path)
-
         except PermissionError:
             failed_paths.append(artifact.path)
-        except OSError as e:
-            # Other I/O errors (disk full, etc.)
-            if "Permission denied" in str(e) or e.errno == 13:
+        except OSError as exc:
+            if _is_permission_error(exc):
                 failed_paths.append(artifact.path)
             else:
-                # Re-raise unexpected I/O errors
                 raise
 
     if failed_paths:
         raise ArtifactWriteError(failed_paths=failed_paths)
 
     return written_paths
+
+
+def _resolve_artifact_content(artifact: FileSpec, full_path: Path) -> str:
+    """Return the final on-disk content for ``artifact``.
+
+    Schema v2 (#123 D4) rules:
+
+    - ``.pre-commit-config.yaml`` is overwritten unconditionally
+      (pure artifact, no managed-block splicing).
+    - An existing rule-doc file containing markers is spliced — user
+      edits outside the managed block survive.
+    - A new rule-doc file whose extension opts into wrapping
+      (:data:`_WRAP_ON_WRITE_EXTS`) is wrapped in markers.
+    - Everything else is written verbatim from the template.
+    """
+    if artifact.path == ".pre-commit-config.yaml":
+        return artifact.content
+    if full_path.is_file():
+        existing = full_path.read_text(encoding="utf-8")
+        begin, end = markers_for(artifact.path)
+        if begin in existing and end in existing:
+            new_inner = _unwrap_self_embedded_block(artifact.content, begin, end)
+            return replace_managed_block(existing, new_inner, path=artifact.path)
+        return artifact.content
+    if _should_wrap_new_file(artifact.path):
+        return wrap_with_managed_block(artifact.content, path=artifact.path)
+    return artifact.content
+
+
+def _apply_executable_flag(full_path: Path) -> None:
+    """Add user/group/other execute bits to ``full_path`` preserving existing mode."""
+    current_mode = full_path.stat().st_mode
+    full_path.chmod(current_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+
+
+def _is_permission_error(exc: OSError) -> bool:
+    """Whether an ``OSError`` represents a permission failure.
+
+    ``PermissionError`` is handled separately; this catches platforms
+    that surface permission denials through the generic ``OSError``
+    path (errno 13 or ``Permission denied`` in the message).
+    """
+    return "Permission denied" in str(exc) or exc.errno == 13
 
 
 def delete_artifacts(
