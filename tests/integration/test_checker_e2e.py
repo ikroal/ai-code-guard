@@ -18,7 +18,7 @@ import pytest
 import yaml
 from typer.testing import CliRunner
 
-from ac_guard.checker.models import CheckReport, CheckResult
+from ac_guard.checker.models import CheckResult, StageOutcome
 from ac_guard.cli.main import app
 from ac_guard.reporter.formatting import format_markdown
 
@@ -537,7 +537,7 @@ class TestReportFormats:
 
     def test_markdown_rendering(self) -> None:
         """F2: Markdown report has table and emoji."""
-        report = CheckReport(
+        report = StageOutcome(
             stage="pre-commit",
             passed=False,
             results=[

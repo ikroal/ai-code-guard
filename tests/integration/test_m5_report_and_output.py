@@ -86,7 +86,7 @@ class TestPrReportFlow:
     """D1: Config → Checker → Markdown → Channel.send."""
 
     def test_check_report_to_markdown_to_channel(self, tmp_path: Path) -> None:
-        """D1-1: Real CheckReport → format_markdown → post_pr_comment (mock HTTP)."""
+        """D1-1: Real StageOutcome → format_markdown → post_pr_comment (mock HTTP)."""
         config = _init_and_install(tmp_path)
         resolved_config = _resolve(config)
 

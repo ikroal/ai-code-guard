@@ -7,11 +7,11 @@ from ac_guard.checker.core import (
     run_precommit,
     run_stage,
 )
-from ac_guard.checker.models import CheckReport, CheckResult, Violation
+from ac_guard.checker.models import CheckResult, StageOutcome, Violation
 
 __all__ = [
-    "CheckReport",
     "CheckResult",
+    "StageOutcome",
     "Violation",
     "get_changed_files",
     "run_build",

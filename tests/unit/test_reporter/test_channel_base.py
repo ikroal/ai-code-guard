@@ -79,10 +79,10 @@ class TestPostPrComment:
 
     def test_send_failure_does_not_raise(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """If channel.send() raises, post_pr_comment catches and warns."""
-        from ac_guard.checker.models import CheckReport
+        from ac_guard.checker.models import StageOutcome
 
         config = PrReportConfig(enabled=True, platform="github")
-        report = CheckReport(stage="pre-commit", passed=True)
+        report = StageOutcome(stage="pre-commit", passed=True)
 
         # Ensure send will fail (no env vars set)
         monkeypatch.delenv("GITHUB_TOKEN", raising=False)
@@ -107,11 +107,11 @@ class TestNoPrContextError:
         capsys: pytest.CaptureFixture[str],
     ) -> None:
         """NoPrContextError from channel.send => no stderr output, normal return."""
-        from ac_guard.checker.models import CheckReport
+        from ac_guard.checker.models import StageOutcome
         from ac_guard.reporter import channel_base
 
         config = PrReportConfig(enabled=True, platform="fake-no-pr")
-        report = CheckReport(stage="pre-commit", passed=True)
+        report = StageOutcome(stage="pre-commit", passed=True)
 
         class _NoPrChannel(ReportChannel):
             @property
@@ -135,11 +135,11 @@ class TestNoPrContextError:
         capsys: pytest.CaptureFixture[str],
     ) -> None:
         """ChannelError (not NoPrContextError) => stderr warning."""
-        from ac_guard.checker.models import CheckReport
+        from ac_guard.checker.models import StageOutcome
         from ac_guard.reporter import channel_base
 
         config = PrReportConfig(enabled=True, platform="fake-api-500")
-        report = CheckReport(stage="pre-commit", passed=True)
+        report = StageOutcome(stage="pre-commit", passed=True)
 
         class _ApiFailChannel(ReportChannel):
             @property

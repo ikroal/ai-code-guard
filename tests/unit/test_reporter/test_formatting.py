@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ac_guard.checker.models import CheckReport, CheckResult, Violation
+from ac_guard.checker.models import CheckResult, StageOutcome, Violation
 from ac_guard.reporter.formatting import (
     format_gate,
     format_json,
@@ -11,9 +11,9 @@ from ac_guard.reporter.formatting import (
 )
 
 
-def _passed_report() -> CheckReport:
+def _passed_report() -> StageOutcome:
     """Create a passing report for testing."""
-    return CheckReport(
+    return StageOutcome(
         stage="pre-commit",
         passed=True,
         results=[
@@ -24,9 +24,9 @@ def _passed_report() -> CheckReport:
     )
 
 
-def _failed_report() -> CheckReport:
+def _failed_report() -> StageOutcome:
     """Create a failing report with violations."""
-    return CheckReport(
+    return StageOutcome(
         stage="pre-push",
         passed=False,
         results=[
@@ -58,9 +58,9 @@ def _failed_report() -> CheckReport:
     )
 
 
-def _skipped_report() -> CheckReport:
+def _skipped_report() -> StageOutcome:
     """Create a report with skipped checks."""
-    return CheckReport(
+    return StageOutcome(
         stage="pre-commit",
         passed=True,
         results=[

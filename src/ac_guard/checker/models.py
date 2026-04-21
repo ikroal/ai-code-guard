@@ -1,10 +1,10 @@
-"""Checker data models for check results and reports."""
+"""Checker data models: Violation, CheckResult, StageOutcome."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-__all__ = ["CheckReport", "CheckResult", "Violation"]
+__all__ = ["CheckResult", "StageOutcome", "Violation"]
 
 
 @dataclass
@@ -52,11 +52,11 @@ class CheckResult:
 
 
 @dataclass
-class CheckReport:
-    """Aggregated report for a check stage.
+class StageOutcome:
+    """Outcome of a single check-stage run (one pre-commit / pre-push / ...).
 
     Attributes:
-        stage: Check stage ("commit" or "push").
+        stage: Git hook stage label (e.g. "pre-commit", "pre-push").
         passed: Whether all checks in the stage passed.
         results: Per-check results.
         duration_ms: Total execution time in milliseconds.

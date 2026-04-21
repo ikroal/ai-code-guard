@@ -1,6 +1,6 @@
 """Reporter formatting — terminal, gate, Markdown, and JSON output.
 
-Converts CheckReport into human-readable formats for terminal
+Converts StageOutcome into human-readable formats for terminal
 display, Git Hook output, PR comment rendering, and machine-readable
 JSON for CI/CD pipelines.
 """
@@ -77,7 +77,7 @@ def format_terminal(
     verbosity: str = "normal",
     locale: str = "en",
 ) -> str:
-    """Format a CheckReport for terminal display.
+    """Format a StageOutcome for terminal display.
 
     Args:
         report: Any to format.
@@ -165,7 +165,7 @@ def _format_violation(v: Any) -> str:
 
 
 def format_gate(report: Any) -> tuple[str, int]:
-    """Format a CheckReport for Git Hook gate output.
+    """Format a StageOutcome for Git Hook gate output.
 
     Args:
         report: Any to format.
@@ -190,7 +190,7 @@ def format_markdown(
     report: Any,
     locale: str = "en",
 ) -> str:
-    """Format a CheckReport as Markdown using Jinja2 templates.
+    """Format a StageOutcome as Markdown using Jinja2 templates.
 
     Args:
         report: Any to format.
@@ -224,13 +224,13 @@ def format_markdown(
 
 
 def format_json(report: Any) -> str:
-    """Serialize a CheckReport to JSON for CI/CD pipelines.
+    """Serialize a StageOutcome to JSON for CI/CD pipelines.
 
     Uses ``dataclasses.asdict()`` to convert the entire report tree
-    (CheckReport → CheckResult → Violation) into a JSON string.
+    (StageOutcome → CheckResult → Violation) into a JSON string.
 
     Args:
-        report: A CheckReport instance.
+        report: A StageOutcome instance.
 
     Returns:
         Pretty-printed JSON string parseable by ``jq``.

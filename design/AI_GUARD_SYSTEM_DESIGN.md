@@ -77,7 +77,7 @@ AI Guard 是一个面向 AI 编码 Agent 的**看护系统**（Guardian System�
 | **guard.yaml** | AI Guard 的项目级配置文件，是系统的单一配置真相源 |
 | **ResolvedConfig** | 经过多源合并和校验后的最终配置对象，供各模块消费 |
 | **PolicyDecision** | 行为约束的判定结果，取值为 allow / deny / ask |
-| **CheckReport** | 代码检查的结构化结果报告 |
+| **StageOutcome** | 代码检查的结构化结果报告 |
 | **规则集（Ruleset）** | 可复用的规则包，包含行为约束、检查项定义和工具配置 |
 | **工件（Artifact）** | 由 Generator 生成的静态文件，包括规则文档、Hook 脚本、工具配置等 |
 | **托管块（Managed Block）** | 规则文档中由 AI Guard 管理的区域，update 时自动替换，不影响用户自定义内容 |
@@ -396,7 +396,7 @@ git commit / git push
     K3 run_precommit (内置检查)
     K4 run_checks (命令检查项)
     K5 run_build (push 阶段前置条件)
-    K6 aggregate → CheckReport
+    K6 aggregate → StageOutcome
   │
   Reporter.print_report() 或 exit code 0/1
 ```
@@ -852,7 +852,7 @@ Pattern 匹配支持两种模式：glob（默认）和 regex（`regex: true` 显
 
 #### 6.5.1 职责与边界
 
-编排代码检查的执行。Checker 通过 subprocess 调用 pre-commit 执行内置检查，通过 subprocess 执行用户定义的命令检查项，汇总结果为 CheckReport。
+编排代码检查的执行。Checker 通过 subprocess 调用 pre-commit 执行内置检查，通过 subprocess 执行用户定义的命令检查项，汇总结果为 StageOutcome。
 
 #### 6.5.2 原语操作
 
@@ -863,7 +863,7 @@ Pattern 匹配支持两种模式：glob（默认）和 regex（`regex: true` 显
 | K3 | run_precommit | files, config | 内置检查结果 |
 | K4 | run_checks | checks config, files | 命令检查项结果 |
 | K5 | run_build | build config | 编译结果 |
-| K6 | aggregate | 所有结果 | CheckReport |
+| K6 | aggregate | 所有结果 | StageOutcome |
 
 #### 6.5.3 阶段编排
 
@@ -904,7 +904,7 @@ push 阶段:   先完整执行 commit 阶段
 
 #### 6.6.1 职责与边界
 
-将结构化结果（CheckReport / PolicyDecision）格式化为指定格式，并输出到指定渠道。Reporter 不参与任何判定或编排逻辑。
+将结构化结果（StageOutcome / PolicyDecision）格式化为指定格式，并输出到指定渠道。Reporter 不参与任何判定或编排逻辑。
 
 #### 6.6.2 原语操作
 
@@ -937,7 +937,7 @@ push 阶段:   先完整执行 commit 阶段
 
 ```python
 class ReportChannel(ABC):
-    def send(self, report: CheckReport, rendered_markdown: str) -> None: ...
+    def send(self, report: StageOutcome, rendered_markdown: str) -> None: ...
 ```
 
 Channel 选择由 CLI 命令层根据 `output.pr_report` 配置决定。`api_url` 字段支持自部署平台实例。
@@ -995,9 +995,9 @@ Channel 选择由 CLI 命令层根据 `output.pr_report` 配置决定。`api_url
 ```
 CLI → Config.resolve() → ResolvedConfig
 CLI → Generator.generate(ResolvedConfig, agents) → list[FileSpec]
-CLI → Checker.run(ResolvedConfig, stage) → CheckReport
+CLI → Checker.run(ResolvedConfig, stage) → StageOutcome
 Hook → Enforcer.evaluate(ToolCall, policy) → PolicyDecision
-Checker → Reporter.print_check_report(CheckReport)
+Checker → Reporter.print_check_report(StageOutcome)
 Enforcer → Reporter.append_audit_log(PolicyDecision)
 ```
 
@@ -1179,7 +1179,7 @@ class CheckResult:
     duration_ms: int = 0
 
 @dataclass
-class CheckReport:
+class StageOutcome:
     stage: str
     passed: bool
     results: list[CheckResult]
@@ -1441,7 +1441,7 @@ class ReportChannel(ABC):
         """渠道标识符，对应 output.pr_report.platform 的值。"""
 
     @abstractmethod
-    def send(self, report: CheckReport, markdown: str, config: PrReportConfig) -> None:
+    def send(self, report: StageOutcome, markdown: str, config: PrReportConfig) -> None:
         """
         发送报告到目标平台。
 

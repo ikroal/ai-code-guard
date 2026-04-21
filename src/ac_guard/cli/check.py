@@ -16,7 +16,7 @@ from ac_guard.checker.core import (
     run_precommit,
     run_stage,
 )
-from ac_guard.checker.models import CheckReport, CheckResult
+from ac_guard.checker.models import CheckResult, StageOutcome
 from ac_guard.config.exceptions import ConfigError
 from ac_guard.config.merger import resolve_config
 from ac_guard.reporter.channel_base import post_pr_comment
@@ -184,7 +184,7 @@ def run_command(
 
     passed = all(r.passed for r in results)
     duration = sum(r.duration_ms for r in results)
-    report = CheckReport(
+    report = StageOutcome(
         stage=stage,
         passed=passed,
         results=results,
@@ -265,12 +265,12 @@ def gate_run_command(
 
 
 def _format_report(
-    report: CheckReport,
+    report: StageOutcome,
     output_format: str,
     verbosity: str,
     locale: str = "en",
 ) -> str:
-    """Format a CheckReport for output.
+    """Format a StageOutcome for output.
 
     Args:
         report: The check report to format.

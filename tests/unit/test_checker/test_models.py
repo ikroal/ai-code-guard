@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ac_guard.checker.models import CheckReport, CheckResult, Violation
+from ac_guard.checker.models import CheckResult, StageOutcome, Violation
 
 
 class TestViolation:
@@ -56,12 +56,12 @@ class TestCheckResult:
         assert r.skipped is True
 
 
-class TestCheckReport:
-    """Tests for CheckReport dataclass."""
+class TestStageOutcome:
+    """Tests for StageOutcome dataclass."""
 
     def test_all_passed(self) -> None:
         """Report with all checks passing."""
-        report = CheckReport(
+        report = StageOutcome(
             stage="pre-commit",
             passed=True,
             results=[
@@ -74,7 +74,7 @@ class TestCheckReport:
 
     def test_any_failed(self) -> None:
         """Report with a failing check."""
-        report = CheckReport(
+        report = StageOutcome(
             stage="pre-push",
             passed=False,
             results=[
@@ -86,5 +86,5 @@ class TestCheckReport:
 
     def test_empty_results(self) -> None:
         """Report with no results."""
-        report = CheckReport(stage="pre-commit", passed=True)
+        report = StageOutcome(stage="pre-commit", passed=True)
         assert report.results == []
