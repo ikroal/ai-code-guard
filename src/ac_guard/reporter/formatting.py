@@ -17,7 +17,7 @@ from jinja2 import Environment, FileSystemLoader
 if TYPE_CHECKING:
     from typing import Any
 
-__all__ = ["format_gate", "format_markdown", "format_terminal"]
+__all__ = ["format_json", "format_markdown", "format_terminal"]
 
 _TEMPLATE_DIR = Path(__file__).parent / "_templates"
 
@@ -94,7 +94,12 @@ def format_terminal(
     status = labels["passed"] if report.passed else labels["failed"]
 
     if verbosity == "quiet":
-        return f"{report.stage}: {status}"
+        line = f"{report.stage}: {status}"
+        if not report.passed:
+            failed_names = [r.name for r in report.results if not r.passed]
+            if failed_names:
+                line += f" ({', '.join(failed_names)})"
+        return line
 
     lines: list[str] = []
     lines.append(f"{labels['stage']}: {report.stage} — {status}")
@@ -157,28 +162,6 @@ def _format_violation(v: Any) -> str:
     if v.code:
         msg += f" [{v.code}]"
     return msg
-
-
-# ---------------------------------------------------------------------------
-# R2: Gate format
-# ---------------------------------------------------------------------------
-
-
-def format_gate(report: Any) -> tuple[str, int]:
-    """Format a StageOutcome for Git Hook gate output.
-
-    Args:
-        report: Any to format.
-
-    Returns:
-        Tuple of (message, exit_code).
-    """
-    if report.passed:
-        return f"ac-guard: {report.stage} checks passed", 0
-
-    failed_names = [r.name for r in report.results if not r.passed]
-    msg = f"ac-guard: {report.stage} checks failed: {', '.join(failed_names)}"
-    return msg, 1
 
 
 # ---------------------------------------------------------------------------

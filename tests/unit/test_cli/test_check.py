@@ -197,7 +197,7 @@ class TestGateRunCommand:
                 app, ["gate", "run", "--stage", "pre-commit", "--config", str(config)]
             )
         assert result.exit_code == 0
-        assert "passed" in result.output
+        assert "PASSED" in result.output
 
     def test_gate_commit_failed(self, tmp_path: Path) -> None:
         """Gate run with failing checks exits 1."""
@@ -223,7 +223,7 @@ class TestGateRunCommand:
                 app, ["gate", "run", "--stage", "pre-commit", "--config", str(config)]
             )
         assert result.exit_code == 1
-        assert "failed" in result.output
+        assert "FAILED" in result.output
 
     def test_gate_push(self, tmp_path: Path) -> None:
         """Gate run push stage works."""
@@ -233,7 +233,7 @@ class TestGateRunCommand:
                 app, ["gate", "run", "--stage", "pre-push", "--config", str(config)]
             )
         assert result.exit_code == 0
-        assert "passed" in result.output
+        assert "PASSED" in result.output
 
 
 class TestJsonOutput:

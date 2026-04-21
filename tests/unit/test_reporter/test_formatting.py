@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from ac_guard.checker.models import CheckResult, StageOutcome, Violation
 from ac_guard.reporter.formatting import (
-    format_gate,
     format_json,
     format_markdown,
     format_terminal,
@@ -103,11 +102,18 @@ class TestFormatTerminal:
         assert "E501" in output
         assert "src/util.py:22" in output
 
-    def test_verbosity_quiet(self) -> None:
-        """Quiet mode shows minimal output."""
+    def test_verbosity_quiet_passed(self) -> None:
+        """Quiet mode: passed reports are a single status line with no details."""
+        output = format_terminal(_passed_report(), verbosity="quiet")
+        assert output == "pre-commit: PASSED"
+
+    def test_verbosity_quiet_failed_lists_failed_check_names(self) -> None:
+        """Quiet mode: failed reports append failing check names in parens."""
         output = format_terminal(_failed_report(), verbosity="quiet")
-        assert "FAILED" in output
-        # Should not contain per-check details
+        assert output.startswith("pre-push: FAILED")
+        # The failing check ("test") must be named so git-hook users see why.
+        assert "(test)" in output
+        # No per-check details or indicators should leak into quiet mode.
         assert "[PASS]" not in output
         assert "[FAIL]" not in output
 
@@ -156,28 +162,6 @@ class TestFormatTerminal:
         output = format_terminal(_passed_report(), locale="fr-FR")
         assert "Stage: pre-commit — PASSED" in output
         assert "2/2 checks passed, 0 failed" in output
-
-
-# ---------------------------------------------------------------------------
-# TestFormatGate
-# ---------------------------------------------------------------------------
-
-
-class TestFormatGate:
-    """Tests for format_gate (R2)."""
-
-    def test_passed_gate(self) -> None:
-        """Passing report returns exit code 0."""
-        msg, code = format_gate(_passed_report())
-        assert code == 0
-        assert "passed" in msg
-
-    def test_failed_gate(self) -> None:
-        """Failing report returns exit code 1 with failed check names."""
-        msg, code = format_gate(_failed_report())
-        assert code == 1
-        assert "test" in msg
-        assert "failed" in msg
 
 
 # ---------------------------------------------------------------------------
