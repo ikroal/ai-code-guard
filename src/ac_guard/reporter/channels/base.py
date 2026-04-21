@@ -1,4 +1,4 @@
-"""ReportChannel ABC, registry, and post_pr_comment entry point.
+"""ReportChannel ABC and registry.
 
 Channel = physical output destination (terminal, file, Git platform PR
 comment). Each channel implements ``output(payload: str)`` — it receives
@@ -8,23 +8,14 @@ do not render; formatting stays in :mod:`ac_guard.reporter.formatting`.
 
 from __future__ import annotations
 
-import sys
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, ClassVar
-
-from ac_guard.reporter.formatting import format_markdown
-
-if TYPE_CHECKING:
-    from typing import Any
-
-    from ac_guard.config.models import PrReportConfig
+from typing import ClassVar
 
 __all__ = [
     "ChannelError",
     "NoPrContextError",
     "ReportChannel",
     "get_channel",
-    "post_pr_comment",
     "register_channel",
 ]
 
@@ -38,7 +29,9 @@ class NoPrContextError(ChannelError):
 
     Distinct from generic :class:`ChannelError` because it is an expected
     condition during local development (no PR opened yet) and is silently
-    skipped by :func:`post_pr_comment` — not logged as a warning.
+    skipped by
+    :func:`ac_guard.reporter.channels.git_platform.post_pr_comment` —
+    not logged as a warning.
     """
 
 
@@ -117,45 +110,6 @@ def get_channel(name: str) -> type[ReportChannel]:
         available = ", ".join(sorted(_CHANNELS)) or "(none)"
         raise ChannelError(f"Unknown channel '{name}'. Available: {available}")
     return cls
-
-
-# ---------------------------------------------------------------------------
-# post_pr_comment — Git Platform convenience wrapper
-# ---------------------------------------------------------------------------
-
-
-def post_pr_comment(
-    outcome: Any,
-    config: PrReportConfig,
-    locale: str = "en",
-) -> None:
-    """Render ``outcome`` as Markdown and post to the configured Git platform.
-
-    Dispatches to the channel registered under ``config.platform`` (one of
-    ``"github"`` / ``"gitlab"`` / ``"gitea"`` / ``"bitbucket"``).
-
-    **Non-blocking.** If posting fails for any reason (missing credentials,
-    HTTP error, unknown platform), a warning is printed to stderr but no
-    exception is raised — the main exit code is not affected.
-    :class:`NoPrContextError` (no PR/MR found locally) is silently skipped.
-
-    Args:
-        outcome: Check outcome (:class:`ac_guard.checker.StageOutcome`).
-        config: PR report configuration. If ``enabled`` is False, this
-            function returns immediately.
-        locale: Locale for Markdown template (``"en"`` or ``"zh-CN"``).
-    """
-    if not config.enabled:
-        return
-
-    try:
-        payload = format_markdown(outcome, locale)
-        channel_cls = get_channel(config.platform)
-        channel_cls(config=config).output(payload)
-    except NoPrContextError:
-        return  # Silent skip: no PR in context (typical in local dev)
-    except Exception as exc:
-        print(f"Warning: PR comment failed to post: {exc}", file=sys.stderr)
 
 
 # ---------------------------------------------------------------------------

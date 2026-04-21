@@ -11,9 +11,9 @@ from ac_guard.reporter.channels.base import (
     NoPrContextError,
     ReportChannel,
     get_channel,
-    post_pr_comment,
     register_channel,
 )
+from ac_guard.reporter.channels.git_platform import post_pr_comment
 
 
 class TestReportChannelABC:

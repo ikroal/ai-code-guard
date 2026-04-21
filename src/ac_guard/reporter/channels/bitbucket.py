@@ -1,97 +1,43 @@
-"""Bitbucket ReportChannel — posts rendered payloads as PR comments.
-
-Uses the Bitbucket REST API to create comments on pull requests.
-Supports both bitbucket.org and self-hosted Bitbucket instances via
-the ``api_url`` configuration.
-"""
+"""BitbucketChannel — post rendered Markdown to Bitbucket PR comments."""
 
 from __future__ import annotations
 
 import os
-from typing import TYPE_CHECKING
 
-from ac_guard.reporter.channels._git_info import get_current_branch, get_remote_repo
-from ac_guard.reporter.channels._http import get_json, post_json
+from ac_guard.reporter.channels._git_info import get_current_branch
+from ac_guard.reporter.channels._http import get_json
 from ac_guard.reporter.channels.base import (
     ChannelError,
     NoPrContextError,
-    ReportChannel,
     register_channel,
 )
-
-if TYPE_CHECKING:
-    from ac_guard.config.models import PrReportConfig
+from ac_guard.reporter.channels.git_platform import GitPlatformChannel
 
 __all__ = ["BitbucketChannel"]
 
 
 @register_channel
-class BitbucketChannel(ReportChannel):
+class BitbucketChannel(GitPlatformChannel):
     """Post rendered Markdown payloads to Bitbucket PR comments.
 
-    Repository and PR number are resolved automatically:
-
-    **Repository** (in priority order):
-        1. ``BITBUCKET_REPO_FULL_NAME`` environment variable
-        2. ``git remote get-url origin`` parsed
-
-    **PR number** (in priority order):
-        1. ``AI_GUARD_PR_NUMBER`` environment variable
-        2. ``BITBUCKET_PR_ID`` environment variable
-        3. Bitbucket API query by current branch name
-
-    Attributes:
-        DEFAULT_API_URL: Default Bitbucket API base URL.
+    PR ID resolution priority:
+        1. ``AI_GUARD_PR_NUMBER`` env var
+        2. ``BITBUCKET_PR_ID`` env var
+        3. Bitbucket API query by current branch
     """
 
     name = "bitbucket"
     DEFAULT_API_URL = "https://api.bitbucket.org"
+    REPO_ENV_VAR = "BITBUCKET_REPO_FULL_NAME"
 
-    def __init__(self, config: PrReportConfig) -> None:
-        """Store the PR report configuration for later use by :meth:`output`.
+    def _api_name(self) -> str:
+        return "Bitbucket"
 
-        Args:
-            config: PR report configuration.
-        """
-        self.config = config
+    def _wrap_body(self, payload: str) -> dict:
+        """Bitbucket PR comments expect ``{"content": {"raw": ...}}``."""
+        return {"content": {"raw": payload}}
 
-    def output(self, payload: str) -> None:
-        """Post ``payload`` as a Markdown comment on the associated PR.
-
-        Args:
-            payload: Rendered Markdown string.
-
-        Raises:
-            ChannelError: If token is missing, PR cannot be
-                identified, or the API request fails.
-        """
-        token = self._get_token()
-        repo = self._get_repository()
-        api_url = (self.config.api_url or self.DEFAULT_API_URL).rstrip("/")
-        pr_id = self._get_pr_id(token, repo, api_url)
-
-        url = f"{api_url}/2.0/repositories/{repo}/pullrequests/{pr_id}/comments"
-        self._post_json(url, {"content": {"raw": payload}}, token)
-
-    def _get_pr_id(self, token: str, repo: str, api_url: str) -> str:
-        """Determine the PR ID.
-
-        Priority:
-            1. ``AI_GUARD_PR_NUMBER`` env var
-            2. ``BITBUCKET_PR_ID`` env var
-            3. API query by current branch
-
-        Args:
-            token: Bitbucket API token for API query fallback.
-            repo: Repository in ``workspace/repo`` format.
-            api_url: Bitbucket API base URL.
-
-        Returns:
-            PR ID as string.
-
-        Raises:
-            NoPrContextError: If PR ID cannot be determined.
-        """
+    def _resolve_pr(self, token: str, repo: str, api_url: str) -> str:
         # 1. Explicit env var
         pr_id = os.environ.get("AI_GUARD_PR_NUMBER")
         if pr_id:
@@ -107,7 +53,11 @@ class BitbucketChannel(ReportChannel):
         if branch:
             query_url = f"{api_url}/2.0/repositories/{repo}/pullrequests?state=OPEN"
             try:
-                data = self._get_json(query_url, token)
+                data = get_json(
+                    query_url,
+                    headers={"Authorization": f"Bearer {token}"},
+                    api_name="Bitbucket",
+                )
                 if data and isinstance(data, dict):
                     for pr in data.get("values", []):
                         source = pr.get("source", {})
@@ -115,75 +65,18 @@ class BitbucketChannel(ReportChannel):
                         if source_branch.get("name") == branch:
                             return str(pr["id"])
             except ChannelError:
-                pass  # Fall through to error
+                pass  # Fall through to NoPrContextError
 
         raise NoPrContextError(
             "Cannot determine PR ID. Set AI_GUARD_PR_NUMBER, "
             "BITBUCKET_PR_ID, or push your branch and open a PR"
         )
 
-    def _get_token(self) -> str:
-        """Read the API token from the environment.
+    def _post_url(self, api_url: str, repo: str, pr_id: str) -> str:
+        return f"{api_url}/2.0/repositories/{repo}/pullrequests/{pr_id}/comments"
 
-        Returns:
-            The token string.
-
-        Raises:
-            ChannelError: If the environment variable is not set.
-        """
-        token = os.environ.get(self.config.token_env)
-        if not token:
-            raise ChannelError(
-                f"Bitbucket token not found: set the {self.config.token_env} "
-                f"environment variable"
-            )
-        return token
-
-    @staticmethod
-    def _get_repository() -> str:
-        """Determine the repository.
-
-        Priority:
-            1. ``BITBUCKET_REPO_FULL_NAME`` env var
-            2. ``git remote get-url origin``
-
-        Returns:
-            Repository in ``workspace/repo`` format.
-
-        Raises:
-            ChannelError: If repository cannot be determined.
-        """
-        repo = os.environ.get("BITBUCKET_REPO_FULL_NAME")
-        if repo:
-            return repo
-
-        repo = get_remote_repo()
-        if repo:
-            return repo
-
-        raise ChannelError(
-            "Cannot determine repository. Set BITBUCKET_REPO_FULL_NAME or "
-            "ensure git remote 'origin' is configured"
-        )
-
-    @staticmethod
-    def _post_json(url: str, body: dict, token: str) -> None:
-        """POST JSON with Bearer auth via the shared retry layer."""
-        post_json(
-            url,
-            headers={
-                "Authorization": f"Bearer {token}",
-                "Content-Type": "application/json",
-            },
-            body=body,
-            api_name="Bitbucket",
-        )
-
-    @staticmethod
-    def _get_json(url: str, token: str) -> list | dict | None:
-        """GET JSON with Bearer auth via the shared retry layer."""
-        return get_json(
-            url,
-            headers={"Authorization": f"Bearer {token}"},
-            api_name="Bitbucket",
-        )
+    def _auth_headers(self, token: str) -> dict[str, str]:
+        return {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        }

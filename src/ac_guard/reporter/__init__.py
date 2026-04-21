@@ -5,7 +5,8 @@ independent module with its own primitive-derived API (see that
 module for details).
 """
 
-from ac_guard.reporter.channels.base import ChannelError, post_pr_comment
+from ac_guard.reporter.channels.base import ChannelError
+from ac_guard.reporter.channels.git_platform import post_pr_comment
 from ac_guard.reporter.formatting import (
     format_gate,
     format_json,

@@ -19,11 +19,8 @@ from typer.testing import CliRunner
 from ac_guard.checker.core import run_stage
 from ac_guard.cli.main import app
 from ac_guard.config.models import PrReportConfig
-from ac_guard.reporter.channels.base import (
-    ChannelError,
-    NoPrContextError,
-    post_pr_comment,
-)
+from ac_guard.reporter.channels.base import ChannelError, NoPrContextError
+from ac_guard.reporter.channels.git_platform import post_pr_comment
 from ac_guard.reporter.formatting import format_markdown
 
 runner = CliRunner()

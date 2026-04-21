@@ -95,7 +95,7 @@ class TestGitLabChannel:
 
         with (
             patch(
-                "ac_guard.reporter.channels.gitlab.get_remote_repo",
+                "ac_guard.reporter.channels.git_platform.get_remote_repo",
                 return_value="org/my-repo",
             ),
             patch("urllib.request.urlopen", return_value=self._mock_urlopen()) as m,
