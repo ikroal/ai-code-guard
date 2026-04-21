@@ -937,10 +937,13 @@ push 阶段:   先完整执行 commit 阶段
 
 ```python
 class ReportChannel(ABC):
-    def send(self, report: StageOutcome, rendered_markdown: str) -> None: ...
+    name: ClassVar[str]  # 渠道标识符
+
+    @abstractmethod
+    def output(self, payload: str) -> None: ...
 ```
 
-Channel 选择由 CLI 命令层根据 `output.pr_report` 配置决定。`api_url` 字段支持自部署平台实例。
+Channel 是纯投递层（format-agnostic）：`output` 只接收一个已经渲染好的字符串 payload，由调用方/便利函数（如 `post_pr_comment`）决定用哪种格式化器产生该字符串。Channel 选择由 CLI 命令层根据 `output.pr_report` 配置决定。`api_url` 字段支持自部署平台实例。
 
 ---
 
@@ -1435,24 +1438,30 @@ class FileSpec:
 
 ```python
 class ReportChannel(ABC):
-    @property
-    @abstractmethod
-    def name(self) -> str:
-        """渠道标识符，对应 output.pr_report.platform 的值。"""
+    """所有渠道的通用抽象：format-agnostic 地投递一个字符串到物理目的地。"""
+
+    name: ClassVar[str] = ""  # 子类必须设置，e.g. "terminal" / "github"
 
     @abstractmethod
-    def send(self, report: StageOutcome, markdown: str, config: PrReportConfig) -> None:
-        """
-        发送报告到目标平台。
-
-        Args:
-            report: 结构化检查报告
-            markdown: 已渲染的 Markdown 字符串
-            config: PR 报告配置
+    def output(self, payload: str) -> None:
+        """将已渲染的字符串 payload 投递到该渠道的物理目的地。
 
         Raises:
-            ChannelError: 发送失败时抛出
+            ChannelError: 投递失败时抛出。
         """
+
+
+class GitPlatformChannel(ReportChannel):
+    """GitHub / GitLab / Gitea / Bitbucket PR 评论渠道共享的基类。
+
+    通过 template method 提供 token/repo 解析 + HTTP POST 的主流程；
+    子类通过覆盖六个钩子（DEFAULT_API_URL、REPO_ENV_VAR、_resolve_pr、
+    _post_url、_auth_headers、可选的 _encode_repo / _wrap_body）提供
+    平台差异逻辑。
+    """
+
+    def __init__(self, config: PrReportConfig) -> None:
+        self.config = config
 ```
 
 #### 12.2.2 认证约定

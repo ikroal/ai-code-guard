@@ -11,6 +11,86 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **BREAKING — Reporter API restructure** following the same
+  `deriving-module-api` methodology used for audit. Three axes (I / P /
+  O: input / processing / channel) with format and channel treated as
+  orthogonal dimensions. The public surface collapses to three pure
+  rendering primitives plus a symmetric channel family.
+
+  **L3 data model rename** (in `checker`, reused by reporter):
+  - `ac_guard.checker.CheckReport` → `ac_guard.checker.StageOutcome`.
+    One instance = one stage run (pre-commit / pre-push / ...). The
+    old name suggested a rendered report, which clashed with reporter's
+    own output.
+
+  **Channel abstraction unified + symmetric**:
+  - Every channel implements `output(payload: str) -> None` and is
+    format-agnostic: it accepts an already-rendered string and delivers
+    it to its physical destination.
+  - `ReportChannel.send(markdown, config)` is replaced by
+    `ReportChannel.output(payload)`; `config` moves to the constructor
+    (`__init__(self, config)` for Git-platform channels).
+  - `name` becomes a `ClassVar[str]` class attribute (not an abstract
+    property), enabling registration without instantiation.
+  - `get_channel(name)` now returns the channel **class**; callers
+    construct instances with channel-specific arguments.
+
+  **New channels** (auto-registered):
+  - `TerminalChannel(stream=sys.stdout)` — print to a text stream.
+  - `FileChannel(path)` — write to a local file.
+
+  **Git-platform family factored via template method**:
+  - `GitPlatformChannel` base class carries the shared token / repo
+    resolution + HTTP POST flow. GitHub, GitLab, Gitea, and Bitbucket
+    each implement only the six hooks that differ (DEFAULT_API_URL,
+    REPO_ENV_VAR, `_resolve_pr`, `_post_url`, `_auth_headers`, and
+    optionally `_encode_repo` / `_wrap_body`). Each concrete channel
+    shrinks from ~150–200 lines to ~75–95 lines (with docstrings).
+
+  **Module layout**:
+  - New `ac_guard.reporter.channels/` subpackage. The old single-file
+    modules moved and were renamed:
+    - `reporter.channel_base` → `reporter.channels.base`
+    - `reporter.channel_{github,gitlab,gitea,bitbucket}` →
+      `reporter.channels.{github,gitlab,gitea,bitbucket}`
+    - `reporter._http` → `reporter.channels._http`
+    - `reporter._git_info` → `reporter.channels._git_info`
+  - `_templates/` stays at `reporter/_templates/` — it is
+    `formatting.py`'s resource, not a channel resource.
+  - `post_pr_comment` now lives in `reporter.channels.git_platform`
+    (with the base class) and is re-exported at `ac_guard.reporter`.
+
+  **`format_gate` removed**:
+  - Exit code is a business decision (block commit / push), not a
+    report format, and now lives in the CLI.
+  - `format_terminal`'s `"quiet"` verbosity now appends failing check
+    names on failure (`"pre-commit: FAILED (lint, test)"`), preserving
+    the information density gate output previously had.
+  - Replacement:
+    ```
+    # before
+    msg, code = format_gate(outcome)
+    print(msg); sys.exit(code)
+
+    # after
+    print(format_terminal(outcome, verbosity="quiet"))
+    sys.exit(0 if outcome.passed else 1)
+    ```
+
+  **Migration for third-party channels**:
+  - Inherit `GitPlatformChannel` (not `ReportChannel`) for PR-comment
+    channels — you get token + repo + HTTP for free and only implement
+    six platform-specific hooks.
+  - Rename `send(markdown, config)` → `output(payload)` and move `config`
+    into `__init__`.
+  - Replace `@property def name(...)` with a plain `name = "..."` class
+    attribute.
+
+  Top-level `ac_guard.reporter` public surface is now:
+  `format_terminal`, `format_markdown`, `format_json`, `post_pr_comment`,
+  `ChannelError` (5 names). The channel family is accessible via
+  `ac_guard.reporter.channels`.
+
 - **BREAKING — Audit module extracted** to an independent top-level
   module with a primitive-derived public API. Audit logging is no
   longer conceptually part of "reporter"; it now lives at
