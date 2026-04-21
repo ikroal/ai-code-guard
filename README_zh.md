@@ -133,9 +133,18 @@ flowchart LR
 
 ### 首次 setup（新 clone）
 
+本项目使用 [uv](https://docs.astral.sh/uv/) 管理开发环境，`uv.lock`
+锁定完整依赖图。首先安装 uv：
+
 ```bash
-pip install -e ".[dev]"              # 安装 ruff、pytest、interrogate、bandit、import-linter
-ac-guard install --agent claude-code # 生成 runtime.json + Claude Code hook + git hooks
+curl -LsSf https://astral.sh/uv/install.sh | sh   # 或：brew install uv
+```
+
+然后：
+
+```bash
+uv sync                                        # 创建 .venv 并安装锁定依赖（含 dev group）
+uv run ac-guard install --agent claude-code    # 生成 runtime.json + Claude Code hook + git hooks
 ```
 
 两条命令即可。`ac-guard install` 会写一个 `.git/hooks/pre-commit` 包装脚本
@@ -147,10 +156,12 @@ source of truth；`.claude/hooks/`、`.ac-guard/`、`.git/hooks/` 下的产物
 ### 日常
 
 ```bash
-pytest                    # 900+ 个测试
-ruff check .
-pre-commit run --all-files
+uv run pytest                        # 900+ 个测试
+uv run ruff check .
+uv run pre-commit run --all-files
 ```
+
+或者激活一次 venv（`source .venv/bin/activate`）后省略 `uv run` 前缀。
 
 本仓库自身在 CI 中运行同一套门禁（`.github/workflows/ci.yml` 的
 `lint` + `pre-commit` + `test` 三个 job）。模块分层约束放在

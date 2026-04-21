@@ -133,9 +133,18 @@ flowchart LR
 
 ### First-time setup (fresh clone)
 
+This project uses [uv](https://docs.astral.sh/uv/) to manage the dev
+environment and lock the full dependency graph in `uv.lock`. Install uv once:
+
 ```bash
-pip install -e ".[dev]"              # installs ruff, pytest, interrogate, bandit, import-linter
-ac-guard install --agent claude-code # materialises runtime.json + Claude Code hook + git hooks
+curl -LsSf https://astral.sh/uv/install.sh | sh   # or: brew install uv
+```
+
+Then:
+
+```bash
+uv sync                                        # creates .venv + installs locked deps (incl. dev group)
+uv run ac-guard install --agent claude-code    # materialises runtime.json + Claude Code hook + git hooks
 ```
 
 That's it — `ac-guard install` writes its own `.git/hooks/pre-commit` wrapper
@@ -148,10 +157,13 @@ per-machine and generated locally.
 ### Day-to-day
 
 ```bash
-pytest                    # 900+ tests
-ruff check .
-pre-commit run --all-files
+uv run pytest                        # 900+ tests
+uv run ruff check .
+uv run pre-commit run --all-files
 ```
+
+Or activate the venv once (`source .venv/bin/activate`) and drop the
+`uv run` prefix.
 
 The repository's own quality gate runs the same suite in CI
 (`lint` + `pre-commit` + `test` jobs in `.github/workflows/ci.yml`).
