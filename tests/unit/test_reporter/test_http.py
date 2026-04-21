@@ -11,7 +11,7 @@ from urllib.error import HTTPError, URLError
 
 import pytest
 
-from ac_guard.reporter._http import request_json
+from ac_guard.reporter._http import RetryPolicy, get_json, post_json
 from ac_guard.reporter.channel_base import ChannelError
 
 
@@ -62,19 +62,23 @@ class _SleepRecorder:
         self.calls.append(seconds)
 
 
-class TestRequestJson:
-    """request_json retry/backoff behaviour."""
+def _policy(sleeper: _SleepRecorder, **overrides: Any) -> RetryPolicy:
+    """Build a RetryPolicy that records sleeps into ``sleeper``."""
+    return RetryPolicy(sleep=sleeper, **overrides)
+
+
+class TestGetJson:
+    """get_json retry/backoff behaviour."""
 
     def test_success_without_retry(self) -> None:
         """200 on first attempt returns parsed body and does not sleep."""
         sleeper = _SleepRecorder()
         with patch("urllib.request.urlopen", return_value=_ok({"ok": True})):
-            result = request_json(
+            result = get_json(
                 "https://example/api",
-                method="GET",
                 headers=_headers(),
                 api_name="GitHub",
-                sleep=sleeper,
+                retry=_policy(sleeper),
             )
         assert result == {"ok": True}
         assert sleeper.calls == []
@@ -84,44 +88,25 @@ class TestRequestJson:
         sleeper = _SleepRecorder()
         side_effect = [URLError("net down"), URLError("net down"), _ok([1, 2])]
         with patch("urllib.request.urlopen", side_effect=side_effect):
-            result = request_json(
+            result = get_json(
                 "https://example/api",
-                method="GET",
                 headers=_headers(),
                 api_name="GitHub",
-                sleep=sleeper,
+                retry=_policy(sleeper),
             )
         assert result == [1, 2]
         assert len(sleeper.calls) == 2
-
-    def test_retries_exhausted_on_503(self) -> None:
-        """Persistent 503 exhausts retries and raises with attempt count."""
-        sleeper = _SleepRecorder()
-        side_effect = [_http_error(503) for _ in range(3)]
-        with (
-            patch("urllib.request.urlopen", side_effect=side_effect),
-            pytest.raises(ChannelError, match="after 3 attempts"),
-        ):
-            request_json(
-                "https://example/api",
-                method="POST",
-                headers=_headers(),
-                body={"x": 1},
-                api_name="GitHub",
-                sleep=sleeper,
-            )
 
     def test_retries_on_500_then_succeeds(self) -> None:
         """500 is retryable; next 200 completes the request."""
         sleeper = _SleepRecorder()
         side_effect = [_http_error(500), _ok({"ok": 1})]
         with patch("urllib.request.urlopen", side_effect=side_effect):
-            result = request_json(
+            result = get_json(
                 "https://example/api",
-                method="GET",
                 headers=_headers(),
                 api_name="GitLab",
-                sleep=sleeper,
+                retry=_policy(sleeper),
             )
         assert result == {"ok": 1}
         assert len(sleeper.calls) == 1
@@ -133,12 +118,11 @@ class TestRequestJson:
             patch("urllib.request.urlopen", side_effect=_http_error(404)),
             pytest.raises(ChannelError, match="404"),
         ):
-            request_json(
+            get_json(
                 "https://example/api",
-                method="GET",
                 headers=_headers(),
                 api_name="Gitea",
-                sleep=sleeper,
+                retry=_policy(sleeper),
             )
         assert sleeper.calls == []
 
@@ -149,12 +133,11 @@ class TestRequestJson:
             patch("urllib.request.urlopen", side_effect=_http_error(401)),
             pytest.raises(ChannelError, match="401"),
         ):
-            request_json(
+            get_json(
                 "https://example/api",
-                method="GET",
                 headers=_headers(),
                 api_name="Bitbucket",
-                sleep=sleeper,
+                retry=_policy(sleeper),
             )
         assert sleeper.calls == []
 
@@ -163,12 +146,11 @@ class TestRequestJson:
         sleeper = _SleepRecorder()
         side_effect = [_http_error(429, retry_after="2"), _ok({"ok": 1})]
         with patch("urllib.request.urlopen", side_effect=side_effect):
-            request_json(
+            get_json(
                 "https://example/api",
-                method="GET",
                 headers=_headers(),
                 api_name="GitHub",
-                sleep=sleeper,
+                retry=_policy(sleeper),
             )
         assert sleeper.calls == [2.0]
 
@@ -177,13 +159,11 @@ class TestRequestJson:
         sleeper = _SleepRecorder()
         side_effect = [_http_error(503), _http_error(503), _ok({"ok": 1})]
         with patch("urllib.request.urlopen", side_effect=side_effect):
-            request_json(
+            get_json(
                 "https://example/api",
-                method="GET",
                 headers=_headers(),
                 api_name="GitHub",
-                backoff_base=0.5,
-                sleep=sleeper,
+                retry=_policy(sleeper, backoff_base=0.5),
             )
         assert sleeper.calls == [0.5, 1.0]
 
@@ -192,27 +172,81 @@ class TestRequestJson:
         sleeper = _SleepRecorder()
         side_effect = [_http_error(503), _http_error(503), _ok({"ok": 1})]
         with patch("urllib.request.urlopen", side_effect=side_effect):
-            request_json(
+            get_json(
                 "https://example/api",
-                method="GET",
                 headers=_headers(),
                 api_name="GitHub",
-                backoff_base=4.0,
-                backoff_cap=5.0,
-                sleep=sleeper,
+                retry=_policy(sleeper, backoff_base=4.0, backoff_cap=5.0),
             )
         # attempt 1 -> 4, attempt 2 -> min(5, 8) = 5
         assert sleeper.calls == [4.0, 5.0]
 
-    def test_empty_response_body_returns_none(self) -> None:
-        """Empty response body (common for POST-no-echo) yields None."""
-        with patch("urllib.request.urlopen", return_value=_FakeResponse(b"")):
-            result = request_json(
+
+class TestPostJson:
+    """post_json retry/backoff behaviour."""
+
+    def test_retries_exhausted_on_503(self) -> None:
+        """Persistent 503 exhausts retries and raises with attempt count."""
+        sleeper = _SleepRecorder()
+        side_effect = [_http_error(503) for _ in range(3)]
+        with (
+            patch("urllib.request.urlopen", side_effect=side_effect),
+            pytest.raises(ChannelError, match="after 3 attempts"),
+        ):
+            post_json(
                 "https://example/api",
-                method="POST",
                 headers=_headers(),
                 body={"x": 1},
                 api_name="GitHub",
-                sleep=_SleepRecorder(),
+                retry=_policy(sleeper),
+            )
+
+    def test_empty_response_body_returns_none(self) -> None:
+        """Empty response body (common for POST-no-echo) yields None."""
+        with patch("urllib.request.urlopen", return_value=_FakeResponse(b"")):
+            result = post_json(
+                "https://example/api",
+                headers=_headers(),
+                body={"x": 1},
+                api_name="GitHub",
+                retry=_policy(_SleepRecorder()),
             )
         assert result is None
+
+    def test_post_without_body(self) -> None:
+        """POST without a body is allowed and serializes no data."""
+        with patch(
+            "urllib.request.urlopen", return_value=_ok({"created": True})
+        ) as mock_open:
+            result = post_json(
+                "https://example/api",
+                headers=_headers(),
+                api_name="GitHub",
+                retry=_policy(_SleepRecorder()),
+            )
+        assert result == {"created": True}
+        # Verify no body was serialized onto the Request.
+        (sent_req,) = mock_open.call_args.args
+        assert sent_req.data is None
+
+
+class TestRetryPolicyDefaults:
+    """Default RetryPolicy falls back to module-level time.sleep.
+
+    Keeps ``patch('ac_guard.reporter._http.time.sleep', ...)`` style hooks
+    in channel tests working without per-call RetryPolicy overrides.
+    """
+
+    def test_default_policy_uses_module_time_sleep(self) -> None:
+        side_effect = [_http_error(503), _ok({"ok": 1})]
+        with (
+            patch("urllib.request.urlopen", side_effect=side_effect),
+            patch("ac_guard.reporter._http.time.sleep") as mock_sleep,
+        ):
+            result = get_json(
+                "https://example/api",
+                headers=_headers(),
+                api_name="GitHub",
+            )
+        assert result == {"ok": 1}
+        assert mock_sleep.call_count == 1
