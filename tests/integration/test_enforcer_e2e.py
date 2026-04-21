@@ -12,10 +12,10 @@ from pathlib import Path
 import yaml
 from typer.testing import CliRunner
 
+from ac_guard.audit import append_record, prune_by_age
 from ac_guard.cli.main import app
 from ac_guard.enforcer.engine import evaluate
 from ac_guard.enforcer.matcher import Decision
-from ac_guard.reporter.audit import append_audit_log, apply_retention
 
 runner = CliRunner()
 
@@ -150,7 +150,7 @@ class TestAuditLoggingE2E:
         assert len(lines) == 3
 
     def test_retention_cleanup(self, tmp_path: Path) -> None:
-        """apply_retention removes old records."""
+        """prune_by_age removes old records."""
         _init_and_install(tmp_path)
 
         # Write an old record manually
@@ -168,7 +168,7 @@ class TestAuditLoggingE2E:
         evaluate("Read", {"file_path": "src/main.py"}, tmp_path, agent="claude-code")
 
         # Retention should remove the old one
-        removed = apply_retention(tmp_path, retention_days=30)
+        removed = prune_by_age(tmp_path, max_age_days=30)
         assert removed == 1
 
         lines = audit_path.read_text(encoding="utf-8").strip().split("\n")
@@ -207,7 +207,7 @@ class TestErrorRecovery:
 
         record = result.to_audit_record("Write", "claude-code")
         # This writes to readonly dir — should fail silently
-        append_audit_log(record, readonly_dir)
+        append_record(record, readonly_dir)
 
         # Decision is unchanged
         result2 = evaluate("Write", {"file_path": "src/main.py"}, tmp_path)
