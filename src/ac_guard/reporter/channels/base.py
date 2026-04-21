@@ -118,7 +118,14 @@ def get_channel(name: str) -> type[ReportChannel]:
 
 # Ensure built-in channels are registered on import.
 # Dynamic import avoids binding unused module names (would trigger F401).
-_BUILTIN_CHANNELS = ("bitbucket", "gitea", "github", "gitlab")
+_BUILTIN_CHANNELS = (
+    "terminal",
+    "file",
+    "bitbucket",
+    "gitea",
+    "github",
+    "gitlab",
+)
 
 
 def _register_builtins() -> None:
