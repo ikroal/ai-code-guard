@@ -12,7 +12,7 @@ import urllib.parse
 from typing import TYPE_CHECKING
 
 from ac_guard.reporter._git_info import get_current_branch, get_remote_repo
-from ac_guard.reporter._http import request_json
+from ac_guard.reporter._http import get_json, post_json
 from ac_guard.reporter.channel_base import (
     ChannelError,
     NoPrContextError,
@@ -171,9 +171,8 @@ class GitLabChannel(ReportChannel):
     @staticmethod
     def _post_json(url: str, body: dict, token: str) -> None:
         """POST JSON with PRIVATE-TOKEN auth via the shared retry layer."""
-        request_json(
+        post_json(
             url,
-            method="POST",
             headers={
                 "PRIVATE-TOKEN": token,
                 "Content-Type": "application/json",
@@ -185,9 +184,8 @@ class GitLabChannel(ReportChannel):
     @staticmethod
     def _get_json(url: str, token: str) -> list | dict | None:
         """GET JSON with PRIVATE-TOKEN auth via the shared retry layer."""
-        return request_json(
+        return get_json(
             url,
-            method="GET",
             headers={"PRIVATE-TOKEN": token},
             api_name="GitLab",
         )

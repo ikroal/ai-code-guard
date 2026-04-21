@@ -6,6 +6,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from ac_guard.checker.core import (
+    StageOptions,
     _filter_files_by_type,
     get_changed_files,
     run_build,
@@ -178,7 +179,12 @@ class TestRunStage:
             pre_commit=StageBucket(format=False), pre_push=StageBucket(lint=False)
         )
         with patch("ac_guard.checker.core.get_changed_files", return_value=[]):
-            report = run_stage("pre-push", config, tmp_path, build_command="echo build")
+            report = run_stage(
+                "pre-push",
+                config,
+                tmp_path,
+                options=StageOptions(build_command="echo build"),
+            )
         assert report.passed is True
         assert any(r.name == "build" for r in report.results)
 
@@ -196,8 +202,10 @@ class TestRunStage:
                 "pre-commit",
                 config,
                 tmp_path,
-                files=["a.py"],
-                languages=["python", "typescript"],
+                options=StageOptions(
+                    files=["a.py"],
+                    languages=["python", "typescript"],
+                ),
             )
         hook_ids = [call.args[0] for call in mock_run.call_args_list]
         assert "format-python" in hook_ids
@@ -222,7 +230,7 @@ class TestRunStage:
                     "pre-push",
                     config,
                     tmp_path,
-                    languages=["python", "typescript"],
+                    options=StageOptions(languages=["python", "typescript"]),
                 )
         hook_ids = [call.args[0] for call in mock_run.call_args_list]
         assert "lint-python" in hook_ids
@@ -242,7 +250,7 @@ class TestRunStage:
             patch("ac_guard.checker.core.run_precommit") as mock_run,
             patch("ac_guard.checker.core.get_changed_files", return_value=["a.py"]),
         ):
-            run_stage("pre-push", config, tmp_path, languages=[])
+            run_stage("pre-push", config, tmp_path, options=StageOptions(languages=[]))
         mock_run.assert_not_called()
 
     def test_push_build_failure_skips_lint_and_checks(self, tmp_path: Path) -> None:
@@ -271,8 +279,10 @@ class TestRunStage:
                 "pre-push",
                 config,
                 tmp_path,
-                build_command="make build",
-                languages=["python"],
+                options=StageOptions(
+                    build_command="make build",
+                    languages=["python"],
+                ),
             )
 
         # Build ran once, downstream checkers never invoked
@@ -317,8 +327,10 @@ class TestRunStage:
                 "pre-push",
                 config,
                 tmp_path,
-                build_command="make build",
-                languages=["python"],
+                options=StageOptions(
+                    build_command="make build",
+                    languages=["python"],
+                ),
             )
         precommit_mock.assert_called()
         check_mock.assert_called()

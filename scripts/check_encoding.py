@@ -53,6 +53,34 @@ def _in_string(pos: int, regions: list[tuple[int, int]]) -> bool:
     return any(start <= pos < end for start, end in regions)
 
 
+def _skip_string_literal(src: str, i: int) -> int:
+    """Skip past the Python string literal that begins at ``src[i]``.
+
+    Returns the index just past the closing quote, or ``-1`` if the
+    literal is not closed. Handles triple-quoted and single-quoted
+    forms, respecting backslash escapes.
+
+    Precondition: ``src[i]`` is a single or double quote.
+    """
+    triple = src[i : i + 3]
+    if triple in ('"""', "'''"):
+        end = src.find(triple, i + 3)
+        return -1 if end == -1 else end + 3
+
+    quote = src[i]
+    j = i + 1
+    n = len(src)
+    while j < n:
+        c = src[j]
+        if c == "\\":
+            j += 2
+            continue
+        if c == quote:
+            return j + 1
+        j += 1
+    return -1
+
+
 def _find_close(src: str, open_paren: int) -> int:
     """Return index of the ``)`` matching ``src[open_paren] == '('``.
 
@@ -61,26 +89,15 @@ def _find_close(src: str, open_paren: int) -> int:
     """
     depth = 0
     i = open_paren
-    in_str: str | None = None
     n = len(src)
     while i < n:
         c = src[i]
-        if in_str:
-            if c == "\\":
-                i += 2
-                continue
-            if c == in_str:
-                in_str = None
-        elif c in ("'", '"'):
-            triple = src[i : i + 3]
-            if triple in ('"""', "'''"):
-                end = src.find(triple, i + 3)
-                if end == -1:
-                    return -1
-                i = end + 3
-                continue
-            in_str = c
-        elif c == "(":
+        if c in ("'", '"'):
+            i = _skip_string_literal(src, i)
+            if i == -1:
+                return -1
+            continue
+        if c == "(":
             depth += 1
         elif c == ")":
             depth -= 1
@@ -98,27 +115,16 @@ def _top_level_has_encoding(inner: str) -> bool:
     only accept an ``encoding=`` match at depth 0 outside any string.
     """
     depth = 0
-    in_str: str | None = None
     i = 0
     n = len(inner)
     while i < n:
         c = inner[i]
-        if in_str:
-            if c == "\\":
-                i += 2
-                continue
-            if c == in_str:
-                in_str = None
-        elif c in ("'", '"'):
-            triple = inner[i : i + 3]
-            if triple in ('"""', "'''"):
-                end = inner.find(triple, i + 3)
-                if end == -1:
-                    return False
-                i = end + 3
-                continue
-            in_str = c
-        elif c == "(":
+        if c in ("'", '"'):
+            i = _skip_string_literal(inner, i)
+            if i == -1:
+                return False
+            continue
+        if c == "(":
             depth += 1
         elif c == ")":
             depth -= 1
