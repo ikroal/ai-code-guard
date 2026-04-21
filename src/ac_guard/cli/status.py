@@ -8,12 +8,16 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shlex
 import shutil
+import subprocess
 import sys
+from collections import Counter
 from typing import TYPE_CHECKING
 
 from ac_guard import __version__
 from ac_guard.adapters.registry import get_adapter, list_adapters
+from ac_guard.checker.core import BUCKET_AWARE_STAGES, detect_language
 from ac_guard.config.exceptions import ConfigError
 from ac_guard.config.loader import load_config
 from ac_guard.config.merger import resolve_config
@@ -21,6 +25,8 @@ from ac_guard.generator.core import read_state
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+    from ac_guard.config.models import ResolvedConfig
 
 __all__ = ["status_command", "doctor_command", "agents_command"]
 
@@ -198,38 +204,77 @@ def _print_rules(config_path: Path) -> None:
 def doctor_command(
     project_root: Path,
     config_path: Path,
+    *,
+    strict: bool = False,
 ) -> None:
     """Execute the doctor command.
 
-    Performs systematic environment diagnostics.
+    Performs systematic environment diagnostics. FAIL always exits 1;
+    with ``strict=True`` any WARN also exits 1 (useful for CI).
 
     Args:
         project_root: Path to project root directory.
         config_path: Path to guard.yaml.
+        strict: Treat WARN severity as failure.
     """
+    tally = _Tally()
+
     print("AI Code Guard Doctor")
     print("=" * 40)
 
     # 1. Tool dependencies
     print("\n1. Tool Dependencies")
-    _check_python()
-    _check_git()
-    _check_pre_commit()
+    _check_python(tally)
+    _check_git(tally)
+    _check_pre_commit(tally)
 
     # 2. Configuration state
     print("\n2. Configuration")
-    _check_config(config_path)
+    resolved = _check_config(config_path, tally)
 
     # 3. File integrity
     print("\n3. File Integrity")
-    _check_file_integrity(project_root)
+    _check_file_integrity(project_root, tally)
 
     # 4. Drift detection
     print("\n4. Drift Detection")
-    _check_drift(project_root, config_path)
+    _check_drift(project_root, config_path, tally)
+
+    # 5-7. Config-dependent checks (skip when config failed to load)
+    if resolved is not None:
+        print("\n5. Local Hook Entries")
+        _check_local_hook_entries(resolved, project_root, tally)
+
+        print("\n6. Language Coverage")
+        _check_language_coverage(resolved, project_root, tally)
+
+        print("\n7. Stage Semantic Fit")
+        _check_stage_semantic_fit(resolved, tally)
+
+    # Exit policy: FAIL always exits 1. WARN exits 1 only under --strict.
+    if tally.fail > 0 or (strict and tally.warn > 0):
+        print(
+            f"\n{tally.fail} failure(s), {tally.warn} warning(s). "
+            "Run 'ac-guard install' or fix guard.yaml and re-run doctor."
+        )
+        raise SystemExit(1)
 
 
-def _check_python() -> None:
+class _Tally:
+    """Aggregate WARN / FAIL counts across doctor checks."""
+
+    def __init__(self) -> None:
+        self.warn = 0
+        self.fail = 0
+
+    def warn_inc(self) -> None:
+        self.warn += 1
+
+    def fail_inc(self) -> None:
+        self.fail += 1
+
+
+def _check_python(tally: _Tally) -> None:
     """Check Python version."""
     version = sys.version.split()[0]
     major, minor = sys.version_info[:2]
@@ -237,53 +282,65 @@ def _check_python() -> None:
         print(f"  [ok] Python {version}")
     else:
         print(f"  [FAIL] Python {version} (requires >= 3.10)")
+        tally.fail_inc()
 
 
-def _check_git() -> None:
+def _check_git(tally: _Tally) -> None:
     """Check git availability."""
     git_path = shutil.which("git")
     if git_path:
         print(f"  [ok] git found at {git_path}")
     else:
         print("  [FAIL] git not found. Install git.")
+        tally.fail_inc()
 
 
-def _check_pre_commit() -> None:
+def _check_pre_commit(tally: _Tally) -> None:
     """Check pre-commit availability."""
     pc_path = shutil.which("pre-commit")
     if pc_path:
         print(f"  [ok] pre-commit found at {pc_path}")
     else:
         print("  [WARN] pre-commit not found. Install: pip install pre-commit")
+        tally.warn_inc()
 
 
-def _check_config(config_path: Path) -> None:
-    """Validate guard.yaml configuration.
+def _check_config(config_path: Path, tally: _Tally) -> ResolvedConfig | None:
+    """Validate guard.yaml — returns ResolvedConfig so later checks can reuse it.
 
-    Args:
-        config_path: Path to guard.yaml.
+    Returns None on invalid/missing config so the remaining per-config
+    checks can be skipped without raising.
     """
     if not config_path.is_file():
         print(f"  [FAIL] guard.yaml not found at {config_path}")
         print("         Run 'ac-guard init' to create one.")
-        return
+        tally.fail_inc()
+        return None
 
     try:
         load_config(config_path)
-        print(f"  [ok] guard.yaml valid ({config_path})")
     except ConfigError as e:
         print(f"  [FAIL] guard.yaml invalid: {e}")
+        tally.fail_inc()
+        return None
+
+    try:
+        resolved = resolve_config(config_path)
+    except ConfigError as e:
+        print(f"  [FAIL] guard.yaml cannot be resolved: {e}")
+        tally.fail_inc()
+        return None
+
+    print(f"  [ok] guard.yaml valid ({config_path})")
+    return resolved
 
 
-def _check_file_integrity(project_root: Path) -> None:
-    """Check artifact file integrity.
-
-    Args:
-        project_root: Path to project root directory.
-    """
+def _check_file_integrity(project_root: Path, tally: _Tally) -> None:
+    """Check artifact file integrity."""
     state = read_state(project_root)
     if state is None:
         print("  [WARN] Not installed (no state.json)")
+        tally.warn_inc()
         return
 
     missing = []
@@ -297,17 +354,13 @@ def _check_file_integrity(project_root: Path) -> None:
         for path in missing:
             print(f"         {path}")
         print("         Run 'ac-guard update' to regenerate.")
+        tally.fail_inc()
     else:
         print(f"  [ok] All {len(state.artifacts)} artifact(s) present")
 
 
-def _check_drift(project_root: Path, config_path: Path) -> None:
-    """Check configuration drift.
-
-    Args:
-        project_root: Path to project root directory.
-        config_path: Path to guard.yaml.
-    """
+def _check_drift(project_root: Path, config_path: Path, tally: _Tally) -> None:
+    """Check configuration drift."""
     state = read_state(project_root)
     if state is None:
         print("  [SKIP] Not installed")
@@ -315,14 +368,195 @@ def _check_drift(project_root: Path, config_path: Path) -> None:
 
     if not config_path.is_file():
         print("  [WARN] guard.yaml not found")
+        tally.warn_inc()
         return
 
     current_hash = _compute_config_hash(config_path)
     if current_hash != state.config_hash:
         print("  [WARN] Configuration drift detected")
         print("         Run 'ac-guard update' to sync.")
+        tally.warn_inc()
     else:
         print("  [ok] No drift")
+
+
+# ---------------------------------------------------------------------------
+# New Phase 2 PR A checks
+# ---------------------------------------------------------------------------
+
+# Unguarded-language files below this threshold are ignored — avoids noise
+# from scattered config files (.ts shim, single .go vendored, ...).
+_LANGUAGE_COVERAGE_MIN_FILES = 3
+
+
+def _check_local_hook_entries(
+    resolved: ResolvedConfig, project_root: Path, tally: _Tally
+) -> None:
+    """Verify every ``repo: local`` hook's entry resolves to something runnable.
+
+    For each local hook declared under any ``code.<stage>.hooks`` bucket,
+    take the first token of ``entry`` (via ``shlex.split``) and look for
+    it in ``PATH`` or as a file under the project root. Anything that
+    can't be resolved is a ``[FAIL]`` — pre-commit would only surface
+    the error at the first hook invocation, which is too late.
+    """
+    found_any = False
+    for _stage_name, bucket in resolved.code.buckets():
+        for repo in bucket.hooks:
+            if repo.repo != "local":
+                continue
+            for hook in repo.hooks:
+                # PATH matters only for ``language: system`` — other
+                # languages (python/node/docker/...) have pre-commit
+                # install the entry into an isolated env, so we can't
+                # and shouldn't second-guess availability.
+                if hook.extra.get("language") != "system":
+                    continue
+                entry = hook.extra.get("entry")
+                if not isinstance(entry, str) or not entry.strip():
+                    continue
+                found_any = True
+                token = shlex.split(entry)[0] if entry.strip() else ""
+                if not token:
+                    continue
+                location = _resolve_entry(token, project_root)
+                if location:
+                    print(f"  [ok] {hook.id}: {token} ({location})")
+                else:
+                    print(f"  [FAIL] {hook.id}: {token} not in PATH or project")
+                    print("         Install the tool or adjust the guard.yaml entry.")
+                    tally.fail_inc()
+    if not found_any:
+        print("  [ok] No system-language local hooks to verify")
+
+
+def _resolve_entry(token: str, project_root: Path) -> str | None:
+    """Return a human-readable location string if ``token`` is runnable.
+
+    Tries ``shutil.which`` (PATH) first, then checks whether the token
+    resolves to a file under ``project_root``. Returns ``None`` if
+    neither works.
+    """
+    path = shutil.which(token)
+    if path:
+        return "PATH"
+    candidate = project_root / token
+    if candidate.is_file():
+        return "project-relative"
+    return None
+
+
+def _check_language_coverage(
+    resolved: ResolvedConfig, project_root: Path, tally: _Tally
+) -> None:
+    """Compare ``languages:`` declarations against actual repo files (D9).
+
+    Uses ``git ls-files`` to enumerate tracked files, attributes each to
+    a language by extension (``detect_language``), and cross-references
+    the ``languages:`` map. Three cases:
+
+    - declared + has files → ``[ok]``
+    - declared + zero files → ``[WARN]`` (user likely forgot to stage / wrong lang)
+    - undeclared + ≥ ``_LANGUAGE_COVERAGE_MIN_FILES`` → ``[WARN]``
+    - undeclared + < threshold → silent (scattered config files, not worth noise)
+    """
+    counts = _count_languages_by_extension(project_root)
+    declared = set(resolved.languages.keys())
+
+    # Declared languages
+    for lang in sorted(declared):
+        n = counts.get(lang, 0)
+        if n > 0:
+            print(f"  [ok] {lang}: {n} files")
+        else:
+            print(
+                f"  [WARN] {lang}: declared in languages: but no source files "
+                f"found under {project_root}"
+            )
+            tally.warn_inc()
+
+    # Undeclared languages with meaningful presence
+    undeclared = sorted(
+        lang
+        for lang, n in counts.items()
+        if lang not in declared and n >= _LANGUAGE_COVERAGE_MIN_FILES
+    )
+    for lang in undeclared:
+        print(
+            f"  [WARN] {lang}: {counts[lang]} files but no entry in languages: — "
+            f"format/lint shortcuts won't cover them"
+        )
+        tally.warn_inc()
+
+    if not declared and not undeclared:
+        print("  [ok] No tracked source files to check")
+
+
+def _count_languages_by_extension(project_root: Path) -> Counter[str]:
+    """Return ``{language_name: file_count}`` over git-tracked files.
+
+    Falls back to an empty counter if ``git`` fails (e.g. not a repo) —
+    doctor's ``_check_git`` already reports git issues, so we stay silent
+    here to avoid double-reporting.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "ls-files"],
+            cwd=project_root,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+    except (subprocess.TimeoutExpired, OSError):
+        return Counter()
+
+    if result.returncode != 0:
+        return Counter()
+
+    counts: Counter[str] = Counter()
+    for path in result.stdout.splitlines():
+        lang = detect_language(path)
+        if lang:
+            counts[lang] += 1
+    return counts
+
+
+def _check_stage_semantic_fit(resolved: ResolvedConfig, tally: _Tally) -> None:
+    """Flag format/lint toggles placed on stages where they silent-skip.
+
+    The ``format``/``lint`` shortcuts inject per-language hooks with
+    ``types: [<lang>]`` filtering. On ``commit-msg``/``pre-merge-commit``
+    /``pre-rebase``, pre-commit's runtime type filter never matches the
+    commit-message file (or the branch name for pre-rebase), so those
+    hooks never run. This is pre-commit's native filtering behavior, not
+    an ac-guard restriction — but it's invisible to the user until they
+    notice lint didn't happen, which is too late.
+    """
+    offenders: list[tuple[str, str]] = []
+    for stage_name, bucket in resolved.code.buckets():
+        if stage_name in BUCKET_AWARE_STAGES:
+            continue
+        if bucket.format:
+            offenders.append((stage_name, "format"))
+        if bucket.lint:
+            offenders.append((stage_name, "lint"))
+
+    if not offenders:
+        print("  [ok] format/lint shortcuts only on pre-commit/pre-push")
+        return
+
+    for stage_name, toggle in offenders:
+        print(
+            f"  [WARN] code.{stage_name}.{toggle} is on, but pre-commit's "
+            f"types: filter won't match files at the {stage_name} stage — "
+            f"the generated hooks will silent-skip."
+        )
+        print(
+            f"         Move to code.pre-commit.{toggle} or "
+            f"code.pre-push.{toggle}, or remove the toggle."
+        )
+        tally.warn_inc()
 
 
 # ---------------------------------------------------------------------------

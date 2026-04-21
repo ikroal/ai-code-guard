@@ -20,12 +20,49 @@ if TYPE_CHECKING:
     from ac_guard.config.models import CheckItem, CodeConfig
 
 __all__ = [
+    "BUCKET_AWARE_STAGES",
+    "TYPE_EXTENSIONS",
+    "detect_language",
     "get_changed_files",
     "run_build",
     "run_check",
     "run_precommit",
     "run_stage",
 ]
+
+
+# Stages where ac-guard provides bucket-aware orchestration (format/lint
+# shortcuts, build command, CheckReport for reporter/audit). Other gating
+# stages delegate to ``pre-commit run --hook-stage`` via cli/check.py.
+BUCKET_AWARE_STAGES: frozenset[str] = frozenset({"pre-commit", "pre-push"})
+
+
+# Maps ac-guard language identifier → set of file extensions. Shared by
+# the file-type filter and by ``doctor``'s language coverage check.
+TYPE_EXTENSIONS: dict[str, frozenset[str]] = {
+    "python": frozenset({".py", ".pyi"}),
+    "javascript": frozenset({".js", ".jsx", ".mjs"}),
+    "typescript": frozenset({".ts", ".tsx", ".mts"}),
+    "go": frozenset({".go"}),
+    "rust": frozenset({".rs"}),
+    "java": frozenset({".java"}),
+    "c": frozenset({".c", ".h"}),
+    "cpp": frozenset({".cpp", ".cc", ".cxx", ".hpp", ".hh"}),
+}
+
+
+def detect_language(path: str) -> str | None:
+    """Return the ac-guard language name for a file path, or None.
+
+    Uses the extension → language map in ``TYPE_EXTENSIONS``. Returns
+    ``None`` for paths with no matching extension (configs, text files,
+    binaries, etc.).
+    """
+    lower = path.lower()
+    for lang, exts in TYPE_EXTENSIONS.items():
+        if any(lower.endswith(ext) for ext in exts):
+            return lang
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -229,20 +266,9 @@ def _filter_files_by_type(files: list[str], types: list[str] | None) -> list[str
     if types is None:
         return files
 
-    type_extensions = {
-        "python": {".py", ".pyi"},
-        "javascript": {".js", ".jsx", ".mjs"},
-        "typescript": {".ts", ".tsx", ".mts"},
-        "go": {".go"},
-        "rust": {".rs"},
-        "java": {".java"},
-        "c": {".c", ".h"},
-        "cpp": {".cpp", ".cc", ".cxx", ".hpp", ".hh"},
-    }
-
     valid_exts: set[str] = set()
     for t in types:
-        valid_exts.update(type_extensions.get(t, {f".{t}"}))
+        valid_exts.update(TYPE_EXTENSIONS.get(t, frozenset({f".{t}"})))
 
     return [f for f in files if any(f.endswith(ext) for ext in valid_exts)]
 

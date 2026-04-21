@@ -244,10 +244,21 @@ def doctor(
             help="Path to guard.yaml",
         ),
     ] = Path("guard.yaml"),
+    strict: Annotated[
+        bool,
+        typer.Option(
+            "--strict",
+            help="Treat warnings as failures (useful for CI).",
+        ),
+    ] = False,
 ) -> None:
     """Run environment diagnostics and check system health."""
     project_root = config.parent.resolve()
-    doctor_command(project_root=project_root, config_path=config)
+    doctor_command(
+        project_root=project_root,
+        config_path=config,
+        strict=strict,
+    )
 
 
 @app.command()
