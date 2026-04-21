@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from ac_guard.checker.core import (
+    BUCKET_AWARE_STAGES,
     get_changed_files,
     run_check,
     run_precommit,
@@ -197,10 +198,6 @@ _GATING_STAGES = frozenset(
     {"pre-commit", "commit-msg", "pre-merge-commit", "pre-push", "pre-rebase"}
 )
 
-# Stages where ac-guard has bucket-aware logic and runs its own checker.
-# The other gating stages delegate straight to pre-commit via subprocess.
-_BUCKET_AWARE_STAGES = frozenset({"pre-commit", "pre-push"})
-
 
 def gate_run_command(
     stage: str,
@@ -230,7 +227,7 @@ def gate_run_command(
     resolved = _load_config(config_path)
     project_root = config_path.parent.resolve()
 
-    if stage in _BUCKET_AWARE_STAGES:
+    if stage in BUCKET_AWARE_STAGES:
         build_cmd = resolved.build_command if stage == "pre-push" else None
         report = run_stage(
             stage,

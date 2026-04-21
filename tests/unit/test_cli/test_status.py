@@ -184,10 +184,11 @@ class TestDoctorCommand:
         )
 
     def test_doctor_not_initialized(self, tmp_path: Path) -> None:
-        """doctor reports when not initialized."""
+        """doctor reports when not initialized — missing config is FAIL."""
         config = tmp_path / "guard.yaml"
         result = runner.invoke(app, ["doctor", "--config", str(config)])
-        assert result.exit_code == 0
+        # Missing guard.yaml is a failure (can't diagnose without it).
+        assert result.exit_code == 1
         assert "guard.yaml" in result.output.lower()
 
     def test_doctor_checks_artifacts(self, installed_project: Path) -> None:
@@ -204,6 +205,256 @@ class TestDoctorCommand:
         result = runner.invoke(app, ["doctor", "--config", str(config)])
         assert result.exit_code == 0
         assert "pre-commit" in result.output.lower()
+
+
+# ---------------------------------------------------------------------------
+# TestDoctorLocalHookEntries (Phase 2 PR A)
+# ---------------------------------------------------------------------------
+
+
+def _yaml_with_local_hook(
+    tmp_path: Path, *, entry: str, language: str = "system"
+) -> Path:
+    """Write guard.yaml with one repo: local hook using the given entry."""
+    data = {
+        "version": 1,
+        "project": {"name": "t", "language": "python"},
+        "code": {
+            "pre-commit": {
+                "hooks": [
+                    {
+                        "repo": "local",
+                        "hooks": [
+                            {
+                                "id": "custom-hook",
+                                "name": "Custom",
+                                "entry": entry,
+                                "language": language,
+                            }
+                        ],
+                    }
+                ],
+            }
+        },
+    }
+    return _write_guard_yaml(tmp_path, data)
+
+
+class TestDoctorLocalHookEntries:
+    """Phase 2 PR A — verify doctor catches missing local hook entries."""
+
+    def test_entry_in_path_is_ok(self, tmp_path: Path) -> None:
+        """A system-language entry resolvable in PATH is reported ok."""
+        # ``python3`` is guaranteed present on every dev/CI box.
+        config = _yaml_with_local_hook(tmp_path, entry="python3 -c 'pass'")
+        result = runner.invoke(app, ["doctor", "--config", str(config)])
+        assert "[ok] custom-hook: python3 (PATH)" in result.output
+
+    def test_entry_project_relative_is_ok(self, tmp_path: Path) -> None:
+        """An entry that resolves to a file under project_root is ok."""
+        script = tmp_path / "scripts" / "custom.sh"
+        script.parent.mkdir(parents=True, exist_ok=True)
+        script.write_text("#!/bin/sh\n", encoding="utf-8")
+        config = _yaml_with_local_hook(tmp_path, entry="scripts/custom.sh")
+        result = runner.invoke(app, ["doctor", "--config", str(config)])
+        assert "[ok] custom-hook: scripts/custom.sh (project-relative)" in result.output
+
+    def test_missing_entry_is_fail(self, tmp_path: Path) -> None:
+        """An entry absent from PATH and project yields FAIL + exit 1."""
+        config = _yaml_with_local_hook(tmp_path, entry="definitely-not-a-real-tool-xyz")
+        result = runner.invoke(app, ["doctor", "--config", str(config)])
+        assert result.exit_code == 1
+        assert "[FAIL]" in result.output
+        assert "definitely-not-a-real-tool-xyz" in result.output
+
+    def test_non_system_language_is_skipped(self, tmp_path: Path) -> None:
+        """language: python (not system) bypasses the PATH check entirely."""
+        config = _yaml_with_local_hook(
+            tmp_path, entry="mypy-but-its-pre-commit-managed", language="python"
+        )
+        result = runner.invoke(app, ["doctor", "--config", str(config)])
+        # Without system-language local hooks, doctor reports the "nothing
+        # to verify" variant and does not FAIL even though entry is bogus.
+        assert "[ok] No system-language local hooks to verify" in result.output
+
+
+# ---------------------------------------------------------------------------
+# TestDoctorLanguageCoverage (Phase 2 PR A)
+# ---------------------------------------------------------------------------
+
+
+def _init_git_with_files(tmp_path: Path, files: dict[str, str]) -> None:
+    """Initialize a git repo at tmp_path and stage each (relpath → content)."""
+    import subprocess
+
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "config", "user.email", "t@t"],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "t"],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+    )
+    for relpath, content in files.items():
+        full = tmp_path / relpath
+        full.parent.mkdir(parents=True, exist_ok=True)
+        full.write_text(content, encoding="utf-8")
+        subprocess.run(
+            ["git", "add", relpath],
+            cwd=tmp_path,
+            check=True,
+            capture_output=True,
+        )
+
+
+def _yaml_with_languages(
+    tmp_path: Path, langs: dict[str, dict[str, str]] | None = None
+) -> Path:
+    """Write guard.yaml declaring the given languages (empty default = python)."""
+    data: dict = {
+        "version": 1,
+        "project": {"name": "t", "language": "python"},
+    }
+    if langs is not None:
+        data["languages"] = {
+            name: {
+                "tools": {
+                    "format": tools.get("format", "echo fmt"),
+                    "lint": tools.get("lint", "echo lint"),
+                }
+            }
+            for name, tools in langs.items()
+        }
+    return _write_guard_yaml(tmp_path, data)
+
+
+class TestDoctorLanguageCoverage:
+    """Phase 2 PR A — language coverage (D9) detects drift between repo and config."""
+
+    def test_declared_with_files_is_ok(self, tmp_path: Path) -> None:
+        """Declared python + tracked .py files → [ok] with count."""
+        _init_git_with_files(tmp_path, {f"src/a{i}.py": "" for i in range(5)})
+        config = _yaml_with_languages(tmp_path, {"python": {}})
+        result = runner.invoke(app, ["doctor", "--config", str(config)])
+        assert "[ok] python: 5 files" in result.output
+
+    def test_declared_without_files_is_warn(self, tmp_path: Path) -> None:
+        """Declared rust + zero .rs files → [WARN]."""
+        _init_git_with_files(tmp_path, {"README.md": ""})
+        config = _yaml_with_languages(tmp_path, {"rust": {}})
+        result = runner.invoke(app, ["doctor", "--config", str(config)])
+        assert "[WARN] rust" in result.output
+        assert "no source files found" in result.output
+
+    def test_undeclared_above_threshold_is_warn(self, tmp_path: Path) -> None:
+        """Undeclared typescript + >=3 .ts files → [WARN]."""
+        _init_git_with_files(tmp_path, {f"web/b{i}.ts": "" for i in range(4)})
+        config = _yaml_with_languages(tmp_path, {"python": {}})
+        result = runner.invoke(app, ["doctor", "--config", str(config)])
+        assert "[WARN] typescript" in result.output
+        assert "4 files" in result.output
+
+    def test_undeclared_below_threshold_is_silent(self, tmp_path: Path) -> None:
+        """Undeclared language with <3 files is suppressed."""
+        _init_git_with_files(tmp_path, {"x.go": "", "scripts/setup.go": ""})
+        config = _yaml_with_languages(tmp_path, {"python": {}})
+        result = runner.invoke(app, ["doctor", "--config", str(config)])
+        # Go files below threshold → no warn line about go.
+        assert "go" not in result.output.lower().split("\n6.")[1].split("\n7.")[0]
+
+    def test_not_a_git_repo_is_silent(self, tmp_path: Path) -> None:
+        """When git ls-files fails, check stays quiet (git diag already covered)."""
+        config = _yaml_with_languages(tmp_path, {"python": {}})
+        # No .git dir in tmp_path → git ls-files returns non-zero
+        result = runner.invoke(app, ["doctor", "--config", str(config)])
+        # Declared python with 0 files → WARN (repo empty). That's
+        # acceptable; we're only asserting no crash.
+        assert "6. Language Coverage" in result.output
+
+
+# ---------------------------------------------------------------------------
+# TestDoctorStageSemanticFit (Phase 2 PR A)
+# ---------------------------------------------------------------------------
+
+
+def _yaml_with_stage(tmp_path: Path, stage: str, field: str, value: bool) -> Path:
+    """Write a guard.yaml toggling one stage bucket field."""
+    data = {
+        "version": 1,
+        "project": {"name": "t", "language": "python"},
+        "code": {stage: {field: value}},
+    }
+    return _write_guard_yaml(tmp_path, data)
+
+
+class TestDoctorStageSemanticFit:
+    """Phase 2 PR A — warn on format/lint toggles attached to non-fitting stages."""
+
+    def test_pre_commit_format_is_ok(self, tmp_path: Path) -> None:
+        """Canonical placement — no warning."""
+        config = _yaml_with_stage(tmp_path, "pre-commit", "format", True)
+        result = runner.invoke(app, ["doctor", "--config", str(config)])
+        assert "[ok] format/lint shortcuts only on pre-commit/pre-push" in (
+            result.output
+        )
+
+    def test_commit_msg_format_is_warn(self, tmp_path: Path) -> None:
+        """commit-msg.format: true is a silent-skip footgun."""
+        config = _yaml_with_stage(tmp_path, "commit-msg", "format", True)
+        result = runner.invoke(app, ["doctor", "--config", str(config)])
+        assert "[WARN]" in result.output
+        assert "code.commit-msg.format" in result.output
+        # Exit 0 because WARN alone doesn't fail without --strict
+        assert result.exit_code == 0
+
+    def test_pre_rebase_lint_is_warn(self, tmp_path: Path) -> None:
+        """pre-rebase.lint: true is equally meaningless (no files to lint)."""
+        config = _yaml_with_stage(tmp_path, "pre-rebase", "lint", True)
+        result = runner.invoke(app, ["doctor", "--config", str(config)])
+        assert "[WARN]" in result.output
+        assert "code.pre-rebase.lint" in result.output
+
+    def test_pre_push_lint_is_ok(self, tmp_path: Path) -> None:
+        """pre-push is bucket-aware — lint there is the canonical place."""
+        config = _yaml_with_stage(tmp_path, "pre-push", "lint", True)
+        result = runner.invoke(app, ["doctor", "--config", str(config)])
+        assert "[ok] format/lint shortcuts only on pre-commit/pre-push" in (
+            result.output
+        )
+
+
+# ---------------------------------------------------------------------------
+# TestDoctorStrict (Phase 2 PR A)
+# ---------------------------------------------------------------------------
+
+
+class TestDoctorStrict:
+    """Phase 2 PR A — --strict policy for CI."""
+
+    def test_strict_with_warn_exits_one(self, tmp_path: Path) -> None:
+        """With --strict, any WARN causes exit 1."""
+        config = _yaml_with_stage(tmp_path, "commit-msg", "format", True)
+        result = runner.invoke(app, ["doctor", "--config", str(config), "--strict"])
+        assert result.exit_code == 1
+        assert "[WARN]" in result.output
+
+    def test_non_strict_with_warn_exits_zero(self, tmp_path: Path) -> None:
+        """Without --strict, WARN is informational and doctor still exits 0."""
+        config = _yaml_with_stage(tmp_path, "commit-msg", "format", True)
+        result = runner.invoke(app, ["doctor", "--config", str(config)])
+        assert result.exit_code == 0
+        assert "[WARN]" in result.output
+
+    def test_fail_always_exits_one(self, tmp_path: Path) -> None:
+        """FAIL unconditionally exits 1, regardless of --strict."""
+        config = _yaml_with_local_hook(tmp_path, entry="definitely-not-a-real-tool-xyz")
+        result = runner.invoke(app, ["doctor", "--config", str(config)])
+        assert result.exit_code == 1
 
 
 # ---------------------------------------------------------------------------
