@@ -6,7 +6,7 @@ from pathlib import Path
 
 from ac_guard.adapters._render import get_template_dir, render_hook, render_rule_doc
 from ac_guard.config.models import BehaviorConfig, OperationRules, Rule
-from ac_guard.domain import MARKER_BEGIN, MARKER_END
+from ac_guard.domain import managed_block
 
 
 class TestGetTemplateDir:
@@ -76,12 +76,11 @@ class TestRenderRuleDoc:
         assert "secrets" in result
 
     def test_no_markers_in_output(self) -> None:
-        # render_rule_doc returns content without managed block markers
-        # The caller (adapter) wraps it
+        # render_rule_doc returns content without managed block markers;
+        # the writer layer (managed_block.wrap / managed_block.replace) wraps it.
         behavior = BehaviorConfig.empty()
         result = render_rule_doc("claude_code", behavior)
-        assert MARKER_BEGIN not in result
-        assert MARKER_END not in result
+        assert not managed_block.has(result, path="CLAUDE.md")
 
 
 class TestRenderHook:

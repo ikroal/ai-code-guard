@@ -64,8 +64,10 @@ def render_rule_doc(template_name: str, behavior: BehaviorConfig) -> str:
 
     Returns:
         Rendered Markdown content (without managed block markers).
-        Caller should wrap it into a FileSpec via ``FileSpec.from_body(path, body)``
-        (or directly with ``wrap_with_markers(path, body)`` at the string level).
+        The writer layer (``write_artifacts``) invokes
+        ``managed_block.wrap`` / ``managed_block.replace`` from
+        ``ac_guard.domain.managed_block`` when the target file needs
+        its managed block (re)written.
     """
     env = _get_env()
     template = env.get_template(f"rule_docs/{template_name}.md.j2")

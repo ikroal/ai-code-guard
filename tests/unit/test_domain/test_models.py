@@ -1,110 +1,12 @@
-"""Tests for ac_guard.domain.models — cross-module data contracts and
-managed-block protocol helpers.
+"""Tests for ac_guard.domain.models — Value Objects.
+
+Managed-block protocol operations live in
+``tests/unit/test_domain/test_managed_block.py``.
 """
 
 from __future__ import annotations
 
-from ac_guard.domain import (
-    MARKER_BEGIN,
-    MARKER_BEGIN_HASH,
-    MARKER_END,
-    MARKER_END_HASH,
-    FileSpec,
-    markers_for,
-    wrap_with_markers,
-)
-
-# ---------------------------------------------------------------------------
-# A. Managed-block marker constants
-# ---------------------------------------------------------------------------
-
-
-class TestManagedBlockMarkers:
-    def test_marker_begin_value(self) -> None:
-        assert MARKER_BEGIN == "<!-- AI-GUARD:BEGIN -->"
-
-    def test_marker_end_value(self) -> None:
-        assert MARKER_END == "<!-- AI-GUARD:END -->"
-
-    def test_hash_marker_values(self) -> None:
-        assert MARKER_BEGIN_HASH == "# AI-GUARD:BEGIN"
-        assert MARKER_END_HASH == "# AI-GUARD:END"
-
-    def test_markers_are_strings(self) -> None:
-        assert isinstance(MARKER_BEGIN, str)
-        assert isinstance(MARKER_END, str)
-        assert isinstance(MARKER_BEGIN_HASH, str)
-        assert isinstance(MARKER_END_HASH, str)
-
-
-# ---------------------------------------------------------------------------
-# B. markers_for(path)
-# ---------------------------------------------------------------------------
-
-
-class TestMarkersFor:
-    """markers_for(path) picks hash-style for hash-comment syntaxes."""
-
-    def test_yaml_gets_hash_markers(self) -> None:
-        assert markers_for(".pre-commit-config.yaml") == (
-            MARKER_BEGIN_HASH,
-            MARKER_END_HASH,
-        )
-        assert markers_for("config.yml") == (MARKER_BEGIN_HASH, MARKER_END_HASH)
-
-    def test_toml_gets_hash_markers(self) -> None:
-        assert markers_for("pyproject.toml") == (MARKER_BEGIN_HASH, MARKER_END_HASH)
-
-    def test_python_and_shell_get_hash_markers(self) -> None:
-        assert markers_for("scripts/install.sh") == (
-            MARKER_BEGIN_HASH,
-            MARKER_END_HASH,
-        )
-        assert markers_for("src/app/main.py") == (MARKER_BEGIN_HASH, MARKER_END_HASH)
-
-    def test_markdown_gets_html_markers(self) -> None:
-        assert markers_for("CLAUDE.md") == (MARKER_BEGIN, MARKER_END)
-        assert markers_for("rules/behavior.mdc") == (MARKER_BEGIN, MARKER_END)
-
-    def test_unknown_extension_falls_back_to_html(self) -> None:
-        assert markers_for("README") == (MARKER_BEGIN, MARKER_END)
-        assert markers_for("policy.json") == (MARKER_BEGIN, MARKER_END)
-
-    def test_case_insensitive_extension_match(self) -> None:
-        assert markers_for("Makefile.YAML") == (MARKER_BEGIN_HASH, MARKER_END_HASH)
-
-
-# ---------------------------------------------------------------------------
-# C. wrap_with_markers(path, content)
-# ---------------------------------------------------------------------------
-
-
-class TestWrapWithMarkers:
-    def test_output_structure_html(self) -> None:
-        result = wrap_with_markers("RULES.md", "line1")
-        assert result.startswith(MARKER_BEGIN)
-        assert result.endswith(MARKER_END + "\n")
-        assert "line1" in result
-
-    def test_output_structure_hash(self) -> None:
-        result = wrap_with_markers("config.yaml", "body")
-        assert result.startswith(MARKER_BEGIN_HASH)
-        assert result.endswith(MARKER_END_HASH + "\n")
-        assert MARKER_BEGIN not in result  # HTML markers must not leak
-
-    def test_empty_content(self) -> None:
-        result = wrap_with_markers("RULES.md", "")
-        assert MARKER_BEGIN in result
-        assert MARKER_END in result
-
-    def test_exact_shape(self) -> None:
-        result = wrap_with_markers("RULES.md", "X")
-        assert result == f"{MARKER_BEGIN}\nX\n{MARKER_END}\n"
-
-
-# ---------------------------------------------------------------------------
-# D. FileSpec
-# ---------------------------------------------------------------------------
+from ac_guard.domain import CheckResult, FileSpec, StageOutcome, Violation
 
 
 class TestFileSpec:
@@ -112,68 +14,104 @@ class TestFileSpec:
         spec = FileSpec(path="test.txt", content="hello")
         assert spec.path == "test.txt"
         assert spec.content == "hello"
+        assert spec.executable is False
 
     def test_executable_flag(self) -> None:
         spec = FileSpec(path="script.sh", content="#!/bin/bash", executable=True)
         assert spec.executable is True
 
-    def test_executable_default_false(self) -> None:
-        spec = FileSpec(path="file.py", content="code")
-        assert spec.executable is False
+    def test_all_fields(self) -> None:
+        spec = FileSpec(
+            path=".claude/hooks/interceptor.py",
+            content="#!/usr/bin/env python",
+            executable=True,
+        )
+        assert spec.path == ".claude/hooks/interceptor.py"
+        assert spec.content == "#!/usr/bin/env python"
+        assert spec.executable is True
 
 
-class TestFileSpecFromBody:
-    """FileSpec.from_body is the named constructor that wraps body in markers."""
+class TestValueObjectExports:
+    """Value Objects are exported at the package level."""
 
-    def test_builds_with_html_markers_for_markdown(self) -> None:
-        spec = FileSpec.from_body("CLAUDE.md", "rules body")
-        assert spec.path == "CLAUDE.md"
-        assert spec.content == f"{MARKER_BEGIN}\nrules body\n{MARKER_END}\n"
-        assert spec.executable is False
-
-    def test_builds_with_hash_markers_for_yaml(self) -> None:
-        spec = FileSpec.from_body(".pre-commit-config.yaml", "repos:\n  - id: foo")
-        expected = f"{MARKER_BEGIN_HASH}\nrepos:\n  - id: foo\n{MARKER_END_HASH}\n"
-        assert spec.content == expected
-
-    def test_executable_always_false(self) -> None:
-        """The wrap path is never used for executable hook scripts."""
-        spec = FileSpec.from_body("RULES.md", "body")
-        assert spec.executable is False
-
-
-# ---------------------------------------------------------------------------
-# E. Module exports
-# ---------------------------------------------------------------------------
-
-
-class TestModuleExports:
     def test_domain_package_exports(self) -> None:
+        # Importability sanity check — the public surface is validated by
+        # TestPackageApi below, this just ensures the re-exports resolve.
         from ac_guard.domain import (  # noqa: F401
-            MARKER_BEGIN,
-            MARKER_BEGIN_HASH,
-            MARKER_END,
-            MARKER_END_HASH,
             CheckResult,
             FileSpec,
             StageOutcome,
             Violation,
-            markers_for,
-            wrap_with_markers,
         )
 
-    def test_all_list(self) -> None:
-        import ac_guard.domain as domain
+    def test_models_module_all(self) -> None:
+        import ac_guard.domain.models as models
 
-        assert set(domain.__all__) == {
-            "MARKER_BEGIN",
-            "MARKER_BEGIN_HASH",
-            "MARKER_END",
-            "MARKER_END_HASH",
+        assert set(models.__all__) == {
             "CheckResult",
             "FileSpec",
             "StageOutcome",
             "Violation",
+        }
+
+
+class TestPackageApi:
+    """Domain package exposes VOs + managed_block Domain Service namespace."""
+
+    def test_domain_all(self) -> None:
+        import ac_guard.domain as domain
+
+        assert set(domain.__all__) == {
+            "CheckResult",
+            "FileSpec",
+            "StageOutcome",
+            "Violation",
+            "managed_block",
+        }
+
+    def test_no_marker_leakage_on_domain(self) -> None:
+        """Raw marker constants must not be accessible on ``ac_guard.domain``."""
+        import ac_guard.domain as domain
+
+        for name in (
+            "MARKER_BEGIN",
+            "MARKER_END",
+            "MARKER_BEGIN_HASH",
+            "MARKER_END_HASH",
             "markers_for",
             "wrap_with_markers",
-        }
+        ):
+            assert not hasattr(domain, name), (
+                f"Unexpected marker-protocol leak on ac_guard.domain: {name}"
+            )
+
+
+class TestViolation:
+    def test_defaults(self) -> None:
+        v = Violation(file="x.py")
+        assert v.file == "x.py"
+        assert v.line is None
+        assert v.severity == "error"
+        assert v.code == ""
+        assert v.message == ""
+        assert v.source == ""
+
+
+class TestCheckResult:
+    def test_defaults(self) -> None:
+        r = CheckResult(name="x", passed=True)
+        assert r.name == "x"
+        assert r.passed is True
+        assert r.violations == []
+        assert r.duration_ms == 0
+        assert r.output == ""
+        assert r.skipped is False
+
+
+class TestStageOutcome:
+    def test_defaults(self) -> None:
+        s = StageOutcome(stage="pre-commit", passed=True)
+        assert s.stage == "pre-commit"
+        assert s.passed is True
+        assert s.results == []
+        assert s.duration_ms == 0

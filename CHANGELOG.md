@@ -72,6 +72,74 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   concern. Third-party channel authors need to update their `__init__`
   type annotation.
 
+- **BREAKING — `ac_guard.domain` now hosts the managed-block Domain Service.**
+  Following the shared→domain merge below, the protocol for ac-guard's
+  managed regions in files (marker-delimited blocks that can be
+  idempotently regenerated without touching user edits outside the
+  region) is extracted into a dedicated Domain Service module with a
+  closed-loop CRUD API:
+
+  ```python
+  from ac_guard.domain import managed_block
+
+  managed_block.wrap(body, *, path)                  # CREATE
+  managed_block.has(content, *, path)                # READ (presence)
+  managed_block.read(content, *, path)               # READ (body)
+  managed_block.replace(content, new_body, *, path)  # UPDATE (or append)
+  managed_block.remove(content, *, path)             # DELETE
+  managed_block.file_spec(path, body)                # FACTORY → FileSpec
+  ```
+
+  Per DDD (Evans 2003, Ch. 5), Value Objects and Domain Services are
+  distinct tactical patterns that co-exist in the same bounded context.
+  `ac_guard/domain/` now reflects that split: `models.py` holds Value
+  Objects (`FileSpec`, `CheckResult`, `StageOutcome`, `Violation`);
+  `managed_block.py` holds the Domain Service for the managed-block
+  protocol. The `FileSpec.from_body` classmethod added in the earlier
+  shared→domain step is **removed** — it was really a Domain-Service
+  behaviour (wrap in protocol markers) masquerading as a Value Object
+  factory; use `managed_block.file_spec(path, body)` instead.
+
+  **Marker constants, the marker-style dispatcher, and the string-level
+  wrap helper are now private implementation details of
+  `managed_block.py`.** Public domain API shrinks from 10 names
+  (4 VOs + 4 MARKER_* constants + `markers_for` + `wrap_with_markers`)
+  to 5 (4 VOs + `managed_block` namespace). `generator.core`'s
+  `replace_managed_block` function and `_unwrap_self_embedded_block`
+  private helper are removed — their logic lives in
+  `managed_block.replace` and `managed_block.read`.
+
+  **Migration:**
+
+  ```python
+  # Old (shared→domain step, now superseded)
+  from ac_guard.domain import FileSpec
+  spec = FileSpec.from_body(p, body)
+
+  # New
+  from ac_guard.domain import managed_block
+  spec = managed_block.file_spec(p, body)
+  ```
+
+  ```python
+  # Old — generator splicing through individually imported primitives
+  from ac_guard.domain import MARKER_BEGIN, MARKER_END, markers_for, wrap_with_markers
+  from ac_guard.generator import replace_managed_block
+
+  begin, end = markers_for(path)
+  if begin in existing and end in existing:
+      return replace_managed_block(existing, new_body, path=path)
+
+  # New — all managed-block operations through the Domain Service
+  from ac_guard.domain import managed_block
+
+  if managed_block.has(existing, path=path):
+      return managed_block.replace(existing, new_body, path=path)
+  ```
+
+  `.importlinter` layer graph is unchanged (`domain` remains a leaf);
+  the split is a package-internal reorganization.
+
 - **BREAKING — `ac_guard.shared` dissolved into `ac_guard.domain`.** The
   `shared` module had been a pre-`domain` neutral placeholder that sat
   outside the `.importlinter` layer contract — the classic

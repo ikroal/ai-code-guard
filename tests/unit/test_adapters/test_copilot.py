@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from ac_guard.adapters.copilot import CopilotAdapter
 from ac_guard.config.models import BehaviorConfig, OperationRules, Rule
-from ac_guard.domain import MARKER_BEGIN, MARKER_END
+from ac_guard.domain import managed_block
 
 # ---------------------------------------------------------------------------
 # Adapter Properties
@@ -44,8 +44,7 @@ class TestCopilotAdapterRenderRuleDoc:
         adapter = CopilotAdapter()
         behavior = BehaviorConfig.empty()
         result = adapter.render_rule_doc(behavior)
-        assert MARKER_BEGIN not in result
-        assert MARKER_END not in result
+        assert not managed_block.has(result, path=adapter.rule_doc_path())
 
     def test_output_structure_with_rules(self) -> None:
         adapter = CopilotAdapter()
@@ -59,8 +58,8 @@ class TestCopilotAdapterRenderRuleDoc:
             execute=OperationRules.empty(),
         )
         result = adapter.render_rule_doc(behavior)
-        # Should contain behavior rules
-        assert len(result) > len(MARKER_BEGIN) + len(MARKER_END)
+        # Should contain behavior rules beyond an empty-body baseline.
+        assert len(result) > 50
 
 
 # ---------------------------------------------------------------------------

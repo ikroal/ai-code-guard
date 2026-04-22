@@ -21,7 +21,6 @@ from ac_guard.generator.core import (
     generate_rule_docs,
     generate_tool_configs,
     read_state,
-    replace_managed_block,
     write_artifacts,
     write_state,
 )
@@ -57,5 +56,4 @@ __all__ = [
     "read_state",
     "write_state",
     "write_artifacts",
-    "replace_managed_block",
 ]
