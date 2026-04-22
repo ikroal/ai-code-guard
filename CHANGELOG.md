@@ -235,6 +235,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a stderr warning without affecting exit code.
   ([#66](https://github.com/ikroal/ai-code-guard/issues/66))
 
+### Removed
+
+- Empty `ac_guard.templates` package dropped. The directory only ever
+  contained an empty `__init__.py` and had zero code or test references;
+  the real Jinja templates live in each feature module's private
+  `_templates/` (`cli/_templates`, `generator/_templates`,
+  `adapters/_templates`, `reporter/_templates`). `.importlinter` layer
+  spec updated to drop the stale `templates` leaf.
+
 ### Fixed
 
 - Default system `execute.forbidden` now covers four additional
