@@ -7,10 +7,10 @@
 ;
 ; Allowed dependencies (each module implicitly depends on itself):
 ;   config, domain  — leaves (no internal deps)
-;   adapters           → config
+;   adapters           → config, domain
 ;   checker            → config, domain
 ;   reporter           → config, domain
-;   generator          → config, adapters
+;   generator          → config, adapters, domain
 ;   enforcer           → config, checker, reporter
 ;   cli                → config, generator, adapters, enforcer, checker, reporter, domain
 ;
@@ -18,9 +18,11 @@
 ; enforcer must not import generator, checker must not import adapters.
 ;
 ; The `domain` layer holds cross-module *intermediate* data contracts
-; (StageOutcome / CheckResult / Violation) that flow checker → cli →
-; reporter. It is NOT a general-purpose shared/common bucket — see
-; src/ac_guard/domain/__init__.py for admission criteria.
+; (FileSpec / StageOutcome / CheckResult / Violation) plus the ac-guard
+; managed-block protocol constants and stdlib-only helpers
+; (markers_for / wrap_with_markers). It is NOT a general-purpose
+; shared/common bucket — see src/ac_guard/domain/__init__.py for
+; admission criteria.
 
 [importlinter]
 root_package = ac_guard

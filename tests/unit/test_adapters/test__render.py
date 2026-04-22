@@ -6,7 +6,7 @@ from pathlib import Path
 
 from ac_guard.adapters._render import get_template_dir, render_hook, render_rule_doc
 from ac_guard.config.models import BehaviorConfig, OperationRules, Rule
-from ac_guard.shared.types import MARKER_BEGIN, MARKER_END
+from ac_guard.domain import MARKER_BEGIN, MARKER_END
 
 
 class TestGetTemplateDir:

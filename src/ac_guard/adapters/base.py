@@ -4,8 +4,7 @@ Defines the contract for all Agent-specific file generation strategies.
 Each adapter declares the Agent's Hook capabilities and implements
 methods for generating rule documents and Hook files.
 
-Shared types (FileSpec, managed block markers) are defined in
-ac_guard.shared.types to avoid circular dependencies.
+Shared types (FileSpec, managed-block markers) live in ac_guard.domain.
 """
 
 from __future__ import annotations
@@ -16,7 +15,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ac_guard.config.models import BehaviorConfig
-    from ac_guard.shared.types import FileSpec
+    from ac_guard.domain import FileSpec
 
 __all__ = [
     "AgentAdapter",

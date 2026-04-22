@@ -6,8 +6,8 @@ Implements G1-G7 primitives for artifact generation:
 - G3-G6: Agent-agnostic artifacts (WP1.3c)
 - G7: write_artifacts - Write all artifacts to disk
 
-Managed block markers and wrap_with_managed_block are defined in
-shared.types (shared across modules).
+Managed-block markers, marker dispatch, and wrap helper live in
+ac_guard.domain (shared across modules).
 """
 
 from __future__ import annotations
@@ -21,15 +21,15 @@ from typing import TYPE_CHECKING, Any
 from jinja2 import Environment, FileSystemLoader
 
 from ac_guard import __version__
-from ac_guard.generator.exceptions import ArtifactWriteError
-from ac_guard.generator.models import STATE_FILE, GeneratedState
-from ac_guard.shared.types import (
+from ac_guard.domain import (
     MARKER_BEGIN,
     MARKER_END,
     FileSpec,
     markers_for,
-    wrap_with_managed_block,
+    wrap_with_markers,
 )
+from ac_guard.generator.exceptions import ArtifactWriteError
+from ac_guard.generator.models import STATE_FILE, GeneratedState
 
 if TYPE_CHECKING:
     from ac_guard.adapters.base import AgentAdapter
@@ -60,7 +60,6 @@ __all__ = [
     "create_state",
     # Managed block handling
     "replace_managed_block",
-    "wrap_with_managed_block",
     # Artifact writing (G7)
     "write_artifacts",
     "delete_artifacts",
@@ -212,8 +211,8 @@ def create_state(
 # ---------------------------------------------------------------------------
 # Managed Block Handling
 # ---------------------------------------------------------------------------
-# Note: wrap_with_managed_block and MARKER constants are imported from
-# adapters.base - they are shared types used by both modules.
+# Note: marker constants and markers_for / wrap_with_markers live in
+# ac_guard.domain (shared across modules).
 
 
 def replace_managed_block(
@@ -242,13 +241,16 @@ def replace_managed_block(
     Returns:
         Updated content with managed block replaced or appended.
     """
-    begin, end = markers_for(path) if path is not None else (MARKER_BEGIN, MARKER_END)
+    if path is not None:
+        begin, end = markers_for(path)
+    else:
+        begin, end = MARKER_BEGIN, MARKER_END
     begin_idx = existing_content.find(begin)
     end_idx = existing_content.find(end)
 
     if begin_idx == -1 or end_idx == -1 or begin_idx > end_idx:
         # Markers not found or malformed — wrap and append
-        wrapped = wrap_with_managed_block(new_content, path=path)
+        wrapped = f"{begin}\n{new_content}\n{end}\n"
         if existing_content.strip():
             # Ensure separation from existing content
             if not existing_content.endswith("\n"):
@@ -383,7 +385,7 @@ def _resolve_artifact_content(artifact: FileSpec, full_path: Path) -> str:
             return replace_managed_block(existing, new_inner, path=artifact.path)
         return artifact.content
     if _should_wrap_new_file(artifact.path):
-        return wrap_with_managed_block(artifact.content, path=artifact.path)
+        return wrap_with_markers(artifact.path, artifact.content)
     return artifact.content
 
 

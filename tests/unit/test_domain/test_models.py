@@ -1,19 +1,21 @@
-"""Tests for ac_guard.shared.types — Shared types module."""
+"""Tests for ac_guard.domain.models — cross-module data contracts and
+managed-block protocol helpers.
+"""
 
 from __future__ import annotations
 
-from ac_guard.shared.types import (
+from ac_guard.domain import (
     MARKER_BEGIN,
     MARKER_BEGIN_HASH,
     MARKER_END,
     MARKER_END_HASH,
     FileSpec,
     markers_for,
-    wrap_with_managed_block,
+    wrap_with_markers,
 )
 
 # ---------------------------------------------------------------------------
-# A. Managed Block Markers
+# A. Managed-block marker constants
 # ---------------------------------------------------------------------------
 
 
@@ -33,6 +35,11 @@ class TestManagedBlockMarkers:
         assert isinstance(MARKER_END, str)
         assert isinstance(MARKER_BEGIN_HASH, str)
         assert isinstance(MARKER_END_HASH, str)
+
+
+# ---------------------------------------------------------------------------
+# B. markers_for(path)
+# ---------------------------------------------------------------------------
 
 
 class TestMarkersFor:
@@ -60,7 +67,6 @@ class TestMarkersFor:
         assert markers_for("rules/behavior.mdc") == (MARKER_BEGIN, MARKER_END)
 
     def test_unknown_extension_falls_back_to_html(self) -> None:
-        # Default protects old callers that couldn't specify a path.
         assert markers_for("README") == (MARKER_BEGIN, MARKER_END)
         assert markers_for("policy.json") == (MARKER_BEGIN, MARKER_END)
 
@@ -68,42 +74,36 @@ class TestMarkersFor:
         assert markers_for("Makefile.YAML") == (MARKER_BEGIN_HASH, MARKER_END_HASH)
 
 
-class TestWrapWithManagedBlock:
-    def test_wraps_content(self) -> None:
-        content = "test content"
-        result = wrap_with_managed_block(content)
-        assert MARKER_BEGIN in result
-        assert MARKER_END in result
-        assert "test content" in result
+# ---------------------------------------------------------------------------
+# C. wrap_with_markers(path, content)
+# ---------------------------------------------------------------------------
 
-    def test_output_structure(self) -> None:
-        content = "line1"
-        result = wrap_with_managed_block(content)
-        # Should have: BEGIN, newline, content, newline, END, newline
+
+class TestWrapWithMarkers:
+    def test_output_structure_html(self) -> None:
+        result = wrap_with_markers("RULES.md", "line1")
         assert result.startswith(MARKER_BEGIN)
         assert result.endswith(MARKER_END + "\n")
+        assert "line1" in result
 
-    def test_empty_content(self) -> None:
-        result = wrap_with_managed_block("")
-        assert MARKER_BEGIN in result
-        assert MARKER_END in result
-
-    def test_path_selects_hash_markers(self) -> None:
-        """Passing a hash-style path produces hash-style markers."""
-        result = wrap_with_managed_block("body", path="config.yaml")
+    def test_output_structure_hash(self) -> None:
+        result = wrap_with_markers("config.yaml", "body")
         assert result.startswith(MARKER_BEGIN_HASH)
         assert result.endswith(MARKER_END_HASH + "\n")
-        assert MARKER_BEGIN not in result  # no HTML markers leaked
+        assert MARKER_BEGIN not in result  # HTML markers must not leak
 
-    def test_path_selects_html_markers_for_markdown(self) -> None:
-        result = wrap_with_managed_block("body", path="RULES.md")
-        assert result.startswith(MARKER_BEGIN)
-        assert result.endswith(MARKER_END + "\n")
-        assert MARKER_BEGIN_HASH not in result
+    def test_empty_content(self) -> None:
+        result = wrap_with_markers("RULES.md", "")
+        assert MARKER_BEGIN in result
+        assert MARKER_END in result
+
+    def test_exact_shape(self) -> None:
+        result = wrap_with_markers("RULES.md", "X")
+        assert result == f"{MARKER_BEGIN}\nX\n{MARKER_END}\n"
 
 
 # ---------------------------------------------------------------------------
-# B. FileSpec
+# D. FileSpec
 # ---------------------------------------------------------------------------
 
 
@@ -121,48 +121,59 @@ class TestFileSpec:
         spec = FileSpec(path="file.py", content="code")
         assert spec.executable is False
 
-    def test_all_fields(self) -> None:
-        spec = FileSpec(
-            path=".claude/hooks/interceptor.py",
-            content="#!/usr/bin/env python",
-            executable=True,
-        )
-        assert spec.path == ".claude/hooks/interceptor.py"
-        assert spec.content == "#!/usr/bin/env python"
-        assert spec.executable is True
+
+class TestFileSpecFromBody:
+    """FileSpec.from_body is the named constructor that wraps body in markers."""
+
+    def test_builds_with_html_markers_for_markdown(self) -> None:
+        spec = FileSpec.from_body("CLAUDE.md", "rules body")
+        assert spec.path == "CLAUDE.md"
+        assert spec.content == f"{MARKER_BEGIN}\nrules body\n{MARKER_END}\n"
+        assert spec.executable is False
+
+    def test_builds_with_hash_markers_for_yaml(self) -> None:
+        spec = FileSpec.from_body(".pre-commit-config.yaml", "repos:\n  - id: foo")
+        expected = f"{MARKER_BEGIN_HASH}\nrepos:\n  - id: foo\n{MARKER_END_HASH}\n"
+        assert spec.content == expected
+
+    def test_executable_always_false(self) -> None:
+        """The wrap path is never used for executable hook scripts."""
+        spec = FileSpec.from_body("RULES.md", "body")
+        assert spec.executable is False
 
 
 # ---------------------------------------------------------------------------
-# C. Module exports
+# E. Module exports
 # ---------------------------------------------------------------------------
 
 
 class TestModuleExports:
-    def test_types_exports(self) -> None:
-        from ac_guard.shared.types import (  # noqa: F401
+    def test_domain_package_exports(self) -> None:
+        from ac_guard.domain import (  # noqa: F401
             MARKER_BEGIN,
+            MARKER_BEGIN_HASH,
             MARKER_END,
+            MARKER_END_HASH,
+            CheckResult,
             FileSpec,
-            wrap_with_managed_block,
+            StageOutcome,
+            Violation,
+            markers_for,
+            wrap_with_markers,
         )
 
     def test_all_list(self) -> None:
-        import ac_guard.shared.types as types
+        import ac_guard.domain as domain
 
-        assert set(types.__all__) == {
-            "FileSpec",
+        assert set(domain.__all__) == {
             "MARKER_BEGIN",
             "MARKER_BEGIN_HASH",
             "MARKER_END",
             "MARKER_END_HASH",
+            "CheckResult",
+            "FileSpec",
+            "StageOutcome",
+            "Violation",
             "markers_for",
-            "wrap_with_managed_block",
+            "wrap_with_markers",
         }
-
-    def test_shared_package_exports(self) -> None:
-        from ac_guard.shared import (  # noqa: F401
-            MARKER_BEGIN,
-            MARKER_END,
-            FileSpec,
-            wrap_with_managed_block,
-        )

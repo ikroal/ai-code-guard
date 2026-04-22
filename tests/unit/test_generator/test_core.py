@@ -18,9 +18,14 @@ from ac_guard.config.models import (
     Rule,
     StageBucket,
 )
-from ac_guard.generator.core import (
+from ac_guard.domain import (
     MARKER_BEGIN,
+    MARKER_BEGIN_HASH,
     MARKER_END,
+    MARKER_END_HASH,
+    FileSpec,
+)
+from ac_guard.generator.core import (
     create_state,
     delete_artifacts,
     generate_git_hooks,
@@ -29,13 +34,11 @@ from ac_guard.generator.core import (
     generate_tool_configs,
     read_state,
     replace_managed_block,
-    wrap_with_managed_block,
     write_artifacts,
     write_state,
 )
 from ac_guard.generator.exceptions import ArtifactWriteError
-from ac_guard.generator.models import STATE_FILE, FileSpec, GeneratedState
-from ac_guard.shared.types import MARKER_BEGIN_HASH, MARKER_END_HASH
+from ac_guard.generator.models import STATE_FILE, GeneratedState
 
 # ---------------------------------------------------------------------------
 # State Management Tests
@@ -150,24 +153,8 @@ class TestCreateState:
 # ---------------------------------------------------------------------------
 # Managed Block Tests
 # ---------------------------------------------------------------------------
-
-
-class TestWrapWithManagedBlock:
-    """wrap_with_managed_block function tests."""
-
-    def test_wraps_content(self) -> None:
-        content = "This is managed content."
-        result = wrap_with_managed_block(content)
-        assert result.startswith(MARKER_BEGIN)
-        assert result.endswith(MARKER_END + "\n")
-        assert "This is managed content." in result
-
-    def test_includes_both_markers(self) -> None:
-        result = wrap_with_managed_block("test")
-        assert MARKER_BEGIN in result
-        assert MARKER_END in result
-        # BEGIN should come before END
-        assert result.find(MARKER_BEGIN) < result.find(MARKER_END)
+# wrap_with_markers is exercised by tests/unit/test_domain/test_models.py —
+# this suite focuses on replace_managed_block, which is generator-specific.
 
 
 class TestReplaceManagedBlock:

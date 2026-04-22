@@ -10,6 +10,7 @@ G primitives:
 - G7: write_artifacts - Write all artifacts to disk
 """
 
+from ac_guard.domain import FileSpec  # Shared type
 from ac_guard.generator.core import (
     create_state,
     delete_artifacts,
@@ -21,7 +22,6 @@ from ac_guard.generator.core import (
     generate_tool_configs,
     read_state,
     replace_managed_block,
-    wrap_with_managed_block,
     write_artifacts,
     write_state,
 )
@@ -32,7 +32,6 @@ from ac_guard.generator.exceptions import (
     GitDirectoryNotFoundError,
 )
 from ac_guard.generator.models import STATE_FILE, GeneratedState
-from ac_guard.shared.types import FileSpec  # Shared type
 
 __all__ = [
     # Exceptions
@@ -59,5 +58,4 @@ __all__ = [
     "write_state",
     "write_artifacts",
     "replace_managed_block",
-    "wrap_with_managed_block",
 ]

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from ac_guard.adapters.claude_code import ClaudeCodeAdapter
 from ac_guard.config.models import BehaviorConfig, OperationRules, Rule
-from ac_guard.shared.types import MARKER_BEGIN, MARKER_END
+from ac_guard.domain import MARKER_BEGIN, MARKER_END
 
 # ---------------------------------------------------------------------------
 # Adapter Properties

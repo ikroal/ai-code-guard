@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from ac_guard.adapters.kilocode import KiloCodeAdapter
 from ac_guard.config.models import BehaviorConfig, OperationRules, Rule
-from ac_guard.shared.types import MARKER_BEGIN, MARKER_END
+from ac_guard.domain import MARKER_BEGIN, MARKER_END
 
 # ---------------------------------------------------------------------------
 # Adapter Properties
