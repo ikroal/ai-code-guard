@@ -13,7 +13,7 @@ import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from ac_guard.checker.models import CheckResult, StageOutcome
+from ac_guard.domain.models import CheckResult, StageOutcome
 
 if TYPE_CHECKING:
     from pathlib import Path

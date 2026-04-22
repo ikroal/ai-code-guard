@@ -16,9 +16,9 @@ from ac_guard.checker.core import (
     run_precommit,
     run_stage,
 )
-from ac_guard.checker.models import CheckResult, StageOutcome
 from ac_guard.config.exceptions import ConfigError
 from ac_guard.config.merger import resolve_config
+from ac_guard.domain.models import CheckResult, StageOutcome
 from ac_guard.reporter.channels.git_platform import post_pr_comment
 from ac_guard.reporter.formatting import format_json, format_terminal
 
