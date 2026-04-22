@@ -6,7 +6,7 @@
 ; in Track B.1 of the M6 cleanup.
 ;
 ; Allowed dependencies (each module implicitly depends on itself):
-;   config, templates, domain  — leaves (no internal deps)
+;   config, domain  — leaves (no internal deps)
 ;   adapters           → config
 ;   checker            → config, domain
 ;   reporter           → config, domain
@@ -32,6 +32,6 @@ layers =
     cli
     enforcer | generator
     checker | reporter | adapters
-    config | templates | domain
+    config | domain
 containers =
     ac_guard
