@@ -18,7 +18,7 @@ from ac_guard.adapters.base import AgentAdapter, AgentCapabilities
 
 if TYPE_CHECKING:
     from ac_guard.config.models import BehaviorConfig
-    from ac_guard.shared.types import FileSpec
+    from ac_guard.domain import FileSpec
 
 __all__ = ["KiloCodeAdapter"]
 

@@ -1,4 +1,8 @@
-"""Tests for generator data models."""
+"""Tests for generator data models.
+
+FileSpec tests live in tests/unit/test_domain/test_models.py — FileSpec is
+a domain-layer DTO, not a generator-specific type.
+"""
 
 from __future__ import annotations
 
@@ -6,27 +10,8 @@ from datetime import datetime
 
 from ac_guard.generator.models import (
     STATE_FILE,
-    FileSpec,
     GeneratedState,
 )
-
-
-class TestFileSpec:
-    """FileSpec dataclass tests."""
-
-    def test_basic_construction(self) -> None:
-        fs = FileSpec(path="test.txt", content="hello")
-        assert fs.path == "test.txt"
-        assert fs.content == "hello"
-        assert fs.executable is False
-
-    def test_executable_flag(self) -> None:
-        fs = FileSpec(path="script.sh", content="#!/bin/bash", executable=True)
-        assert fs.executable is True
-
-    def test_defaults(self) -> None:
-        fs = FileSpec(path="x", content="y")
-        assert fs.executable is False
 
 
 class TestGeneratedState:

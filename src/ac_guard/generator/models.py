@@ -1,7 +1,7 @@
 """Generator data models for AI Code Guard.
 
 Defines dataclasses for artifact generation state tracking.
-FileSpec is defined in shared.types (shared across modules).
+FileSpec lives in ac_guard.domain (shared across modules).
 """
 
 from __future__ import annotations
@@ -10,10 +10,7 @@ import json
 from dataclasses import dataclass, field
 from datetime import datetime
 
-from ac_guard.shared.types import FileSpec  # Import from shared location
-
 __all__ = [
-    "FileSpec",
     "GeneratedState",
     "STATE_FILE",
 ]

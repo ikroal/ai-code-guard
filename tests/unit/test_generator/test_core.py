@@ -18,9 +18,8 @@ from ac_guard.config.models import (
     Rule,
     StageBucket,
 )
+from ac_guard.domain import FileSpec
 from ac_guard.generator.core import (
-    MARKER_BEGIN,
-    MARKER_END,
     create_state,
     delete_artifacts,
     generate_git_hooks,
@@ -28,14 +27,20 @@ from ac_guard.generator.core import (
     generate_precommit_config,
     generate_tool_configs,
     read_state,
-    replace_managed_block,
-    wrap_with_managed_block,
     write_artifacts,
     write_state,
 )
 from ac_guard.generator.exceptions import ArtifactWriteError
-from ac_guard.generator.models import STATE_FILE, FileSpec, GeneratedState
-from ac_guard.shared.types import MARKER_BEGIN_HASH, MARKER_END_HASH
+from ac_guard.generator.models import STATE_FILE, GeneratedState
+
+# Literal markers for fixture construction in this test module only.
+# Production code operates on managed blocks exclusively through
+# ac_guard.domain.managed_block — these constants here are acceptable
+# test-only scaffolding (same-package exception to encapsulation).
+_MB_HTML = ("<!-- AI-GUARD:BEGIN -->", "<!-- AI-GUARD:END -->")
+_MB_HASH = ("# AI-GUARD:BEGIN", "# AI-GUARD:END")
+MARKER_BEGIN, MARKER_END = _MB_HTML
+MARKER_BEGIN_HASH, MARKER_END_HASH = _MB_HASH
 
 # ---------------------------------------------------------------------------
 # State Management Tests
@@ -148,70 +153,11 @@ class TestCreateState:
 
 
 # ---------------------------------------------------------------------------
-# Managed Block Tests
-# ---------------------------------------------------------------------------
-
-
-class TestWrapWithManagedBlock:
-    """wrap_with_managed_block function tests."""
-
-    def test_wraps_content(self) -> None:
-        content = "This is managed content."
-        result = wrap_with_managed_block(content)
-        assert result.startswith(MARKER_BEGIN)
-        assert result.endswith(MARKER_END + "\n")
-        assert "This is managed content." in result
-
-    def test_includes_both_markers(self) -> None:
-        result = wrap_with_managed_block("test")
-        assert MARKER_BEGIN in result
-        assert MARKER_END in result
-        # BEGIN should come before END
-        assert result.find(MARKER_BEGIN) < result.find(MARKER_END)
-
-
-class TestReplaceManagedBlock:
-    """replace_managed_block function tests."""
-
-    def test_replaces_content_inside_markers(self) -> None:
-        existing = f"Header\n{MARKER_BEGIN}\nOld content\n{MARKER_END}\nFooter"
-        new = "New content"
-        result = replace_managed_block(existing, new)
-        assert "Header" in result
-        assert "Footer" in result
-        assert "Old content" not in result
-        assert "New content" in result
-
-    def test_preserves_content_before_markers(self) -> None:
-        existing = f"Keep this\n{MARKER_BEGIN}\nReplace this\n{MARKER_END}\n"
-        result = replace_managed_block(existing, "New")
-        assert "Keep this" in result
-
-    def test_preserves_content_after_markers(self) -> None:
-        existing = f"{MARKER_BEGIN}\nReplace\n{MARKER_END}\nKeep this too\n"
-        result = replace_managed_block(existing, "New")
-        assert "Keep this too" in result
-
-    def test_appends_wrapped_content_when_markers_missing(self) -> None:
-        existing = "Existing content without markers"
-        result = replace_managed_block(existing, "New managed content")
-        assert "Existing content without markers" in result
-        assert MARKER_BEGIN in result
-        assert MARKER_END in result
-        assert "New managed content" in result
-
-    def test_handles_empty_existing_content(self) -> None:
-        result = replace_managed_block("", "New content")
-        assert MARKER_BEGIN in result
-        assert "New content" in result
-        assert MARKER_END in result
-
-    def test_handles_multiline_content(self) -> None:
-        existing = f"{MARKER_BEGIN}\nLine 1\nLine 2\n{MARKER_END}\n"
-        new = "New line A\nNew line B"
-        result = replace_managed_block(existing, new)
-        assert "New line A" in result
-        assert "New line B" in result
+# Managed-block operations (wrap / has / read / replace / remove /
+# file_spec) are the Domain Service in ac_guard.domain.managed_block; see
+# tests/unit/test_domain/test_managed_block.py for the full coverage.
+# Generator tests below only exercise generator-specific behaviors that
+# compose the Domain Service (e.g. write_artifacts' existing-file splicing).
 
 
 # ---------------------------------------------------------------------------
@@ -447,14 +393,9 @@ class TestDeleteArtifacts:
 # ---------------------------------------------------------------------------
 
 
-class TestMarkerConstants:
-    """Marker constant tests."""
-
-    def test_marker_begin_format(self) -> None:
-        assert MARKER_BEGIN == "<!-- AI-GUARD:BEGIN -->"
-
-    def test_marker_end_format(self) -> None:
-        assert MARKER_END == "<!-- AI-GUARD:END -->"
+# Marker-constant format tests live in
+# tests/unit/test_domain/test_managed_block.py (behaviorally validated via
+# TestWrap — the marker strings themselves are private to managed_block).
 
 
 # ---------------------------------------------------------------------------

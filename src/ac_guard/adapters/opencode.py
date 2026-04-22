@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 
 from ac_guard.adapters._render import render_hook, render_rule_doc
 from ac_guard.adapters.base import AgentAdapter, AgentCapabilities
-from ac_guard.shared.types import FileSpec
+from ac_guard.domain import FileSpec
 
 if TYPE_CHECKING:
     from ac_guard.config.models import BehaviorConfig

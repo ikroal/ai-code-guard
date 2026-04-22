@@ -72,6 +72,128 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   concern. Third-party channel authors need to update their `__init__`
   type annotation.
 
+- **BREAKING — `ac_guard.domain` now hosts the managed-block Domain Service.**
+  Following the shared→domain merge below, the protocol for ac-guard's
+  managed regions in files (marker-delimited blocks that can be
+  idempotently regenerated without touching user edits outside the
+  region) is extracted into a dedicated Domain Service module with a
+  closed-loop CRUD API:
+
+  ```python
+  from ac_guard.domain import managed_block
+
+  managed_block.wrap(body, *, path)                  # CREATE
+  managed_block.has(content, *, path)                # READ (presence)
+  managed_block.read(content, *, path)               # READ (body)
+  managed_block.replace(content, new_body, *, path)  # UPDATE (or append)
+  managed_block.remove(content, *, path)             # DELETE
+  managed_block.file_spec(path, body)                # FACTORY → FileSpec
+  ```
+
+  Per DDD (Evans 2003, Ch. 5), Value Objects and Domain Services are
+  distinct tactical patterns that co-exist in the same bounded context.
+  `ac_guard/domain/` now reflects that split: `models.py` holds Value
+  Objects (`FileSpec`, `CheckResult`, `StageOutcome`, `Violation`);
+  `managed_block.py` holds the Domain Service for the managed-block
+  protocol. The `FileSpec.from_body` classmethod added in the earlier
+  shared→domain step is **removed** — it was really a Domain-Service
+  behaviour (wrap in protocol markers) masquerading as a Value Object
+  factory; use `managed_block.file_spec(path, body)` instead.
+
+  **Marker constants, the marker-style dispatcher, and the string-level
+  wrap helper are now private implementation details of
+  `managed_block.py`.** Public domain API shrinks from 10 names
+  (4 VOs + 4 MARKER_* constants + `markers_for` + `wrap_with_markers`)
+  to 5 (4 VOs + `managed_block` namespace). `generator.core`'s
+  `replace_managed_block` function and `_unwrap_self_embedded_block`
+  private helper are removed — their logic lives in
+  `managed_block.replace` and `managed_block.read`.
+
+  **Migration:**
+
+  ```python
+  # Old (shared→domain step, now superseded)
+  from ac_guard.domain import FileSpec
+  spec = FileSpec.from_body(p, body)
+
+  # New
+  from ac_guard.domain import managed_block
+  spec = managed_block.file_spec(p, body)
+  ```
+
+  ```python
+  # Old — generator splicing through individually imported primitives
+  from ac_guard.domain import MARKER_BEGIN, MARKER_END, markers_for, wrap_with_markers
+  from ac_guard.generator import replace_managed_block
+
+  begin, end = markers_for(path)
+  if begin in existing and end in existing:
+      return replace_managed_block(existing, new_body, path=path)
+
+  # New — all managed-block operations through the Domain Service
+  from ac_guard.domain import managed_block
+
+  if managed_block.has(existing, path=path):
+      return managed_block.replace(existing, new_body, path=path)
+  ```
+
+  `.importlinter` layer graph is unchanged (`domain` remains a leaf);
+  the split is a package-internal reorganization.
+
+- **BREAKING — `ac_guard.shared` dissolved into `ac_guard.domain`.** The
+  `shared` module had been a pre-`domain` neutral placeholder that sat
+  outside the `.importlinter` layer contract — the classic
+  `shared`/`common`-module anti-pattern the `domain` gates were introduced
+  to prevent. Its contents now live in `ac_guard.domain` under the same
+  admission criteria as the existing `StageOutcome` / `CheckResult` /
+  `Violation` contracts:
+
+  - `FileSpec` (the adapters → generator file-payload contract) moves to
+    `ac_guard.domain.models`. Gains a named constructor
+    **`FileSpec.from_body(path, body)`** — analogous to
+    `datetime.fromisoformat(...)` — that wraps a body in ac-guard's
+    managed-block markers (marker syntax inferred from the path
+    extension).
+  - Managed-block marker constants (`MARKER_BEGIN` / `MARKER_END` /
+    `MARKER_BEGIN_HASH` / `MARKER_END_HASH`) move to
+    `ac_guard.domain.models` as pure strings.
+  - `wrap_with_managed_block(content, *, path=None)` is replaced by
+    **`wrap_with_markers(path, content)`**; the `path` argument is now
+    required (every call site already passes it).
+  - `markers_for(path)` (marker-style dispatcher) also moves to
+    `ac_guard.domain.models` and remains public for callers that need
+    to scan existing files (e.g. generator's preserve-user-content
+    logic).
+
+  **Migration:**
+
+  ```python
+  # Old
+  from ac_guard.shared.types import FileSpec, wrap_with_managed_block
+  spec = FileSpec(path=p, content=wrap_with_managed_block(body, path=p))
+
+  # New
+  from ac_guard.domain import FileSpec
+  spec = FileSpec.from_body(p, body)
+  ```
+
+  Callers that need the string-level wrap (e.g. generator's
+  `replace_managed_block` splicing logic) should import
+  `wrap_with_markers` / `markers_for` from `ac_guard.domain` directly.
+
+  `ac_guard.generator` no longer re-exports `wrap_with_managed_block`;
+  import the renamed `wrap_with_markers` from `ac_guard.domain` instead.
+
+  `domain` admission gate 2 is reworded from "plain `@dataclass` with no
+  behavior" to **"pure data plus stdlib-only factories and helpers"** —
+  classmethod factories returning the same type (like
+  `FileSpec.from_body(...)`) and module-level pure helpers that operate
+  on the layer's constants/types (like `markers_for(...)` /
+  `wrap_with_markers(...)`) are now explicitly permitted, in line with
+  stdlib practice (`datetime.fromisoformat`, `dataclasses.asdict`, etc.).
+  I/O, external dependencies, transformational/workflow logic, and
+  mutation methods remain forbidden.
+
 - **New layer: `ac_guard.domain`** holds cross-module intermediate data
   contracts that flow between modules. `StageOutcome` / `CheckResult` /
   `Violation` move from `ac_guard.checker.models` to `ac_guard.domain.models`.
@@ -237,6 +359,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- `src/ac_guard/shared/` package and `tests/unit/test_shared/` — contents
+  absorbed into `ac_guard.domain` (see "BREAKING — `ac_guard.shared`
+  dissolved into `ac_guard.domain`" under Changed above). The historical
+  `wrap_with_managed_block` function is gone in favor of
+  `wrap_with_markers(path, content)`; `FileSpec` and marker constants
+  now live in `ac_guard.domain.models`.
 - Empty `ac_guard.templates` package dropped. The directory only ever
   contained an empty `__init__.py` and had zero code or test references;
   the real Jinja templates live in each feature module's private

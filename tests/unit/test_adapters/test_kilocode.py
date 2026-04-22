@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from ac_guard.adapters.kilocode import KiloCodeAdapter
 from ac_guard.config.models import BehaviorConfig, OperationRules, Rule
-from ac_guard.shared.types import MARKER_BEGIN, MARKER_END
+from ac_guard.domain import managed_block
 
 # ---------------------------------------------------------------------------
 # Adapter Properties
@@ -44,8 +44,7 @@ class TestKiloCodeAdapterRenderRuleDoc:
         adapter = KiloCodeAdapter()
         behavior = BehaviorConfig.empty()
         result = adapter.render_rule_doc(behavior)
-        assert MARKER_BEGIN not in result
-        assert MARKER_END not in result
+        assert not managed_block.has(result, path=adapter.rule_doc_path())
 
     def test_output_structure_with_rules(self) -> None:
         adapter = KiloCodeAdapter()
@@ -59,7 +58,7 @@ class TestKiloCodeAdapterRenderRuleDoc:
             ),
         )
         result = adapter.render_rule_doc(behavior)
-        assert len(result) > len(MARKER_BEGIN) + len(MARKER_END)
+        assert len(result) > 50
 
 
 # ---------------------------------------------------------------------------

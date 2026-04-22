@@ -1,10 +1,16 @@
-"""Intermediate result types that flow checker → cli → reporter."""
+"""Cross-module intermediate Value Objects (pure DTOs).
+
+Admission criteria for types in this module are documented in
+``ac_guard/domain/__init__.py``. Transformational behaviour (string
+rewriting, protocol helpers, etc.) does NOT belong here — it lives as
+a Domain Service in its own sub-module (e.g. ``managed_block.py``).
+"""
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-__all__ = ["CheckResult", "StageOutcome", "Violation"]
+__all__ = ["CheckResult", "FileSpec", "StageOutcome", "Violation"]
 
 
 @dataclass
@@ -66,3 +72,27 @@ class StageOutcome:
     passed: bool
     results: list[CheckResult] = field(default_factory=list)
     duration_ms: int = 0
+
+
+@dataclass
+class FileSpec:
+    """A file to be generated and written to disk.
+
+    Attributes:
+        path: File path relative to project root.
+        content: Full file content as string (markers included if applicable).
+        executable: Whether the file should have executable permissions.
+
+    Construction:
+        - Direct: ``FileSpec(path, content, executable=False)`` — when the
+          caller already has the full on-disk content.
+        - Managed block: ``managed_block.file_spec(path, body)`` — when the
+          caller has the body text that should be wrapped in ac-guard
+          managed-block markers. (Lives in ``ac_guard.domain.managed_block``
+          since the wrap behaviour is a Domain Service on the managed-block
+          protocol, not intrinsic to FileSpec.)
+    """
+
+    path: str
+    content: str
+    executable: bool = False
