@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import sys
 from dataclasses import dataclass
-from enum import StrEnum
+from enum import Enum
 from typing import TYPE_CHECKING
 
 from ac_guard.reporter.channels.base import (
@@ -54,8 +54,13 @@ __all__ = [
 # ---------------------------------------------------------------------------
 
 
-class FormatKind(StrEnum):
-    """Rendering format for a report."""
+class FormatKind(str, Enum):
+    """Rendering format for a report.
+
+    Subclasses :class:`str` (rather than :class:`enum.StrEnum`, which is
+    Python 3.11+) so instances compare equal to their string values and
+    this module stays importable on Python 3.10.
+    """
 
     TEXT = "text"
     MARKDOWN = "markdown"
