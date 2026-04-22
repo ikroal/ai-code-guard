@@ -77,7 +77,7 @@ AI Guard 是一个面向 AI 编码 Agent 的**看护系统**（Guardian System�
 | **guard.yaml** | AI Guard 的项目级配置文件，是系统的单一配置真相源 |
 | **ResolvedConfig** | 经过多源合并和校验后的最终配置对象，供各模块消费 |
 | **PolicyDecision** | 行为约束的判定结果，取值为 allow / deny / ask |
-| **CheckReport** | 代码检查的结构化结果报告 |
+| **StageOutcome** | 代码检查的结构化结果报告 |
 | **规则集（Ruleset）** | 可复用的规则包，包含行为约束、检查项定义和工具配置 |
 | **工件（Artifact）** | 由 Generator 生成的静态文件，包括规则文档、Hook 脚本、工具配置等 |
 | **托管块（Managed Block）** | 规则文档中由 AI Guard 管理的区域，update 时自动替换，不影响用户自定义内容 |
@@ -396,7 +396,7 @@ git commit / git push
     K3 run_precommit (内置检查)
     K4 run_checks (命令检查项)
     K5 run_build (push 阶段前置条件)
-    K6 aggregate → CheckReport
+    K6 aggregate → StageOutcome
   │
   Reporter.print_report() 或 exit code 0/1
 ```
@@ -852,7 +852,7 @@ Pattern 匹配支持两种模式：glob（默认）和 regex（`regex: true` 显
 
 #### 6.5.1 职责与边界
 
-编排代码检查的执行。Checker 通过 subprocess 调用 pre-commit 执行内置检查，通过 subprocess 执行用户定义的命令检查项，汇总结果为 CheckReport。
+编排代码检查的执行。Checker 通过 subprocess 调用 pre-commit 执行内置检查，通过 subprocess 执行用户定义的命令检查项，汇总结果为 StageOutcome。
 
 #### 6.5.2 原语操作
 
@@ -863,7 +863,7 @@ Pattern 匹配支持两种模式：glob（默认）和 regex（`regex: true` 显
 | K3 | run_precommit | files, config | 内置检查结果 |
 | K4 | run_checks | checks config, files | 命令检查项结果 |
 | K5 | run_build | build config | 编译结果 |
-| K6 | aggregate | 所有结果 | CheckReport |
+| K6 | aggregate | 所有结果 | StageOutcome |
 
 #### 6.5.3 阶段编排
 
@@ -904,43 +904,65 @@ push 阶段:   先完整执行 commit 阶段
 
 #### 6.6.1 职责与边界
 
-将结构化结果（CheckReport / PolicyDecision）格式化为指定格式，并输出到指定渠道。Reporter 不参与任何判定或编排逻辑。
+将结构化结果（StageOutcome / PolicyDecision）格式化为指定格式，并输出到指定渠道。Reporter 不参与任何判定或编排逻辑。
 
-#### 6.6.2 原语操作
+#### 6.6.2 对外 API
 
-| 编号 | 原语 | 调用方 | 输出目标 | 引入阶段 |
+Reporter 对外暴露一个**统一调度函数** `report` + 一组**投递意图**数据类。所有渲染函数（`format_terminal` / `format_markdown` / `format_json`）与 Channel 实现类均为内部细节，不对外。
+
+```python
+from ac_guard.reporter import (
+    report,                                      # 唯一顶层函数
+    ReportConfig,                                # 统一投递意图
+    FormatKind,                                  # TEXT / MARKDOWN / JSON
+    TerminalCfg, FileCfg, GitPlatformCfg,        # Channel 配置（tagged union）
+    ChannelError, NoPrContextError,              # 异常
+)
+
+report(outcome, config, *, non_blocking=False)
+```
+
+`config.channel` 是 `TerminalCfg | FileCfg | GitPlatformCfg` 的 tagged union；core 按具体类型分派到对应 channel 实现。`config.format` 由 `FormatKind` 枚举决定用哪种渲染器。`config.locale` 传给 text / markdown 渲染器选标签/模板。`non_blocking=True` 时吞掉 `NoPrContextError`（静默）和其它 `ChannelError`（stderr warn），典型用于 PR 投递场景。
+
+#### 6.6.3 (channel, format) 合法组合
+
+|  | `FormatKind.TEXT` | `FormatKind.MARKDOWN` | `FormatKind.JSON` |
+|---|:---:|:---:|:---:|
+| `TerminalCfg` | ✅ | ❌ | ✅ |
+| `FileCfg` | ✅ | ✅ | ✅ |
+| `GitPlatformCfg` | ❌ | ✅（必须） | ❌ |
+
+非法组合由 `report()` 在投递前抛 `ValueError`。
+
+#### 6.6.4 服务场景
+
+| # | 场景 | 服务对象 | channel | format |
 |---|---|---|---|---|
-| R1 | print_check_report | Checker（check/verify） | 终端 Rich 格式化 | Phase 3 |
-| R2 | print_gate_result | Checker（gate run） | 终端精简文本 | Phase 3 |
-| R3 | append_audit_log | Enforcer | .ai-guard/audit.jsonl | Phase 2 |
-| R4 | post_pr_comment | Checker | PR 评论（HTTP API） | Could Have |
+| 1 | CLI 命令 (`check` / `verify` / `run` / `gate run`) 打印到 stdout | 人 | `TerminalCfg` | `TEXT` |
+| 2 | `ac-guard check --format json`（供 CI / `jq` 消费） | Agent | `TerminalCfg` | `JSON` |
+| 3 | PR 评论（GitHub / GitLab / Gitea / Bitbucket） | 人（PR reviewer） | `GitPlatformCfg` | `MARKDOWN` |
+| 4 | 导出报告文件 | 人 | `FileCfg` | 三选一 |
 
-#### 6.6.3 渲染格式
-
-| 格式 | 用途 | 实现方式 |
-|---|---|---|
-| Rich 终端 | check / verify 命令输出 | Rich 库直接渲染 |
-| 纯文本 | gate run 输出（Git Hook 环境） | 字符串拼接 |
-| Markdown | PR 评论 | Jinja2 模板（`templates/report.md.j2`） |
-| JSON | `--format json` 机器消费 | dataclass 序列化 |
-
-#### 6.6.4 异常处理
+#### 6.6.5 异常处理
 
 | 异常 | 处理 |
 |---|---|
-| 审计日志写入失败 | 向 stderr 输出警告，不影响主流程 |
-| PR 评论发布失败 | 向 stderr 输出警告，不影响 exit code |
+| PR 评论发布失败 | CLI 调 `report(..., non_blocking=True)` 时：`NoPrContextError` 静默、其他 `ChannelError` stderr warn、不影响退出码 |
+| 审计日志写入失败 | 向 stderr 输出警告，不影响主流程（由 :mod:`ac_guard.audit` 模块自行处理） |
 
-#### 6.6.5 扩展点
+#### 6.6.6 扩展点
 
-新增报告渠道时引入 ReportChannel 接口：
+新增报告渠道时实现 `ReportChannel` ABC（内部接口）：
 
 ```python
 class ReportChannel(ABC):
-    def send(self, report: CheckReport, rendered_markdown: str) -> None: ...
+    name: ClassVar[str]  # 渠道标识符
+
+    @abstractmethod
+    def output(self, payload: str) -> None: ...
 ```
 
-Channel 选择由 CLI 命令层根据 `output.pr_report` 配置决定。`api_url` 字段支持自部署平台实例。
+Channel 是纯投递层（format-agnostic）：`output` 只接收一个已经渲染好的字符串 payload。Git 平台类渠道统一继承 `GitPlatformChannel` 基类获得 token/repo 解析 + HTTP POST 主流程，只需实现 6 个差异钩子（`DEFAULT_API_URL` / `REPO_ENV_VAR` / `_resolve_pr` / `_post_url` / `_auth_headers` / 可选 `_encode_repo` / `_wrap_body`）。第三方渠道通过 `register_channel` 装饰器注册到全局表。
 
 ---
 
@@ -995,9 +1017,9 @@ Channel 选择由 CLI 命令层根据 `output.pr_report` 配置决定。`api_url
 ```
 CLI → Config.resolve() → ResolvedConfig
 CLI → Generator.generate(ResolvedConfig, agents) → list[FileSpec]
-CLI → Checker.run(ResolvedConfig, stage) → CheckReport
+CLI → Checker.run(ResolvedConfig, stage) → StageOutcome
 Hook → Enforcer.evaluate(ToolCall, policy) → PolicyDecision
-Checker → Reporter.print_check_report(CheckReport)
+Checker → Reporter.print_check_report(StageOutcome)
 Enforcer → Reporter.append_audit_log(PolicyDecision)
 ```
 
@@ -1179,7 +1201,7 @@ class CheckResult:
     duration_ms: int = 0
 
 @dataclass
-class CheckReport:
+class StageOutcome:
     stage: str
     passed: bool
     results: list[CheckResult]
@@ -1435,24 +1457,30 @@ class FileSpec:
 
 ```python
 class ReportChannel(ABC):
-    @property
-    @abstractmethod
-    def name(self) -> str:
-        """渠道标识符，对应 output.pr_report.platform 的值。"""
+    """所有渠道的通用抽象：format-agnostic 地投递一个字符串到物理目的地。"""
+
+    name: ClassVar[str] = ""  # 子类必须设置，e.g. "terminal" / "github"
 
     @abstractmethod
-    def send(self, report: CheckReport, markdown: str, config: PrReportConfig) -> None:
-        """
-        发送报告到目标平台。
-
-        Args:
-            report: 结构化检查报告
-            markdown: 已渲染的 Markdown 字符串
-            config: PR 报告配置
+    def output(self, payload: str) -> None:
+        """将已渲染的字符串 payload 投递到该渠道的物理目的地。
 
         Raises:
-            ChannelError: 发送失败时抛出
+            ChannelError: 投递失败时抛出。
         """
+
+
+class GitPlatformChannel(ReportChannel):
+    """GitHub / GitLab / Gitea / Bitbucket PR 评论渠道共享的基类。
+
+    通过 template method 提供 token/repo 解析 + HTTP POST 的主流程；
+    子类通过覆盖六个钩子（DEFAULT_API_URL、REPO_ENV_VAR、_resolve_pr、
+    _post_url、_auth_headers、可选的 _encode_repo / _wrap_body）提供
+    平台差异逻辑。
+    """
+
+    def __init__(self, config: PrReportConfig) -> None:
+        self.config = config
 ```
 
 #### 12.2.2 认证约定

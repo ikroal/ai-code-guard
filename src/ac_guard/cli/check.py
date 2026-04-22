@@ -16,11 +16,16 @@ from ac_guard.checker.core import (
     run_precommit,
     run_stage,
 )
-from ac_guard.checker.models import CheckReport, CheckResult
 from ac_guard.config.exceptions import ConfigError
 from ac_guard.config.merger import resolve_config
-from ac_guard.reporter.channel_base import post_pr_comment
-from ac_guard.reporter.formatting import format_gate, format_json, format_terminal
+from ac_guard.domain.models import CheckResult, StageOutcome
+from ac_guard.reporter import (
+    FormatKind,
+    GitPlatformCfg,
+    ReportConfig,
+    TerminalCfg,
+    report,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -56,7 +61,7 @@ def check_command(
     project_root = config_path.parent.resolve()
     file_list = files or None
 
-    report = run_stage(
+    outcome = run_stage(
         "pre-commit",
         resolved.code,
         project_root,
@@ -66,16 +71,9 @@ def check_command(
         ),
     )
 
-    print(
-        _format_report(
-            report,
-            output_format,
-            resolved.output.verbosity,
-            resolved.output.locale,
-        )
-    )
-    post_pr_comment(report, resolved.output.pr_report, resolved.output.locale)
-    raise SystemExit(0 if report.passed else 1)
+    _report_to_terminal(outcome, output_format, resolved.output.locale)
+    _maybe_post_pr(outcome, resolved.output.pr_report, resolved.output.locale)
+    raise SystemExit(0 if outcome.passed else 1)
 
 
 def verify_command(
@@ -95,7 +93,7 @@ def verify_command(
     project_root = config_path.parent.resolve()
     build_cmd = None if skip_build else resolved.build_command
 
-    report = run_stage(
+    outcome = run_stage(
         "pre-push",
         resolved.code,
         project_root,
@@ -105,16 +103,9 @@ def verify_command(
         ),
     )
 
-    print(
-        _format_report(
-            report,
-            output_format,
-            resolved.output.verbosity,
-            resolved.output.locale,
-        )
-    )
-    post_pr_comment(report, resolved.output.pr_report, resolved.output.locale)
-    raise SystemExit(0 if report.passed else 1)
+    _report_to_terminal(outcome, output_format, resolved.output.locale)
+    _maybe_post_pr(outcome, resolved.output.pr_report, resolved.output.locale)
+    raise SystemExit(0 if outcome.passed else 1)
 
 
 def run_command(
@@ -184,19 +175,15 @@ def run_command(
 
     passed = all(r.passed for r in results)
     duration = sum(r.duration_ms for r in results)
-    report = CheckReport(
+    outcome = StageOutcome(
         stage=stage,
         passed=passed,
         results=results,
         duration_ms=duration,
     )
 
-    print(
-        _format_report(
-            report, "text", resolved.output.verbosity, resolved.output.locale
-        )
-    )
-    raise SystemExit(0 if report.passed else 1)
+    _report_to_terminal(outcome, "text", resolved.output.locale)
+    raise SystemExit(0 if outcome.passed else 1)
 
 
 _GATING_STAGES = frozenset(
@@ -234,7 +221,7 @@ def gate_run_command(
 
     if stage in BUCKET_AWARE_STAGES:
         build_cmd = resolved.build_command if stage == "pre-push" else None
-        report = run_stage(
+        outcome = run_stage(
             stage,
             resolved.code,
             project_root,
@@ -243,10 +230,9 @@ def gate_run_command(
                 languages=list(resolved.languages),
             ),
         )
-        message, exit_code = format_gate(report)
-        print(message)
-        post_pr_comment(report, resolved.output.pr_report, resolved.output.locale)
-        raise SystemExit(exit_code)
+        _report_to_terminal(outcome, "text", resolved.output.locale)
+        _maybe_post_pr(outcome, resolved.output.pr_report, resolved.output.locale)
+        raise SystemExit(0 if outcome.passed else 1)
 
     # commit-msg / pre-merge-commit / pre-rebase — ac-guard doesn't
     # yet model these in its bucket-aware checker. Delegate to
@@ -264,27 +250,43 @@ def gate_run_command(
     raise SystemExit(result.returncode)
 
 
-def _format_report(
-    report: CheckReport,
-    output_format: str,
-    verbosity: str,
-    locale: str = "en",
-) -> str:
-    """Format a CheckReport for output.
+def _report_to_terminal(outcome: StageOutcome, output_format: str, locale: str) -> None:
+    """Dispatch ``outcome`` to stdout via the reporter.
 
     Args:
-        report: The check report to format.
+        outcome: The check outcome.
         output_format: ``"text"`` or ``"json"``.
-        verbosity: Verbosity level for text output.
-        locale: Label locale for terminal output (``"en"`` or
-            ``"zh-CN"``). Ignored for JSON.
-
-    Returns:
-        Formatted string.
+        locale: Label locale for text rendering (ignored for JSON).
     """
-    if output_format == "json":
-        return format_json(report)
-    return format_terminal(report, verbosity=verbosity, locale=locale)
+    fmt = FormatKind.JSON if output_format == "json" else FormatKind.TEXT
+    report(
+        outcome,
+        ReportConfig(channel=TerminalCfg(), format=fmt, locale=locale),
+    )
+
+
+def _maybe_post_pr(outcome: StageOutcome, pr_report, locale: str) -> None:
+    """Post the outcome to the configured Git platform if enabled.
+
+    Short-circuits when ``pr_report.enabled`` is ``False``. Otherwise
+    dispatches via :func:`reporter.report` with ``non_blocking=True`` so
+    HTTP/auth failures never affect the caller's exit code.
+    """
+    if not pr_report.enabled:
+        return
+    report(
+        outcome,
+        ReportConfig(
+            channel=GitPlatformCfg(
+                platform=pr_report.platform,
+                token_env=pr_report.token_env,
+                api_url=pr_report.api_url,
+            ),
+            format=FormatKind.MARKDOWN,
+            locale=locale,
+        ),
+        non_blocking=True,
+    )
 
 
 def _load_config(config_path: Path):

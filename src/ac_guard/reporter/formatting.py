@@ -1,6 +1,6 @@
 """Reporter formatting — terminal, gate, Markdown, and JSON output.
 
-Converts CheckReport into human-readable formats for terminal
+Converts StageOutcome into human-readable formats for terminal
 display, Git Hook output, PR comment rendering, and machine-readable
 JSON for CI/CD pipelines.
 """
@@ -17,7 +17,7 @@ from jinja2 import Environment, FileSystemLoader
 if TYPE_CHECKING:
     from typing import Any
 
-__all__ = ["format_gate", "format_markdown", "format_terminal"]
+__all__ = ["format_json", "format_markdown", "format_terminal"]
 
 _TEMPLATE_DIR = Path(__file__).parent / "_templates"
 
@@ -72,29 +72,26 @@ def _get_env() -> Environment:
 # ---------------------------------------------------------------------------
 
 
-def format_terminal(
-    report: Any,
-    verbosity: str = "normal",
-    locale: str = "en",
-) -> str:
-    """Format a CheckReport for terminal display.
+def format_terminal(report: Any, locale: str = "en") -> str:
+    """Format a StageOutcome for terminal display.
+
+    Produces a multi-line rendering: stage heading, one ``[PASS]`` /
+    ``[FAIL]`` / ``[SKIP]`` indicator per check, inline violation list,
+    and a passed/total summary + total elapsed. Serves both CLI users
+    and Git-hook environments; callers decide whether to truncate.
 
     Args:
         report: Any to format.
-        verbosity: Output detail level ("quiet", "normal", "verbose").
-        locale: Label locale ("en" or "zh-CN"). Unknown locales fall
-            back to English. Only full-line headings are localized;
-            the ``[PASS] / [FAIL] / [SKIP]`` indicators and check
-            names stay as stable ASCII tokens to preserve alignment.
+        locale: Label locale (``"en"`` or ``"zh-CN"``). Unknown locales
+            fall back to English. Only full-line headings are localized;
+            the ``[PASS] / [FAIL] / [SKIP]`` indicators and check names
+            stay as stable ASCII tokens to preserve alignment.
 
     Returns:
-        Formatted string for terminal output.
+        Formatted multi-line string for terminal output.
     """
     labels = _labels_for(locale)
     status = labels["passed"] if report.passed else labels["failed"]
-
-    if verbosity == "quiet":
-        return f"{report.stage}: {status}"
 
     lines: list[str] = []
     lines.append(f"{labels['stage']}: {report.stage} — {status}")
@@ -104,13 +101,6 @@ def format_terminal(
         indicator = _result_indicator(result)
         duration = f" ({result.duration_ms}ms)" if result.duration_ms else ""
         lines.append(f"  [{indicator}] {result.name}{duration}")
-
-        if verbosity == "verbose" and result.output:
-            lines.extend(
-                f"    > {output_line}"
-                for output_line in result.output.strip().split("\n")
-            )
-
         lines.extend(f"    {_format_violation(v)}" for v in result.violations)
 
     lines.append("")
@@ -160,28 +150,6 @@ def _format_violation(v: Any) -> str:
 
 
 # ---------------------------------------------------------------------------
-# R2: Gate format
-# ---------------------------------------------------------------------------
-
-
-def format_gate(report: Any) -> tuple[str, int]:
-    """Format a CheckReport for Git Hook gate output.
-
-    Args:
-        report: Any to format.
-
-    Returns:
-        Tuple of (message, exit_code).
-    """
-    if report.passed:
-        return f"ac-guard: {report.stage} checks passed", 0
-
-    failed_names = [r.name for r in report.results if not r.passed]
-    msg = f"ac-guard: {report.stage} checks failed: {', '.join(failed_names)}"
-    return msg, 1
-
-
-# ---------------------------------------------------------------------------
 # Markdown format
 # ---------------------------------------------------------------------------
 
@@ -190,7 +158,7 @@ def format_markdown(
     report: Any,
     locale: str = "en",
 ) -> str:
-    """Format a CheckReport as Markdown using Jinja2 templates.
+    """Format a StageOutcome as Markdown using Jinja2 templates.
 
     Args:
         report: Any to format.
@@ -224,13 +192,13 @@ def format_markdown(
 
 
 def format_json(report: Any) -> str:
-    """Serialize a CheckReport to JSON for CI/CD pipelines.
+    """Serialize a StageOutcome to JSON for CI/CD pipelines.
 
     Uses ``dataclasses.asdict()`` to convert the entire report tree
-    (CheckReport → CheckResult → Violation) into a JSON string.
+    (StageOutcome → CheckResult → Violation) into a JSON string.
 
     Args:
-        report: A CheckReport instance.
+        report: A StageOutcome instance.
 
     Returns:
         Pretty-printed JSON string parseable by ``jq``.

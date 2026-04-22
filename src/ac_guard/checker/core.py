@@ -13,7 +13,7 @@ import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from ac_guard.checker.models import CheckReport, CheckResult
+from ac_guard.domain.models import CheckResult, StageOutcome
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -59,7 +59,7 @@ _DEFAULT_STAGE_OPTIONS = StageOptions()
 
 
 # Stages where ac-guard provides bucket-aware orchestration (format/lint
-# shortcuts, build command, CheckReport for reporter/audit). Other gating
+# shortcuts, build command, StageOutcome for reporter/audit). Other gating
 # stages delegate to ``pre-commit run --hook-stage`` via cli/check.py.
 BUCKET_AWARE_STAGES: frozenset[str] = frozenset({"pre-commit", "pre-push"})
 
@@ -360,7 +360,7 @@ def run_stage(
     project_root: Path,
     *,
     options: StageOptions = _DEFAULT_STAGE_OPTIONS,
-) -> CheckReport:
+) -> StageOutcome:
     """Orchestrate all checks for a stage.
 
     For pre-commit stage: format + lint + custom checks.
@@ -374,7 +374,7 @@ def run_stage(
             language identifiers). See :class:`StageOptions`.
 
     Returns:
-        CheckReport with aggregated results.
+        StageOutcome with aggregated results.
     """
     start = time.monotonic()
     langs = list(options.languages or [])
@@ -390,7 +390,7 @@ def run_stage(
         )
         if not commit_report.passed:
             elapsed = int((time.monotonic() - start) * 1000)
-            return CheckReport(
+            return StageOutcome(
                 stage="pre-push",
                 passed=False,
                 results=commit_report.results,
@@ -414,7 +414,7 @@ def run_stage(
     elapsed = int((time.monotonic() - start) * 1000)
     passed = all(r.passed for r in results)
 
-    return CheckReport(
+    return StageOutcome(
         stage=stage,
         passed=passed,
         results=results,

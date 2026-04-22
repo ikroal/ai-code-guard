@@ -2,18 +2,17 @@
 
 from __future__ import annotations
 
-from ac_guard.checker.models import CheckReport, CheckResult, Violation
+from ac_guard.checker.models import CheckResult, StageOutcome, Violation
 from ac_guard.reporter.formatting import (
-    format_gate,
     format_json,
     format_markdown,
     format_terminal,
 )
 
 
-def _passed_report() -> CheckReport:
+def _passed_report() -> StageOutcome:
     """Create a passing report for testing."""
-    return CheckReport(
+    return StageOutcome(
         stage="pre-commit",
         passed=True,
         results=[
@@ -24,9 +23,9 @@ def _passed_report() -> CheckReport:
     )
 
 
-def _failed_report() -> CheckReport:
+def _failed_report() -> StageOutcome:
     """Create a failing report with violations."""
-    return CheckReport(
+    return StageOutcome(
         stage="pre-push",
         passed=False,
         results=[
@@ -58,9 +57,9 @@ def _failed_report() -> CheckReport:
     )
 
 
-def _skipped_report() -> CheckReport:
+def _skipped_report() -> StageOutcome:
     """Create a report with skipped checks."""
-    return CheckReport(
+    return StageOutcome(
         stage="pre-commit",
         passed=True,
         results=[
@@ -103,19 +102,6 @@ class TestFormatTerminal:
         assert "E501" in output
         assert "src/util.py:22" in output
 
-    def test_verbosity_quiet(self) -> None:
-        """Quiet mode shows minimal output."""
-        output = format_terminal(_failed_report(), verbosity="quiet")
-        assert "FAILED" in output
-        # Should not contain per-check details
-        assert "[PASS]" not in output
-        assert "[FAIL]" not in output
-
-    def test_verbosity_verbose(self) -> None:
-        """Verbose mode shows check output."""
-        output = format_terminal(_failed_report(), verbosity="verbose")
-        assert "ruff check failed" in output
-
     def test_duration_shown(self) -> None:
         """Duration is displayed."""
         output = format_terminal(_passed_report())
@@ -156,28 +142,6 @@ class TestFormatTerminal:
         output = format_terminal(_passed_report(), locale="fr-FR")
         assert "Stage: pre-commit — PASSED" in output
         assert "2/2 checks passed, 0 failed" in output
-
-
-# ---------------------------------------------------------------------------
-# TestFormatGate
-# ---------------------------------------------------------------------------
-
-
-class TestFormatGate:
-    """Tests for format_gate (R2)."""
-
-    def test_passed_gate(self) -> None:
-        """Passing report returns exit code 0."""
-        msg, code = format_gate(_passed_report())
-        assert code == 0
-        assert "passed" in msg
-
-    def test_failed_gate(self) -> None:
-        """Failing report returns exit code 1 with failed check names."""
-        msg, code = format_gate(_failed_report())
-        assert code == 1
-        assert "test" in msg
-        assert "failed" in msg
 
 
 # ---------------------------------------------------------------------------

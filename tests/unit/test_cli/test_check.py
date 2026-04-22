@@ -197,7 +197,7 @@ class TestGateRunCommand:
                 app, ["gate", "run", "--stage", "pre-commit", "--config", str(config)]
             )
         assert result.exit_code == 0
-        assert "passed" in result.output
+        assert "PASSED" in result.output
 
     def test_gate_commit_failed(self, tmp_path: Path) -> None:
         """Gate run with failing checks exits 1."""
@@ -223,7 +223,7 @@ class TestGateRunCommand:
                 app, ["gate", "run", "--stage", "pre-commit", "--config", str(config)]
             )
         assert result.exit_code == 1
-        assert "failed" in result.output
+        assert "FAILED" in result.output
 
     def test_gate_push(self, tmp_path: Path) -> None:
         """Gate run push stage works."""
@@ -233,7 +233,7 @@ class TestGateRunCommand:
                 app, ["gate", "run", "--stage", "pre-push", "--config", str(config)]
             )
         assert result.exit_code == 0
-        assert "passed" in result.output
+        assert "PASSED" in result.output
 
 
 class TestJsonOutput:
@@ -316,7 +316,7 @@ class TestCliAutoPostPrComment:
         config = _write_config_with_pr_report(tmp_path, enabled=True)
         with (
             patch("ac_guard.checker.core.get_changed_files", return_value=[]),
-            patch("ac_guard.cli.check.post_pr_comment") as mock_post,
+            patch("ac_guard.cli.check._maybe_post_pr") as mock_post,
         ):
             result = runner.invoke(app, ["check", "--config", str(config)])
         assert result.exit_code == 0
@@ -334,7 +334,7 @@ class TestCliAutoPostPrComment:
         config = _write_config_with_pr_report(tmp_path, enabled=False)
         with (
             patch("ac_guard.checker.core.get_changed_files", return_value=[]),
-            patch("ac_guard.cli.check.post_pr_comment") as mock_post,
+            patch("ac_guard.cli.check._maybe_post_pr") as mock_post,
         ):
             result = runner.invoke(app, ["check", "--config", str(config)])
         assert result.exit_code == 0
@@ -348,7 +348,7 @@ class TestCliAutoPostPrComment:
         config = _write_config_with_pr_report(tmp_path, enabled=True)
         with (
             patch("ac_guard.checker.core.get_changed_files", return_value=[]),
-            patch("ac_guard.cli.check.post_pr_comment") as mock_post,
+            patch("ac_guard.cli.check._maybe_post_pr") as mock_post,
         ):
             result = runner.invoke(
                 app, ["verify", "--skip-build", "--config", str(config)]
@@ -364,7 +364,7 @@ class TestCliAutoPostPrComment:
         config = _write_config_with_pr_report(tmp_path, enabled=True)
         with (
             patch("ac_guard.checker.core.get_changed_files", return_value=[]),
-            patch("ac_guard.cli.check.post_pr_comment") as mock_post,
+            patch("ac_guard.cli.check._maybe_post_pr") as mock_post,
         ):
             result = runner.invoke(
                 app, ["gate", "run", "--stage", "pre-commit", "--config", str(config)]
@@ -384,7 +384,7 @@ class TestCliAutoPostPrComment:
         config = _write_config_with_checks(tmp_path)
         with (
             patch("ac_guard.checker.core.get_changed_files", return_value=[]),
-            patch("ac_guard.cli.check.post_pr_comment") as mock_post,
+            patch("ac_guard.cli.check._maybe_post_pr") as mock_post,
         ):
             result = runner.invoke(app, ["run", "echo-test", "--config", str(config)])
         assert result.exit_code == 0

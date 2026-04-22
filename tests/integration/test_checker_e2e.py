@@ -18,7 +18,7 @@ import pytest
 import yaml
 from typer.testing import CliRunner
 
-from ac_guard.checker.models import CheckReport, CheckResult
+from ac_guard.checker.models import CheckResult, StageOutcome
 from ac_guard.cli.main import app
 from ac_guard.reporter.formatting import format_markdown
 
@@ -107,7 +107,7 @@ class TestFullCheckLifecycle:
                 app, ["gate", "run", "-s", "pre-commit", "-c", str(config)]
             )
         assert r.exit_code == 0
-        assert "passed" in r.output
+        assert "PASSED" in r.output
 
         # uninstall
         monkeypatch.chdir(tmp_path)
@@ -314,19 +314,19 @@ class TestGateCommand:
                 app, ["gate", "run", "-s", "pre-commit", "-c", str(config)]
             )
         assert r.exit_code == 0
-        assert "passed" in r.output
+        assert "PASSED" in r.output
         # Gate output should be minimal (no PASS/FAIL indicators)
         assert "[PASS]" not in r.output
 
     def test_commit_failed(self, tmp_path: Path) -> None:
-        """E2: Commit stage fail → minimal 'failed' + exit 1."""
+        """E2: Commit stage fail → minimal 'FAILED' + exit 1."""
         config = _config_with_checks(tmp_path, fail=True)
         with patch("ac_guard.checker.core.get_changed_files", return_value=[]):
             r = runner.invoke(
                 app, ["gate", "run", "-s", "pre-commit", "-c", str(config)]
             )
         assert r.exit_code == 1
-        assert "failed" in r.output
+        assert "FAILED" in r.output
 
     def test_push_passed(self, tmp_path: Path) -> None:
         """E3: Push stage pass → exit 0."""
@@ -537,7 +537,7 @@ class TestReportFormats:
 
     def test_markdown_rendering(self) -> None:
         """F2: Markdown report has table and emoji."""
-        report = CheckReport(
+        report = StageOutcome(
             stage="pre-commit",
             passed=False,
             results=[
