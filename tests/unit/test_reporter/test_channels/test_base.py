@@ -1,10 +1,13 @@
-"""Tests for ReportChannel ABC, registry, and post_pr_comment."""
+"""Tests for ReportChannel ABC and the channel registry.
+
+Dispatch-layer behavior (``report`` with ``non_blocking``) is covered in
+:mod:`tests.unit.test_reporter.test_core`.
+"""
 
 from __future__ import annotations
 
 import pytest
 
-from ac_guard.config.models import PrReportConfig
 from ac_guard.reporter.channels import base as channel_base
 from ac_guard.reporter.channels.base import (
     ChannelError,
@@ -13,7 +16,6 @@ from ac_guard.reporter.channels.base import (
     get_channel,
     register_channel,
 )
-from ac_guard.reporter.channels.git_platform import post_pr_comment
 
 
 class TestReportChannelABC:
@@ -79,91 +81,8 @@ class TestRegisterAndGetChannel:
         assert cls.name == "github"
 
 
-class TestPostPrComment:
-    """post_pr_comment is non-blocking (catches errors)."""
-
-    def test_disabled_config_does_nothing(self) -> None:
-        """When pr_report.enabled=False, should not attempt to send."""
-        config = PrReportConfig(enabled=False)
-        # Should not raise regardless of missing env vars
-        post_pr_comment(None, config, "en")  # type: ignore[arg-type]
-
-    def test_send_failure_does_not_raise(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """If channel.output() raises, post_pr_comment catches and warns."""
-        from ac_guard.checker.models import StageOutcome
-
-        config = PrReportConfig(enabled=True, platform="github")
-        outcome = StageOutcome(stage="pre-commit", passed=True)
-
-        # Ensure the GitHub channel will fail (no env vars set)
-        monkeypatch.delenv("GITHUB_TOKEN", raising=False)
-        monkeypatch.delenv("GITHUB_REPOSITORY", raising=False)
-        monkeypatch.delenv("GITHUB_REF", raising=False)
-        monkeypatch.delenv("AI_GUARD_PR_NUMBER", raising=False)
-
-        # Should not raise — catches internally
-        post_pr_comment(outcome, config, "en")
-
-
 class TestNoPrContextError:
-    """NoPrContextError signals 'no PR in context' — silent-skip semantics."""
+    """NoPrContextError is a ChannelError subclass (silent-skip semantics)."""
 
     def test_is_channel_error_subclass(self) -> None:
-        """NoPrContextError must inherit ChannelError for backward compat."""
         assert issubclass(NoPrContextError, ChannelError)
-
-    def test_post_pr_comment_silent_on_no_pr_context(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-        capsys: pytest.CaptureFixture[str],
-    ) -> None:
-        """NoPrContextError from channel.output => no stderr output."""
-        from ac_guard.checker.models import StageOutcome
-
-        config = PrReportConfig(enabled=True, platform="fake-no-pr")
-        outcome = StageOutcome(stage="pre-commit", passed=True)
-
-        class _NoPrChannel(ReportChannel):
-            name = "fake-no-pr"
-
-            def __init__(self, config: PrReportConfig) -> None:
-                pass
-
-            def output(self, payload: str) -> None:
-                raise NoPrContextError("no PR in context")
-
-        monkeypatch.setitem(channel_base._CHANNELS, "fake-no-pr", _NoPrChannel)
-
-        post_pr_comment(outcome, config, "en")
-
-        captured = capsys.readouterr()
-        assert captured.err == ""
-        assert captured.out == ""
-
-    def test_post_pr_comment_warns_on_other_channel_error(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-        capsys: pytest.CaptureFixture[str],
-    ) -> None:
-        """ChannelError (not NoPrContextError) => stderr warning."""
-        from ac_guard.checker.models import StageOutcome
-
-        config = PrReportConfig(enabled=True, platform="fake-api-500")
-        outcome = StageOutcome(stage="pre-commit", passed=True)
-
-        class _ApiFailChannel(ReportChannel):
-            name = "fake-api-500"
-
-            def __init__(self, config: PrReportConfig) -> None:
-                pass
-
-            def output(self, payload: str) -> None:
-                raise ChannelError("API 500")
-
-        monkeypatch.setitem(channel_base._CHANNELS, "fake-api-500", _ApiFailChannel)
-
-        post_pr_comment(outcome, config, "en")
-
-        captured = capsys.readouterr()
-        assert "Warning: PR comment failed to post" in captured.err
-        assert "API 500" in captured.err

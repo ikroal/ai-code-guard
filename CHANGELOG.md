@@ -11,6 +11,79 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **BREAKING — Reporter API collapse** (follow-up to the earlier Reporter
+  API restructure below). Further consolidation based on the "Reporter
+  serves only **humans or Agents** — nothing else" principle.
+
+  **Public surface is now a single `report(outcome, config, *, non_blocking=False)`:**
+
+  ```python
+  from ac_guard.reporter import (
+      report,                                      # the one dispatch entry
+      ReportConfig,                                # unified delivery intent
+      FormatKind,                                  # TEXT / MARKDOWN / JSON
+      TerminalCfg, FileCfg, GitPlatformCfg,        # channel configs (tagged union)
+      ChannelError, NoPrContextError,              # errors
+  )
+  ```
+
+  `format_terminal` / `format_markdown` / `format_json` / `post_pr_comment` /
+  the `TerminalChannel` / `FileChannel` / `GitPlatformChannel` classes are
+  **no longer public API** — they are implementation details. Callers choose
+  format and channel via `ReportConfig`; `core.report` picks the matching
+  formatter + channel and delivers. Permitted `(channel, format)` combinations
+  are validated upfront and raise `ValueError` on mismatches:
+
+  |               | TEXT | MARKDOWN | JSON |
+  |---------------|:----:|:--------:|:----:|
+  | TerminalCfg   |  ✅  |    ❌    |  ✅  |
+  | FileCfg       |  ✅  |    ✅    |  ✅  |
+  | GitPlatformCfg|  ❌  |    ✅    |  ❌  |
+
+  **Migration:**
+
+  ```python
+  # Old
+  print(format_terminal(outcome, verbosity="quiet"))
+  post_pr_comment(outcome, pr_report, locale="en")
+
+  # New
+  report(outcome, ReportConfig(channel=TerminalCfg(), format=FormatKind.TEXT))
+  if pr_report.enabled:
+      report(outcome, ReportConfig(
+          channel=GitPlatformCfg(
+              platform=pr_report.platform,
+              token_env=pr_report.token_env,
+              api_url=pr_report.api_url,
+          ),
+          format=FormatKind.MARKDOWN,
+          locale="en",
+      ), non_blocking=True)
+  ```
+
+  **`format_terminal` no longer takes `verbosity`**. One text rendering is
+  produced (multi-line with `[PASS]/[FAIL]/[SKIP]` indicators + violation
+  list + summary). Information-density decisions (e.g. whether to truncate
+  in a Git-hook environment) belong to the caller, not the reporter.
+
+  **Git-platform channel constructors take `GitPlatformCfg`** (not
+  `PrReportConfig`). `PrReportConfig.enabled` is a CLI-layer concern (``if
+  pr_report.enabled: report(..., non_blocking=True)``), not a channel
+  concern. Third-party channel authors need to update their `__init__`
+  type annotation.
+
+- **New layer: `ac_guard.domain`** holds cross-module intermediate data
+  contracts that flow between modules. `StageOutcome` / `CheckResult` /
+  `Violation` move from `ac_guard.checker.models` to `ac_guard.domain.models`.
+  `ac_guard.checker.models` becomes a backward-compatibility shim, so
+  `from ac_guard.checker import StageOutcome` continues to work unchanged.
+
+  Admission to `ac_guard.domain` is gated by four criteria (documented in
+  `src/ac_guard/domain/__init__.py`): cross-module intermediate, pure data
+  (dataclass, no I/O, stdlib-only), ≥2 non-test consumers, and PR-level
+  change-impact review. This prevents the classical
+  `shared`/`common`-module anti-pattern.
+
 - **BREAKING — Reporter API restructure** following the same
   `deriving-module-api` methodology used for audit. Three axes (I / P /
   O: input / processing / channel) with format and channel treated as

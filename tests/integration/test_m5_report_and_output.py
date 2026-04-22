@@ -18,9 +18,16 @@ from typer.testing import CliRunner
 
 from ac_guard.checker.core import run_stage
 from ac_guard.cli.main import app
-from ac_guard.config.models import PrReportConfig
-from ac_guard.reporter.channels.base import ChannelError, NoPrContextError
-from ac_guard.reporter.channels.git_platform import post_pr_comment
+from ac_guard.reporter import (
+    ChannelError,
+    GitPlatformCfg,
+    NoPrContextError,
+    ReportConfig,
+)
+from ac_guard.reporter import (
+    report as reporter_report,
+)
+from ac_guard.reporter.core import FormatKind
 from ac_guard.reporter.formatting import format_markdown
 
 runner = CliRunner()
@@ -80,23 +87,22 @@ def _write_config_with_checks(tmp_path: Path) -> Path:
 
 
 class TestPrReportFlow:
-    """D1: Config → Checker → Markdown → Channel.send."""
+    """D1: Checker outcome → report() with GitPlatformCfg → HTTP POST."""
 
-    def test_check_report_to_markdown_to_channel(self, tmp_path: Path) -> None:
-        """D1-1: Real StageOutcome → format_markdown → post_pr_comment (mock HTTP)."""
+    def test_report_outcome_to_git_platform(self, tmp_path: Path) -> None:
+        """D1-1: Real StageOutcome → report() via GitPlatformCfg (mock HTTP)."""
         config = _init_and_install(tmp_path)
         resolved_config = _resolve(config)
 
         # Run real checker
-        report = run_stage("pre-commit", resolved_config.code, tmp_path)
+        outcome = run_stage("pre-commit", resolved_config.code, tmp_path)
 
-        # Markdown should render without error
-        markdown = format_markdown(report)
+        # Markdown should render without error (sanity check the formatter)
+        markdown = format_markdown(outcome)
         assert "✅" in markdown or "❌" in markdown  # emoji indicators
-        assert report.stage in markdown or "pre-commit" in markdown.lower()
+        assert outcome.stage in markdown or "pre-commit" in markdown.lower()
 
-        # post_pr_comment should call channel.send with the markdown
-        pr_config = PrReportConfig(enabled=True, platform="github")
+        # report() with GitPlatformCfg + MARKDOWN should POST to github
         mock_resp = MagicMock()
         mock_resp.status = 201
         mock_resp.read.return_value = b'{"id":1}'
@@ -114,40 +120,42 @@ class TestPrReportFlow:
                 },
             ),
         ):
-            post_pr_comment(report, pr_config, locale="en")
+            reporter_report(
+                outcome,
+                ReportConfig(
+                    channel=GitPlatformCfg(platform="github"),
+                    format=FormatKind.MARKDOWN,
+                    locale="en",
+                ),
+            )
             mock_urlopen.assert_called_once()
             req = mock_urlopen.call_args[0][0]
             body = json.loads(req.data)
             assert "body" in body
             assert len(body["body"]) > 0
 
-    def test_send_failure_does_not_affect_check(self, tmp_path: Path) -> None:
-        """D1-2: post_pr_comment failure → no exception, stderr warning."""
+    def test_non_blocking_swallows_failure(self, tmp_path: Path) -> None:
+        """D1-2: report(non_blocking=True) → delivery failure does not raise."""
         config = _init_and_install(tmp_path)
         resolved_config = _resolve(config)
-        report = run_stage("pre-commit", resolved_config.code, tmp_path)
+        outcome = run_stage("pre-commit", resolved_config.code, tmp_path)
 
-        pr_config = PrReportConfig(enabled=True, platform="github")
-
-        # No env vars → channel will fail → should not raise
+        # No env vars → channel will fail. non_blocking=True must absorb it.
         with patch.dict("os.environ", {}, clear=False):
             import os
 
             os.environ.pop("GITHUB_TOKEN", None)
             os.environ.pop("GITHUB_REPOSITORY", None)
-            post_pr_comment(report, pr_config, locale="en")
+            reporter_report(
+                outcome,
+                ReportConfig(
+                    channel=GitPlatformCfg(platform="github"),
+                    format=FormatKind.MARKDOWN,
+                    locale="en",
+                ),
+                non_blocking=True,
+            )
             # If we get here without exception, the test passes
-
-    def test_disabled_pr_report_skips(self, tmp_path: Path) -> None:
-        """D1-3: enabled=False → no HTTP call."""
-        config = _init_and_install(tmp_path)
-        resolved_config = _resolve(config)
-        report = run_stage("pre-commit", resolved_config.code, tmp_path)
-
-        pr_config = PrReportConfig(enabled=False)
-        with patch("urllib.request.urlopen") as mock_urlopen:
-            post_pr_comment(report, pr_config, locale="en")
-            mock_urlopen.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -380,7 +388,7 @@ class TestCliPrReportIntegration:
             if result.stderr_bytes
             else ""
         )
-        assert "Warning: PR comment failed to post" in combined
+        assert "Warning: report delivery failed" in combined
         assert "500" in combined
 
     def test_cli_check_disabled_skips_channel_entirely(self, tmp_path: Path) -> None:

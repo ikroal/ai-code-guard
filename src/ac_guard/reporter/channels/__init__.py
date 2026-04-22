@@ -29,10 +29,7 @@ from ac_guard.reporter.channels.base import (
 )
 from ac_guard.reporter.channels.bitbucket import BitbucketChannel
 from ac_guard.reporter.channels.file import FileChannel
-from ac_guard.reporter.channels.git_platform import (
-    GitPlatformChannel,
-    post_pr_comment,
-)
+from ac_guard.reporter.channels.git_platform import GitPlatformChannel
 from ac_guard.reporter.channels.gitea import GiteaChannel
 from ac_guard.reporter.channels.github import GitHubChannel
 from ac_guard.reporter.channels.gitlab import GitLabChannel
@@ -50,6 +47,5 @@ __all__ = [
     "ReportChannel",
     "TerminalChannel",
     "get_channel",
-    "post_pr_comment",
     "register_channel",
 ]

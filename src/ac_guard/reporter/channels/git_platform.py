@@ -1,4 +1,4 @@
-"""Git platform channel family — shared base class and post_pr_comment.
+"""Git platform channel family — shared base class.
 
 Four built-in Git platform channels (GitHub, GitLab, Gitea, Bitbucket) share
 80% of the PR-comment post flow. :class:`GitPlatformChannel` provides the
@@ -10,34 +10,26 @@ six differentiating hooks:
     _resolve_pr, _post_url, _auth_headers  (platform-specific)
     _wrap_body                             (default {"body": payload})
 
-``post_pr_comment`` is the CLI-facing convenience wrapper: it renders
-Markdown, dispatches to the channel registered under ``config.platform``,
-and swallows failures to keep the main exit code untouched.
+The dispatch-layer convenience wrapper (picking a platform by name,
+rendering Markdown, non-blocking wrapping) used to live here but moved to
+:mod:`ac_guard.reporter.core` — it is a *dispatch* concern, not a
+channel-implementation concern.
 """
 
 from __future__ import annotations
 
 import os
-import sys
 from abc import abstractmethod
 from typing import TYPE_CHECKING, ClassVar
 
 from ac_guard.reporter.channels._git_info import get_remote_repo
 from ac_guard.reporter.channels._http import post_json
-from ac_guard.reporter.channels.base import (
-    ChannelError,
-    NoPrContextError,
-    ReportChannel,
-    get_channel,
-)
-from ac_guard.reporter.formatting import format_markdown
+from ac_guard.reporter.channels.base import ChannelError, ReportChannel
 
 if TYPE_CHECKING:
-    from typing import Any
+    from ac_guard.reporter.core import GitPlatformCfg
 
-    from ac_guard.config.models import PrReportConfig
-
-__all__ = ["GitPlatformChannel", "post_pr_comment"]
+__all__ = ["GitPlatformChannel"]
 
 
 class GitPlatformChannel(ReportChannel):
@@ -59,11 +51,12 @@ class GitPlatformChannel(ReportChannel):
     #: (e.g. ``"GITHUB_REPOSITORY"``, ``"CI_PROJECT_ID"``).
     REPO_ENV_VAR: ClassVar[str] = ""
 
-    def __init__(self, config: PrReportConfig) -> None:
-        """Store the PR report configuration for later use by :meth:`output`.
+    def __init__(self, config: GitPlatformCfg) -> None:
+        """Store the platform configuration for later use by :meth:`output`.
 
         Args:
-            config: PR report configuration.
+            config: :class:`~ac_guard.reporter.core.GitPlatformCfg` with
+                platform / token_env / api_url.
         """
         self.config = config
 
@@ -209,42 +202,3 @@ class GitPlatformChannel(ReportChannel):
         Returns:
             Dict of request headers.
         """
-
-
-# ---------------------------------------------------------------------------
-# post_pr_comment — CLI convenience wrapper
-# ---------------------------------------------------------------------------
-
-
-def post_pr_comment(
-    outcome: Any,
-    config: PrReportConfig,
-    locale: str = "en",
-) -> None:
-    """Render ``outcome`` as Markdown and post to the configured Git platform.
-
-    Dispatches to the channel registered under ``config.platform`` (one of
-    ``"github"`` / ``"gitlab"`` / ``"gitea"`` / ``"bitbucket"``).
-
-    **Non-blocking.** If posting fails for any reason (missing credentials,
-    HTTP error, unknown platform), a warning is printed to stderr but no
-    exception is raised — the main exit code is not affected.
-    :class:`NoPrContextError` (no PR/MR found locally) is silently skipped.
-
-    Args:
-        outcome: Check outcome (:class:`ac_guard.checker.StageOutcome`).
-        config: PR report configuration. If ``enabled`` is False, this
-            function returns immediately.
-        locale: Locale for Markdown template (``"en"`` or ``"zh-CN"``).
-    """
-    if not config.enabled:
-        return
-
-    try:
-        payload = format_markdown(outcome, locale)
-        channel_cls = get_channel(config.platform)
-        channel_cls(config=config).output(payload)
-    except NoPrContextError:
-        return  # Silent skip: no PR in context (typical in local dev)
-    except Exception as exc:
-        print(f"Warning: PR comment failed to post: {exc}", file=sys.stderr)

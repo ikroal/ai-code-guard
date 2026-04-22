@@ -906,34 +906,53 @@ push 阶段:   先完整执行 commit 阶段
 
 将结构化结果（StageOutcome / PolicyDecision）格式化为指定格式，并输出到指定渠道。Reporter 不参与任何判定或编排逻辑。
 
-#### 6.6.2 原语操作
+#### 6.6.2 对外 API
 
-| 编号 | 原语 | 调用方 | 输出目标 | 引入阶段 |
+Reporter 对外暴露一个**统一调度函数** `report` + 一组**投递意图**数据类。所有渲染函数（`format_terminal` / `format_markdown` / `format_json`）与 Channel 实现类均为内部细节，不对外。
+
+```python
+from ac_guard.reporter import (
+    report,                                      # 唯一顶层函数
+    ReportConfig,                                # 统一投递意图
+    FormatKind,                                  # TEXT / MARKDOWN / JSON
+    TerminalCfg, FileCfg, GitPlatformCfg,        # Channel 配置（tagged union）
+    ChannelError, NoPrContextError,              # 异常
+)
+
+report(outcome, config, *, non_blocking=False)
+```
+
+`config.channel` 是 `TerminalCfg | FileCfg | GitPlatformCfg` 的 tagged union；core 按具体类型分派到对应 channel 实现。`config.format` 由 `FormatKind` 枚举决定用哪种渲染器。`config.locale` 传给 text / markdown 渲染器选标签/模板。`non_blocking=True` 时吞掉 `NoPrContextError`（静默）和其它 `ChannelError`（stderr warn），典型用于 PR 投递场景。
+
+#### 6.6.3 (channel, format) 合法组合
+
+|  | `FormatKind.TEXT` | `FormatKind.MARKDOWN` | `FormatKind.JSON` |
+|---|:---:|:---:|:---:|
+| `TerminalCfg` | ✅ | ❌ | ✅ |
+| `FileCfg` | ✅ | ✅ | ✅ |
+| `GitPlatformCfg` | ❌ | ✅（必须） | ❌ |
+
+非法组合由 `report()` 在投递前抛 `ValueError`。
+
+#### 6.6.4 服务场景
+
+| # | 场景 | 服务对象 | channel | format |
 |---|---|---|---|---|
-| R1 | print_check_report | Checker（check/verify） | 终端 Rich 格式化 | Phase 3 |
-| R2 | print_gate_result | Checker（gate run） | 终端精简文本 | Phase 3 |
-| R3 | append_audit_log | Enforcer | .ai-guard/audit.jsonl | Phase 2 |
-| R4 | post_pr_comment | Checker | PR 评论（HTTP API） | Could Have |
+| 1 | CLI 命令 (`check` / `verify` / `run` / `gate run`) 打印到 stdout | 人 | `TerminalCfg` | `TEXT` |
+| 2 | `ac-guard check --format json`（供 CI / `jq` 消费） | Agent | `TerminalCfg` | `JSON` |
+| 3 | PR 评论（GitHub / GitLab / Gitea / Bitbucket） | 人（PR reviewer） | `GitPlatformCfg` | `MARKDOWN` |
+| 4 | 导出报告文件 | 人 | `FileCfg` | 三选一 |
 
-#### 6.6.3 渲染格式
-
-| 格式 | 用途 | 实现方式 |
-|---|---|---|
-| Rich 终端 | check / verify 命令输出 | Rich 库直接渲染 |
-| 纯文本 | gate run 输出（Git Hook 环境） | 字符串拼接 |
-| Markdown | PR 评论 | Jinja2 模板（`templates/report.md.j2`） |
-| JSON | `--format json` 机器消费 | dataclass 序列化 |
-
-#### 6.6.4 异常处理
+#### 6.6.5 异常处理
 
 | 异常 | 处理 |
 |---|---|
-| 审计日志写入失败 | 向 stderr 输出警告，不影响主流程 |
-| PR 评论发布失败 | 向 stderr 输出警告，不影响 exit code |
+| PR 评论发布失败 | CLI 调 `report(..., non_blocking=True)` 时：`NoPrContextError` 静默、其他 `ChannelError` stderr warn、不影响退出码 |
+| 审计日志写入失败 | 向 stderr 输出警告，不影响主流程（由 :mod:`ac_guard.audit` 模块自行处理） |
 
-#### 6.6.5 扩展点
+#### 6.6.6 扩展点
 
-新增报告渠道时引入 ReportChannel 接口：
+新增报告渠道时实现 `ReportChannel` ABC（内部接口）：
 
 ```python
 class ReportChannel(ABC):
@@ -943,7 +962,7 @@ class ReportChannel(ABC):
     def output(self, payload: str) -> None: ...
 ```
 
-Channel 是纯投递层（format-agnostic）：`output` 只接收一个已经渲染好的字符串 payload，由调用方/便利函数（如 `post_pr_comment`）决定用哪种格式化器产生该字符串。Channel 选择由 CLI 命令层根据 `output.pr_report` 配置决定。`api_url` 字段支持自部署平台实例。
+Channel 是纯投递层（format-agnostic）：`output` 只接收一个已经渲染好的字符串 payload。Git 平台类渠道统一继承 `GitPlatformChannel` 基类获得 token/repo 解析 + HTTP POST 主流程，只需实现 6 个差异钩子（`DEFAULT_API_URL` / `REPO_ENV_VAR` / `_resolve_pr` / `_post_url` / `_auth_headers` / 可选 `_encode_repo` / `_wrap_body`）。第三方渠道通过 `register_channel` 装饰器注册到全局表。
 
 ---
 

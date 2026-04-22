@@ -72,34 +72,26 @@ def _get_env() -> Environment:
 # ---------------------------------------------------------------------------
 
 
-def format_terminal(
-    report: Any,
-    verbosity: str = "normal",
-    locale: str = "en",
-) -> str:
+def format_terminal(report: Any, locale: str = "en") -> str:
     """Format a StageOutcome for terminal display.
+
+    Produces a multi-line rendering: stage heading, one ``[PASS]`` /
+    ``[FAIL]`` / ``[SKIP]`` indicator per check, inline violation list,
+    and a passed/total summary + total elapsed. Serves both CLI users
+    and Git-hook environments; callers decide whether to truncate.
 
     Args:
         report: Any to format.
-        verbosity: Output detail level ("quiet", "normal", "verbose").
-        locale: Label locale ("en" or "zh-CN"). Unknown locales fall
-            back to English. Only full-line headings are localized;
-            the ``[PASS] / [FAIL] / [SKIP]`` indicators and check
-            names stay as stable ASCII tokens to preserve alignment.
+        locale: Label locale (``"en"`` or ``"zh-CN"``). Unknown locales
+            fall back to English. Only full-line headings are localized;
+            the ``[PASS] / [FAIL] / [SKIP]`` indicators and check names
+            stay as stable ASCII tokens to preserve alignment.
 
     Returns:
-        Formatted string for terminal output.
+        Formatted multi-line string for terminal output.
     """
     labels = _labels_for(locale)
     status = labels["passed"] if report.passed else labels["failed"]
-
-    if verbosity == "quiet":
-        line = f"{report.stage}: {status}"
-        if not report.passed:
-            failed_names = [r.name for r in report.results if not r.passed]
-            if failed_names:
-                line += f" ({', '.join(failed_names)})"
-        return line
 
     lines: list[str] = []
     lines.append(f"{labels['stage']}: {report.stage} — {status}")
@@ -109,13 +101,6 @@ def format_terminal(
         indicator = _result_indicator(result)
         duration = f" ({result.duration_ms}ms)" if result.duration_ms else ""
         lines.append(f"  [{indicator}] {result.name}{duration}")
-
-        if verbosity == "verbose" and result.output:
-            lines.extend(
-                f"    > {output_line}"
-                for output_line in result.output.strip().split("\n")
-            )
-
         lines.extend(f"    {_format_violation(v)}" for v in result.violations)
 
     lines.append("")

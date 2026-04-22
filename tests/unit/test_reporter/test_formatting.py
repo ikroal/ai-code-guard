@@ -102,26 +102,6 @@ class TestFormatTerminal:
         assert "E501" in output
         assert "src/util.py:22" in output
 
-    def test_verbosity_quiet_passed(self) -> None:
-        """Quiet mode: passed reports are a single status line with no details."""
-        output = format_terminal(_passed_report(), verbosity="quiet")
-        assert output == "pre-commit: PASSED"
-
-    def test_verbosity_quiet_failed_lists_failed_check_names(self) -> None:
-        """Quiet mode: failed reports append failing check names in parens."""
-        output = format_terminal(_failed_report(), verbosity="quiet")
-        assert output.startswith("pre-push: FAILED")
-        # The failing check ("test") must be named so git-hook users see why.
-        assert "(test)" in output
-        # No per-check details or indicators should leak into quiet mode.
-        assert "[PASS]" not in output
-        assert "[FAIL]" not in output
-
-    def test_verbosity_verbose(self) -> None:
-        """Verbose mode shows check output."""
-        output = format_terminal(_failed_report(), verbosity="verbose")
-        assert "ruff check failed" in output
-
     def test_duration_shown(self) -> None:
         """Duration is displayed."""
         output = format_terminal(_passed_report())
