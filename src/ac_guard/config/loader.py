@@ -4,6 +4,9 @@ Reads a single guard.yaml file from disk, parses YAML, validates
 the schema, and returns a raw config dict (RawConfig). This dict
 preserves the original YAML structure for downstream merging by
 the config merger (WP1.2c).
+
+Internal submodule — import the public surface via
+:mod:`ac_guard.config` rather than reaching in here directly.
 """
 
 from __future__ import annotations

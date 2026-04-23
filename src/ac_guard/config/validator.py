@@ -3,6 +3,9 @@
 Validates a raw config dict (parsed from YAML) against the guard.yaml
 schema. Collects all validation issues and raises once, so the user
 can fix every problem in a single pass.
+
+Internal submodule — import the public surface via
+:mod:`ac_guard.config` rather than reaching in here directly.
 """
 
 from __future__ import annotations

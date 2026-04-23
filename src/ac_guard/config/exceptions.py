@@ -3,6 +3,9 @@
 Defines a hierarchy of exceptions for config loading and validation.
 All config-related errors inherit from ConfigError, allowing callers
 to catch broadly or handle specific failure modes.
+
+Internal submodule — import the public surface via
+:mod:`ac_guard.config` rather than reaching in here directly.
 """
 
 from __future__ import annotations

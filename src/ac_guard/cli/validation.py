@@ -4,13 +4,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from ac_guard.config.exceptions import ConfigError
-from ac_guard.config.merger import resolve_config
+from ac_guard.config import ConfigError, resolve_config
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from ac_guard.config.models import CheckItem, CodeConfig
+    from ac_guard.config import CheckItem, CodeConfig
 
 __all__ = ["validation_list_command", "validation_report_command"]
 
