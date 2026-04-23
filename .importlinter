@@ -23,6 +23,12 @@
 ; (markers_for / wrap_with_markers). It is NOT a general-purpose
 ; shared/common bucket — see src/ac_guard/domain/__init__.py for
 ; admission criteria.
+;
+; The `config-encapsulation` forbidden contract below makes the
+; ac_guard.config package facade the single import path for config
+; types/functions: callers may import `from ac_guard.config import X`
+; but must not reach into `ac_guard.config.models` / `.loader` /
+; `.merger` / `.validator` / `.exceptions` directly.
 
 [importlinter]
 root_package = ac_guard
@@ -37,3 +43,25 @@ layers =
     config | domain
 containers =
     ac_guard
+
+[importlinter:contract:config-encapsulation]
+name = config internals stay internal
+type = forbidden
+; Only forbid direct submodule imports. Without this flag the contract
+; would also flag the transitive chain `ac_guard.config.__init__` →
+; `ac_guard.config.loader` (etc.), which is exactly how the facade is
+; supposed to work.
+allow_indirect_imports = True
+source_modules =
+    ac_guard.adapters
+    ac_guard.checker
+    ac_guard.cli
+    ac_guard.enforcer
+    ac_guard.generator
+    ac_guard.reporter
+forbidden_modules =
+    ac_guard.config.models
+    ac_guard.config.loader
+    ac_guard.config.merger
+    ac_guard.config.validator
+    ac_guard.config.exceptions

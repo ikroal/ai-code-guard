@@ -16,8 +16,7 @@ from ac_guard.checker.core import (
     run_precommit,
     run_stage,
 )
-from ac_guard.config.exceptions import ConfigError
-from ac_guard.config.merger import resolve_config
+from ac_guard.config import ConfigError, resolve_config
 from ac_guard.domain.models import CheckResult, StageOutcome
 from ac_guard.reporter import (
     FormatKind,

@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING
 from jinja2 import Environment, FileSystemLoader
 
 if TYPE_CHECKING:
-    from ac_guard.config.models import BehaviorConfig
+    from ac_guard.config import BehaviorConfig
 
 __all__ = [
     "render_rule_doc",

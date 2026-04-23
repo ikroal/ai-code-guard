@@ -28,7 +28,7 @@ from ac_guard.generator.models import STATE_FILE, GeneratedState
 
 if TYPE_CHECKING:
     from ac_guard.adapters.base import AgentAdapter
-    from ac_guard.config.models import (
+    from ac_guard.config import (
         AuditConfig,
         BehaviorConfig,
         CodeConfig,
@@ -636,7 +636,7 @@ def generate_precommit_config(
     ``code.extra_repos`` are rendered at the end with no injected
     ``stages`` (passthrough only).
     """
-    from ac_guard.config.models import PreCommitMeta  # local import avoids cycle
+    from ac_guard.config import PreCommitMeta
 
     env = _get_generator_env()
     template = env.get_template("precommit_config.yaml.j2")

@@ -17,7 +17,7 @@ from ac_guard.adapters.base import AgentAdapter, AgentCapabilities
 from ac_guard.domain import FileSpec
 
 if TYPE_CHECKING:
-    from ac_guard.config.models import BehaviorConfig
+    from ac_guard.config import BehaviorConfig
 
 __all__ = ["CursorAdapter"]
 

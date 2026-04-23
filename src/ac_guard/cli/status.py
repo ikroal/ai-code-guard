@@ -18,15 +18,13 @@ from typing import TYPE_CHECKING
 from ac_guard import __version__
 from ac_guard.adapters.registry import get_adapter, list_adapters
 from ac_guard.checker.core import BUCKET_AWARE_STAGES, detect_language
-from ac_guard.config.exceptions import ConfigError
-from ac_guard.config.loader import load_config
-from ac_guard.config.merger import resolve_config
+from ac_guard.config import ConfigError, load_config, resolve_config
 from ac_guard.generator.core import read_state
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from ac_guard.config.models import ResolvedConfig
+    from ac_guard.config import ResolvedConfig
 
 __all__ = ["status_command", "doctor_command", "agents_command"]
 

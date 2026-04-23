@@ -13,11 +13,12 @@ import yaml
 
 from ac_guard.adapters.registry import AdapterNotFoundError, get_adapter, list_adapters
 from ac_guard.audit import prune_by_age
-from ac_guard.config.exceptions import (
+from ac_guard.config import (
     ConfigError,
+    RawConfig,
+    load_config,
+    resolve_config,
 )
-from ac_guard.config.loader import RawConfig, load_config
-from ac_guard.config.merger import resolve_config
 from ac_guard.generator.core import (
     create_state,
     delete_artifacts,
@@ -42,7 +43,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from ac_guard.adapters.base import AgentAdapter
-    from ac_guard.config.models import ResolvedConfig
+    from ac_guard.config import ResolvedConfig
     from ac_guard.domain import FileSpec
 
 __all__ = ["install_command", "update_command", "uninstall_command"]

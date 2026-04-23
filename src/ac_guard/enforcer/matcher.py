@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ac_guard.config.models import OperationRules, Rule
+    from ac_guard.config import OperationRules, Rule
 
 __all__ = [
     "Decision",

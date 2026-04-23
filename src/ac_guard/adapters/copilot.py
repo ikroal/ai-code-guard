@@ -17,7 +17,7 @@ from ac_guard.adapters._render import render_rule_doc
 from ac_guard.adapters.base import AgentAdapter, AgentCapabilities
 
 if TYPE_CHECKING:
-    from ac_guard.config.models import BehaviorConfig
+    from ac_guard.config import BehaviorConfig
     from ac_guard.domain import FileSpec
 
 __all__ = ["CopilotAdapter"]
