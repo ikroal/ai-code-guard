@@ -8,6 +8,9 @@ document section 5.3:
 * **``remove`` list** — exact-match removal after all sources merged.
 * **``checks`` dict** — deep merge (field-level override per key).
 * **Scalar values** — latter source overrides former.
+
+Internal submodule — import the public surface via
+:mod:`ac_guard.config` rather than reaching in here directly.
 """
 
 from __future__ import annotations

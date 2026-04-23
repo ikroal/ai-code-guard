@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ac_guard.config.models import BehaviorConfig
+    from ac_guard.config import BehaviorConfig
     from ac_guard.domain import FileSpec
 
 __all__ = [

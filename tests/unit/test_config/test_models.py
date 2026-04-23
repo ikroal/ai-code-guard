@@ -308,8 +308,10 @@ class TestOutputConfig:
     def test_default_factory_independence(self):
         a = OutputConfig()
         b = OutputConfig()
-        a.audit.retention = 999
-        assert b.audit.retention == 30
+        # AuditConfig is frozen, so "independence" means distinct instances
+        # rather than the historical mutation-based check.
+        assert a.audit is not b.audit
+        assert a.pr_report is not b.pr_report
 
 
 # ---------------------------------------------------------------------------
@@ -386,39 +388,14 @@ class TestModuleExports:
             LanguageTools,
             OperationRules,
             OutputConfig,
+            PreCommitHook,
+            PreCommitMeta,
+            PreCommitRepo,
             PrReportConfig,
             ResolvedConfig,
             Rule,
+            StageBucket,
         )
 
-    def test_config_all_list(self):
-        import ac_guard.config as config_mod
-
-        expected = {
-            # Exceptions
-            "ConfigError",
-            "ConfigFileNotFoundError",
-            "ConfigSyntaxError",
-            "ConfigValidationError",
-            "ConfigWarning",
-            "ValidationIssue",
-            # Loader
-            "load_config",
-            "RawConfig",
-            # Merger
-            "resolve_config",
-            # Validator
-            "validate_raw_config",
-            # Models
-            "Rule",
-            "OperationRules",
-            "BehaviorConfig",
-            "CheckItem",
-            "CodeConfig",
-            "LanguageTools",
-            "AuditConfig",
-            "PrReportConfig",
-            "OutputConfig",
-            "ResolvedConfig",
-        }
-        assert set(config_mod.__all__) == expected
+    # The authoritative public-surface snapshot lives in
+    # tests/unit/test_config/test_public_api.py.

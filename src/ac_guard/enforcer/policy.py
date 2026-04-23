@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING, Any
 
-from ac_guard.config.models import (
+from ac_guard.config import (
     AuditConfig,
     BehaviorConfig,
     OperationRules,

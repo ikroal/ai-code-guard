@@ -10,7 +10,7 @@ import re
 from typing import TYPE_CHECKING, Any
 
 from ac_guard.audit import append_record
-from ac_guard.config.models import Rule
+from ac_guard.config import Rule
 from ac_guard.enforcer.classifier import classify
 from ac_guard.enforcer.exceptions import PolicyCorruptError
 from ac_guard.enforcer.matcher import (
@@ -24,7 +24,7 @@ from ac_guard.enforcer.policy import load_policy
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from ac_guard.config.models import AuditConfig
+    from ac_guard.config import AuditConfig
 
 __all__ = ["evaluate"]
 

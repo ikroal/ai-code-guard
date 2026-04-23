@@ -18,7 +18,7 @@ from ac_guard.domain.models import CheckResult, StageOutcome
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from ac_guard.config.models import CheckItem, CodeConfig
+    from ac_guard.config import CheckItem, CodeConfig
 
 __all__ = [
     "BUCKET_AWARE_STAGES",

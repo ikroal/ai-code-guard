@@ -10,6 +10,9 @@ Each stage bucket holds the same five fields
 (``format`` / ``lint`` / ``checks`` / ``hooks`` / plus ruff N-rules via
 ``lint``). ``_pre_commit`` carries top-level pre-commit meta, ``_extra``
 carries passthrough hooks for non-gating stages.
+
+Internal submodule — import the public surface via
+:mod:`ac_guard.config` rather than reaching in here directly.
 """
 
 from __future__ import annotations
@@ -35,7 +38,7 @@ __all__ = [
 ]
 
 
-@dataclass
+@dataclass(frozen=True)
 class Rule:
     """A single behavior constraint rule.
 
@@ -59,7 +62,7 @@ class Rule:
     source: str = "user"
 
 
-@dataclass
+@dataclass(frozen=True)
 class OperationRules:
     """Three-tier rules for a single operation type.
 
@@ -87,7 +90,7 @@ class OperationRules:
         return cls(forbidden=[], require_approval=[], allow=[])
 
 
-@dataclass
+@dataclass(frozen=True)
 class BehaviorConfig:
     """Behavior constraints across three operation dimensions.
 
@@ -117,7 +120,7 @@ class BehaviorConfig:
         )
 
 
-@dataclass
+@dataclass(frozen=True)
 class CheckItem:
     """A single code check definition (short-hand for local hooks).
 
@@ -142,7 +145,7 @@ class CheckItem:
     pass_filenames: bool = True
 
 
-@dataclass
+@dataclass(frozen=True)
 class PreCommitHook:
     """Passthrough wrapper for a single pre-commit hook entry.
 
@@ -162,7 +165,7 @@ class PreCommitHook:
     extra: dict[str, Any] = field(default_factory=dict)
 
 
-@dataclass
+@dataclass(frozen=True)
 class PreCommitRepo:
     """Passthrough wrapper for a pre-commit ``repos[]`` entry.
 
@@ -177,7 +180,7 @@ class PreCommitRepo:
     hooks: list[PreCommitHook] = field(default_factory=list)
 
 
-@dataclass
+@dataclass(frozen=True)
 class StageBucket:
     """Per-stage configuration bucket under ``code.<stage>``.
 
@@ -209,7 +212,7 @@ class StageBucket:
         return not self.format and not self.lint and not self.checks and not self.hooks
 
 
-@dataclass
+@dataclass(frozen=True)
 class CodeConfig:
     """Code quality configuration, keyed by pre-commit gating stage.
 
@@ -263,7 +266,7 @@ class CodeConfig:
         return [name for name, bucket in self.buckets() if not bucket.is_empty()]
 
 
-@dataclass
+@dataclass(frozen=True)
 class PreCommitMeta:
     """Top-level pre-commit yaml fields.
 
@@ -285,7 +288,7 @@ class PreCommitMeta:
     default_language_version: dict[str, str] = field(default_factory=dict)
 
 
-@dataclass
+@dataclass(frozen=True)
 class LanguageTools:
     """Format and lint tool mapping for a programming language.
 
@@ -298,7 +301,7 @@ class LanguageTools:
     lint: str
 
 
-@dataclass
+@dataclass(frozen=True)
 class AuditConfig:
     """Audit logging configuration.
 
@@ -314,7 +317,7 @@ class AuditConfig:
     retention: int = 30
 
 
-@dataclass
+@dataclass(frozen=True)
 class PrReportConfig:
     """Pull request report configuration.
 
@@ -334,7 +337,7 @@ class PrReportConfig:
     token_env: str = "GITHUB_TOKEN"
 
 
-@dataclass
+@dataclass(frozen=True)
 class OutputConfig:
     """Output and reporting configuration.
 
@@ -352,7 +355,7 @@ class OutputConfig:
     pr_report: PrReportConfig = field(default_factory=PrReportConfig)
 
 
-@dataclass
+@dataclass(frozen=True)
 class ResolvedConfig:
     """Final merged configuration consumed by all modules.
 
