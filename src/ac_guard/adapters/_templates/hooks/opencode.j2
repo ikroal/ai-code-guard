@@ -3,7 +3,7 @@ OpenCode Plugin template (TypeScript).
 
 Generates a TypeScript plugin that:
 1. Intercepts tool calls via OpenCode plugin API
-2. Calls Enforcer via python3 -m ac_guard.enforcer subprocess
+2. Calls Action guard via python3 -m ac_guard.action_guard subprocess
 3. Throws error to block forbidden operations
 
 This template is rendered by adapters/_render.render_hook("opencode", behavior).
@@ -23,7 +23,7 @@ This template is rendered by adapters/_render.render_hook("opencode", behavior).
 import type { Tool, ToolCall } from "opencode";
 import { execSync } from "child_process";
 
-// Policy evaluation via Python Enforcer subprocess
+// Policy evaluation via Python Action guard subprocess
 function evaluatePolicy(call: ToolCall): {
   decision: string;
   reason?: string;
@@ -35,7 +35,7 @@ function evaluatePolicy(call: ToolCall): {
   });
 
   try {
-    const output = execSync(`echo '${input.replace(/'/g, "\\'")}' | python3 -m ac_guard.enforcer`, {
+    const output = execSync(`echo '${input.replace(/'/g, "\\'")}' | python3 -m ac_guard.action_guard`, {
       encoding: "utf-8",
       timeout: 5000,
       stdio: ["pipe", "pipe", "pipe"],
@@ -43,7 +43,7 @@ function evaluatePolicy(call: ToolCall): {
     return JSON.parse(output);
   } catch {
     // Fail-closed: subprocess error → deny
-    return { decision: "deny", reason: "Enforcer subprocess error" };
+    return { decision: "deny", reason: "Action guard subprocess error" };
   }
 }
 

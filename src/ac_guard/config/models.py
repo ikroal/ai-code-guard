@@ -361,7 +361,7 @@ class ResolvedConfig:
 
     Produced by the config loader after merging defaults,
     rulesets, and the project guard.yaml. This is the single
-    configuration object passed to Generator, Enforcer, and
+    configuration object passed to Generator, Action guard, and
     other modules.
 
     Attributes:

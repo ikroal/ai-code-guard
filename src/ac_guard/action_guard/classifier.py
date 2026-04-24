@@ -1,4 +1,4 @@
-"""Enforcer tool call classifier (E2 primitive).
+"""Action guard tool call classifier (E2 primitive).
 
 Maps ``(tool_name, tool_input)`` to ``(operation, scheme, target)``
 for downstream pattern matching by the matcher (E3).

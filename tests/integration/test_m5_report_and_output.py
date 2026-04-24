@@ -2,7 +2,7 @@
 
 Three dimensions covering M5's output-side extensions:
 
-    D1: PR Report — Checker → Markdown → Channel.send (mock HTTP)
+    D1: PR Report — code_gate → Markdown → Channel.send (mock HTTP)
     D2: JSON Output — CLI --format json → valid machine-readable JSON
     D3: Validation — guard.yaml → validation list/report reflects config
 """
@@ -16,8 +16,8 @@ from unittest.mock import MagicMock, patch
 import yaml
 from typer.testing import CliRunner
 
-from ac_guard.checker.core import run_stage
 from ac_guard.cli.main import app
+from ac_guard.code_gate.core import run_stage
 from ac_guard.reporter import (
     ChannelError,
     GitPlatformCfg,
@@ -87,14 +87,14 @@ def _write_config_with_checks(tmp_path: Path) -> Path:
 
 
 class TestPrReportFlow:
-    """D1: Checker outcome → report() with GitPlatformCfg → HTTP POST."""
+    """D1: code_gate outcome → report() with GitPlatformCfg → HTTP POST."""
 
     def test_report_outcome_to_git_platform(self, tmp_path: Path) -> None:
         """D1-1: Real StageOutcome → report() via GitPlatformCfg (mock HTTP)."""
         config = _init_and_install(tmp_path)
         resolved_config = _resolve(config)
 
-        # Run real checker
+        # Run real code_gate
         outcome = run_stage("pre-commit", resolved_config.code, tmp_path)
 
         # Markdown should render without error (sanity check the formatter)
@@ -317,7 +317,7 @@ class TestCliPrReportIntegration:
         """D4-1: guard check with pr_report.enabled=true → Channel.send called."""
         config = _write_config_pr_report(tmp_path, enabled=True)
         with (
-            patch("ac_guard.checker.core.get_changed_files", return_value=[]),
+            patch("ac_guard.code_gate.core.get_changed_files", return_value=[]),
             patch(
                 "ac_guard.reporter.channels.github.GitHubChannel.output"
             ) as mock_send,
@@ -335,7 +335,7 @@ class TestCliPrReportIntegration:
         """D4-2: guard gate run with pr_report.enabled=true → Channel.send called."""
         config = _write_config_pr_report(tmp_path, enabled=True)
         with (
-            patch("ac_guard.checker.core.get_changed_files", return_value=[]),
+            patch("ac_guard.code_gate.core.get_changed_files", return_value=[]),
             patch(
                 "ac_guard.reporter.channels.github.GitHubChannel.output"
             ) as mock_send,
@@ -350,7 +350,7 @@ class TestCliPrReportIntegration:
         """D4-3: NoPrContextError from channel.send → no stderr warning."""
         config = _write_config_pr_report(tmp_path, enabled=True)
         with (
-            patch("ac_guard.checker.core.get_changed_files", return_value=[]),
+            patch("ac_guard.code_gate.core.get_changed_files", return_value=[]),
             patch(
                 "ac_guard.reporter.channels.github.GitHubChannel.output",
                 side_effect=NoPrContextError("Cannot determine PR number"),
@@ -372,7 +372,7 @@ class TestCliPrReportIntegration:
         """D4-4: Non-NoPrContext ChannelError → stderr warning preserved."""
         config = _write_config_pr_report(tmp_path, enabled=True)
         with (
-            patch("ac_guard.checker.core.get_changed_files", return_value=[]),
+            patch("ac_guard.code_gate.core.get_changed_files", return_value=[]),
             patch(
                 "ac_guard.reporter.channels.github.GitHubChannel.output",
                 side_effect=ChannelError("GitHub API returned 500"),
@@ -395,7 +395,7 @@ class TestCliPrReportIntegration:
         """D4-5: pr_report.enabled=false → channel.send never invoked."""
         config = _write_config_pr_report(tmp_path, enabled=False)
         with (
-            patch("ac_guard.checker.core.get_changed_files", return_value=[]),
+            patch("ac_guard.code_gate.core.get_changed_files", return_value=[]),
             patch(
                 "ac_guard.reporter.channels.github.GitHubChannel.output"
             ) as mock_send,

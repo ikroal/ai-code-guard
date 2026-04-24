@@ -1,11 +1,11 @@
-"""Tests for Checker core orchestration (K2-K6)."""
+"""Tests for code_gate core orchestration (K2-K6)."""
 
 from __future__ import annotations
 
 from pathlib import Path
 from unittest.mock import patch
 
-from ac_guard.checker.core import (
+from ac_guard.code_gate.core import (
     StageOptions,
     _filter_files_by_type,
     get_changed_files,
@@ -21,7 +21,7 @@ class TestGetChangedFiles:
 
     def test_commit_stage_command(self, tmp_path: Path) -> None:
         """Commit stage uses git diff --cached."""
-        with patch("ac_guard.checker.core.subprocess.run") as mock_run:
+        with patch("ac_guard.code_gate.core.subprocess.run") as mock_run:
             mock_run.return_value.returncode = 0
             mock_run.return_value.stdout = "a.py\nb.py\n"
             files = get_changed_files("pre-commit", tmp_path)
@@ -31,7 +31,7 @@ class TestGetChangedFiles:
 
     def test_push_stage_command(self, tmp_path: Path) -> None:
         """Push stage uses git diff origin/main..HEAD."""
-        with patch("ac_guard.checker.core.subprocess.run") as mock_run:
+        with patch("ac_guard.code_gate.core.subprocess.run") as mock_run:
             mock_run.return_value.returncode = 0
             mock_run.return_value.stdout = "c.py\n"
             files = get_changed_files("pre-push", tmp_path)
@@ -41,7 +41,7 @@ class TestGetChangedFiles:
 
     def test_empty_output(self, tmp_path: Path) -> None:
         """Empty git output returns empty list."""
-        with patch("ac_guard.checker.core.subprocess.run") as mock_run:
+        with patch("ac_guard.code_gate.core.subprocess.run") as mock_run:
             mock_run.return_value.returncode = 0
             mock_run.return_value.stdout = ""
             files = get_changed_files("pre-commit", tmp_path)
@@ -49,7 +49,7 @@ class TestGetChangedFiles:
 
     def test_git_error_returns_empty(self, tmp_path: Path) -> None:
         """Git error returns empty list."""
-        with patch("ac_guard.checker.core.subprocess.run") as mock_run:
+        with patch("ac_guard.code_gate.core.subprocess.run") as mock_run:
             mock_run.return_value.returncode = 1
             mock_run.return_value.stdout = ""
             files = get_changed_files("pre-commit", tmp_path)
@@ -142,7 +142,7 @@ class TestRunStage:
     def test_commit_stage_runs_checks(self, tmp_path: Path) -> None:
         """pre-commit stage runs format + custom checks."""
         config = CodeConfig(pre_commit=StageBucket(format=True))
-        with patch("ac_guard.checker.core.get_changed_files", return_value=[]):
+        with patch("ac_guard.code_gate.core.get_changed_files", return_value=[]):
             report = run_stage("pre-commit", config, tmp_path)
         assert report.stage == "pre-commit"
         # Format and naming are pre-commit hooks — skipped with no files
@@ -156,7 +156,7 @@ class TestRunStage:
                 checks={"echo": CheckItem(command="echo ok")},
             ),
         )
-        with patch("ac_guard.checker.core.get_changed_files", return_value=[]):
+        with patch("ac_guard.code_gate.core.get_changed_files", return_value=[]):
             report = run_stage("pre-commit", config, tmp_path)
         assert report.passed is True
         assert any(r.name == "echo" for r in report.results)
@@ -168,7 +168,7 @@ class TestRunStage:
                 checks={"fail": CheckItem(command="exit 1")},
             ),
         )
-        with patch("ac_guard.checker.core.get_changed_files", return_value=[]):
+        with patch("ac_guard.code_gate.core.get_changed_files", return_value=[]):
             report = run_stage("pre-push", config, tmp_path)
         assert report.stage == "pre-push"
         assert report.passed is False
@@ -178,7 +178,7 @@ class TestRunStage:
         config = CodeConfig(
             pre_commit=StageBucket(format=False), pre_push=StageBucket(lint=False)
         )
-        with patch("ac_guard.checker.core.get_changed_files", return_value=[]):
+        with patch("ac_guard.code_gate.core.get_changed_files", return_value=[]):
             report = run_stage(
                 "pre-push",
                 config,
@@ -191,7 +191,7 @@ class TestRunStage:
     def test_format_iterates_per_language(self, tmp_path: Path) -> None:
         """commit_format=True emits one pre-commit call per configured language."""
         config = CodeConfig(pre_commit=StageBucket(format=True))
-        with patch("ac_guard.checker.core.run_precommit") as mock_run:
+        with patch("ac_guard.code_gate.core.run_precommit") as mock_run:
             mock_run.return_value.passed = True
             mock_run.return_value.name = "stub"
             mock_run.return_value.duration_ms = 0
@@ -216,7 +216,7 @@ class TestRunStage:
         config = CodeConfig(
             pre_commit=StageBucket(format=False), pre_push=StageBucket(lint=True)
         )
-        with patch("ac_guard.checker.core.run_precommit") as mock_run:
+        with patch("ac_guard.code_gate.core.run_precommit") as mock_run:
             mock_run.return_value.passed = True
             mock_run.return_value.name = "stub"
             mock_run.return_value.duration_ms = 0
@@ -224,7 +224,7 @@ class TestRunStage:
             mock_run.return_value.violations = []
             mock_run.return_value.output = ""
             with patch(
-                "ac_guard.checker.core.get_changed_files", return_value=["a.py"]
+                "ac_guard.code_gate.core.get_changed_files", return_value=["a.py"]
             ):
                 run_stage(
                     "pre-push",
@@ -237,7 +237,7 @@ class TestRunStage:
         assert "lint-typescript" in hook_ids
 
     # D8: ``commit_naming`` flag removed in schema v2 (#123). Shim in
-    # CodeConfig always returns False, so the checker's naming branch
+    # CodeConfig always returns False, so the code_gate's naming branch
     # is now unreachable. The dedicated "naming returns skipped" test
     # is obsolete; ruff N-rules (via ``lint: true``) replaced it.
 
@@ -247,15 +247,15 @@ class TestRunStage:
             pre_commit=StageBucket(format=True), pre_push=StageBucket(lint=True)
         )
         with (
-            patch("ac_guard.checker.core.run_precommit") as mock_run,
-            patch("ac_guard.checker.core.get_changed_files", return_value=["a.py"]),
+            patch("ac_guard.code_gate.core.run_precommit") as mock_run,
+            patch("ac_guard.code_gate.core.get_changed_files", return_value=["a.py"]),
         ):
             run_stage("pre-push", config, tmp_path, options=StageOptions(languages=[]))
         mock_run.assert_not_called()
 
     def test_push_build_failure_skips_lint_and_checks(self, tmp_path: Path) -> None:
         """#77: a failing build must mark lint + push.checks as skipped."""
-        from ac_guard.checker.models import CheckResult
+        from ac_guard.code_gate.models import CheckResult
 
         config = CodeConfig(
             pre_commit=StageBucket(format=False),
@@ -269,11 +269,11 @@ class TestRunStage:
         )
         with (
             patch(
-                "ac_guard.checker.core.run_build", return_value=failing_build
+                "ac_guard.code_gate.core.run_build", return_value=failing_build
             ) as build_mock,
-            patch("ac_guard.checker.core.run_precommit") as precommit_mock,
-            patch("ac_guard.checker.core.run_check") as check_mock,
-            patch("ac_guard.checker.core.get_changed_files", return_value=["a.py"]),
+            patch("ac_guard.code_gate.core.run_precommit") as precommit_mock,
+            patch("ac_guard.code_gate.core.run_check") as check_mock,
+            patch("ac_guard.code_gate.core.get_changed_files", return_value=["a.py"]),
         ):
             report = run_stage(
                 "pre-push",
@@ -285,7 +285,7 @@ class TestRunStage:
                 ),
             )
 
-        # Build ran once, downstream checkers never invoked
+        # Build ran once, downstream stages never invoked
         assert build_mock.call_count == 1
         precommit_mock.assert_not_called()
         check_mock.assert_not_called()
@@ -301,7 +301,7 @@ class TestRunStage:
 
     def test_push_build_success_runs_downstream(self, tmp_path: Path) -> None:
         """Build success preserves the existing downstream execution path."""
-        from ac_guard.checker.models import CheckResult
+        from ac_guard.code_gate.models import CheckResult
 
         config = CodeConfig(
             pre_commit=StageBucket(format=False),
@@ -312,10 +312,10 @@ class TestRunStage:
         )
         passing_build = CheckResult(name="build", passed=True, duration_ms=10)
         with (
-            patch("ac_guard.checker.core.run_build", return_value=passing_build),
-            patch("ac_guard.checker.core.run_precommit") as precommit_mock,
-            patch("ac_guard.checker.core.run_check") as check_mock,
-            patch("ac_guard.checker.core.get_changed_files", return_value=["a.py"]),
+            patch("ac_guard.code_gate.core.run_build", return_value=passing_build),
+            patch("ac_guard.code_gate.core.run_precommit") as precommit_mock,
+            patch("ac_guard.code_gate.core.run_check") as check_mock,
+            patch("ac_guard.code_gate.core.get_changed_files", return_value=["a.py"]),
         ):
             precommit_mock.return_value = CheckResult(
                 name="pre-commit:lint-python", passed=True, duration_ms=1

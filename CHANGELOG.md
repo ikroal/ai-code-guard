@@ -11,6 +11,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **BREAKING — Module rename: `checker` → `code_gate`, `enforcer` → `action_guard`.**
+  The two core modules now name their roles directly: `code_gate` is the
+  git hook-time code quality gate (pass/fail), `action_guard` is the
+  agent hook-time runtime policy guard (allow/deny/ask).
+
+  **Public API changes (no backward-compat shim):**
+
+  | Old | New |
+  |---|---|
+  | `from ac_guard.checker ...` | `from ac_guard.code_gate ...` |
+  | `from ac_guard.enforcer ...` | `from ac_guard.action_guard ...` |
+  | `python3 -m ac_guard.enforcer` | `python3 -m ac_guard.action_guard` |
+  | `EnforcerError` | `ActionGuardError` |
+
+  **Action required:** if you already ran `ac-guard install`, re-run it
+  after upgrading — previously generated hook scripts (`.claude/hooks/*`,
+  `.cursor/hooks/*`, `opencode` integration) still import
+  `ac_guard.enforcer` and will fail with `ModuleNotFoundError` until
+  regenerated. The CLI surface (`ac-guard check / verify / run / gate
+  run`) and `guard.yaml` schema are unchanged.
+
 - **BREAKING — Reporter API collapse** (follow-up to the earlier Reporter
   API restructure below). Further consolidation based on the "Reporter
   serves only **humans or Agents** — nothing else" principle.

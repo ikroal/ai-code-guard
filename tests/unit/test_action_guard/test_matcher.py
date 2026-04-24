@@ -1,4 +1,4 @@
-"""Tests for Enforcer pattern matching engine (WP2.1a)."""
+"""Tests for Action guard pattern matching engine (WP2.1a)."""
 
 from __future__ import annotations
 
@@ -6,8 +6,7 @@ import re
 
 import pytest
 
-from ac_guard.config.models import OperationRules, Rule
-from ac_guard.enforcer.matcher import (
+from ac_guard.action_guard.matcher import (
     VALID_SCHEMES,
     Decision,
     evaluate_rules,
@@ -15,6 +14,7 @@ from ac_guard.enforcer.matcher import (
     matches,
     parse_pattern,
 )
+from ac_guard.config.models import OperationRules, Rule
 
 # ---------------------------------------------------------------------------
 # TestParsePattern

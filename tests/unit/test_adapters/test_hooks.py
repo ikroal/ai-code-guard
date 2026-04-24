@@ -15,7 +15,7 @@ class TestClaudeCodeHook:
     def test_renders_python_script(self) -> None:
         """Claude Code hook renders a Python script."""
         content = render_hook("claude_code", BehaviorConfig.empty())
-        assert "from ac_guard.enforcer.engine import evaluate" in content
+        assert "from ac_guard.action_guard.engine import evaluate" in content
 
     def test_contains_main_entry(self) -> None:
         """Claude Code hook has main() entry point."""
@@ -71,10 +71,10 @@ class TestCursorHook:
         content = render_hook("cursor", BehaviorConfig.empty())
         assert content.startswith("#!/bin/bash")
 
-    def test_calls_enforcer_subprocess(self) -> None:
-        """Cursor hook calls Python enforcer via subprocess."""
+    def test_calls_action_guard_subprocess(self) -> None:
+        """Cursor hook calls Python action_guard via subprocess."""
         content = render_hook("cursor", BehaviorConfig.empty())
-        assert "python3 -m ac_guard.enforcer" in content
+        assert "python3 -m ac_guard.action_guard" in content
 
     def test_outputs_permission_format(self) -> None:
         """Cursor hook outputs permission JSON."""
@@ -95,10 +95,10 @@ class TestOpenCodeHook:
         content = render_hook("opencode", BehaviorConfig.empty())
         assert "export function intercept" in content
 
-    def test_calls_enforcer_subprocess(self) -> None:
-        """OpenCode hook calls Python enforcer via subprocess."""
+    def test_calls_action_guard_subprocess(self) -> None:
+        """OpenCode hook calls Python action_guard via subprocess."""
         content = render_hook("opencode", BehaviorConfig.empty())
-        assert "python3 -m ac_guard.enforcer" in content
+        assert "python3 -m ac_guard.action_guard" in content
 
     def test_throws_on_deny(self) -> None:
         """OpenCode hook throws Error on deny."""

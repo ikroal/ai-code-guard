@@ -1,6 +1,6 @@
-"""Checker module — code quality check orchestration."""
+"""Code gate — git hook-time code quality orchestration (K2-K6)."""
 
-from ac_guard.checker.core import (
+from ac_guard.code_gate.core import (
     get_changed_files,
     run_build,
     run_check,

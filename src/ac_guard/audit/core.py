@@ -45,7 +45,7 @@ def append_record(
 
     **Non-blocking (Q3)**: Any ``OSError`` is printed to stderr but
     never raised, so audit failures do not affect the caller's
-    primary path (e.g., enforcer's policy decision).
+    primary path (e.g., action_guard's policy decision).
 
     Args:
         record: Business fields for the audit entry. ``timestamp``

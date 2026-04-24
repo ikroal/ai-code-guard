@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ac_guard.checker.models import CheckResult, StageOutcome, Violation
+from ac_guard.code_gate.models import CheckResult, StageOutcome, Violation
 from ac_guard.reporter.formatting import (
     format_json,
     format_markdown,

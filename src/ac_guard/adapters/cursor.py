@@ -51,7 +51,7 @@ class CursorAdapter(AgentAdapter):
         Uses Jinja2 template (hooks/cursor.j2) for the Hook script.
         Returns a shell script that:
         - Reads stdin JSON (Cursor format)
-        - Calls Enforcer for policy decision (placeholder for WP2)
+        - Calls Action guard for policy decision (placeholder for WP2)
         - Returns JSON output
         """
         hook_content = render_hook("cursor", behavior)

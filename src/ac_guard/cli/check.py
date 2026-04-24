@@ -1,14 +1,14 @@
 """check, verify, run, and gate command implementations for AI Code Guard CLI.
 
 Provides CLI entry points for code quality checking, delegating to
-the Checker module for execution and Reporter for output formatting.
+the code_gate module for execution and Reporter for output formatting.
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from ac_guard.checker.core import (
+from ac_guard.code_gate.core import (
     BUCKET_AWARE_STAGES,
     StageOptions,
     get_changed_files,
@@ -234,7 +234,7 @@ def gate_run_command(
         raise SystemExit(0 if outcome.passed else 1)
 
     # commit-msg / pre-merge-commit / pre-rebase — ac-guard doesn't
-    # yet model these in its bucket-aware checker. Delegate to
+    # yet model these in its bucket-aware code_gate. Delegate to
     # pre-commit's native stage runner; it reads the generated
     # .pre-commit-config.yaml and executes hooks declared for this
     # stage via their ``stages:`` field.

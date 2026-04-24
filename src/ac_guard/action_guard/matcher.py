@@ -1,4 +1,4 @@
-"""Enforcer pattern matching engine (E3 primitive).
+"""Action guard pattern matching engine (E3 primitive).
 
 Parses ``{scheme}:{body}`` patterns, matches resource targets against
 rules using glob or regex, and evaluates three-tier decision logic

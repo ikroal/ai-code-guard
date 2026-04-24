@@ -1,9 +1,9 @@
-"""Backward-compatibility shim — checker data models moved to ac_guard.domain.
+"""Backward-compatibility shim — code gate data models moved to ac_guard.domain.
 
 The ``StageOutcome`` / ``CheckResult`` / ``Violation`` dataclasses now live in
 :mod:`ac_guard.domain.models` because they are **intermediate result
-types** flowing between multiple modules (checker → cli → reporter), not
-checker-internal implementation details. See that module's docstring for
+types** flowing between multiple modules (code_gate → cli → reporter), not
+code_gate-internal implementation details. See that module's docstring for
 the admission criteria of the domain layer.
 
 New code should import from :mod:`ac_guard.domain.models`. This shim

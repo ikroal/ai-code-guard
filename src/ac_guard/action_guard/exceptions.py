@@ -1,15 +1,15 @@
-"""Enforcer exception types."""
+"""Action guard exception types."""
 
 from __future__ import annotations
 
-__all__ = ["EnforcerError", "PolicyCorruptError"]
+__all__ = ["ActionGuardError", "PolicyCorruptError"]
 
 
-class EnforcerError(Exception):
-    """Base exception for all Enforcer errors."""
+class ActionGuardError(Exception):
+    """Base exception for all Action guard errors."""
 
 
-class PolicyCorruptError(EnforcerError):
+class PolicyCorruptError(ActionGuardError):
     """Raised when runtime.json cannot be parsed.
 
     Attributes:

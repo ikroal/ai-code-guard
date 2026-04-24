@@ -365,9 +365,9 @@ def generate_policy_cache(
     config_hash: str,
     audit: AuditConfig | None = None,
 ) -> FileSpec:
-    """Generate ``.ac-guard/runtime.json`` for Enforcer runtime (G5).
+    """Generate ``.ac-guard/runtime.json`` for Action guard runtime (G5).
 
-    This file is the Enforcer runtime cache read by hook subprocesses.
+    This file is the Action guard runtime cache read by hook subprocesses.
     It holds everything the hook-side needs to make decisions without
     re-parsing guard.yaml: behavior rules, policy hash, and audit
     configuration. The historical filename ``policy.json`` was

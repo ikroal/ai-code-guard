@@ -1,14 +1,14 @@
-"""Enforcer module — runtime behavior policy enforcement.
+"""Action guard module — runtime behavior policy enforcement.
 
 Provides pattern matching, tool classification, policy loading,
 and the top-level evaluate() entry point for AI agent behavior
 enforcement.
 """
 
-from ac_guard.enforcer.classifier import classify
-from ac_guard.enforcer.engine import evaluate
-from ac_guard.enforcer.exceptions import EnforcerError, PolicyCorruptError
-from ac_guard.enforcer.matcher import (
+from ac_guard.action_guard.classifier import classify
+from ac_guard.action_guard.engine import evaluate
+from ac_guard.action_guard.exceptions import ActionGuardError, PolicyCorruptError
+from ac_guard.action_guard.matcher import (
     VALID_SCHEMES,
     Decision,
     MatchResult,
@@ -18,11 +18,11 @@ from ac_guard.enforcer.matcher import (
     matches,
     parse_pattern,
 )
-from ac_guard.enforcer.policy import load_policy
+from ac_guard.action_guard.policy import load_policy
 
 __all__ = [
     "Decision",
-    "EnforcerError",
+    "ActionGuardError",
     "MatchResult",
     "PolicyCorruptError",
     "PolicyDecision",

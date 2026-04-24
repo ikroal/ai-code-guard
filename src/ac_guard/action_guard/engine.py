@@ -1,4 +1,4 @@
-"""Enforcer engine — top-level evaluate function.
+"""Action guard engine — top-level evaluate function.
 
 Combines E1 (load_policy), E2 (classify), and E3/E4 (match + decide)
 into a single entry point for runtime behavior enforcement.
@@ -9,17 +9,17 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING, Any
 
-from ac_guard.audit import append_record
-from ac_guard.config import Rule
-from ac_guard.enforcer.classifier import classify
-from ac_guard.enforcer.exceptions import PolicyCorruptError
-from ac_guard.enforcer.matcher import (
+from ac_guard.action_guard.classifier import classify
+from ac_guard.action_guard.exceptions import PolicyCorruptError
+from ac_guard.action_guard.matcher import (
     Decision,
     MatchResult,
     PolicyDecision,
     evaluate_rules,
 )
-from ac_guard.enforcer.policy import load_policy
+from ac_guard.action_guard.policy import load_policy
+from ac_guard.audit import append_record
+from ac_guard.config import Rule
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -46,7 +46,7 @@ def evaluate(
 ) -> PolicyDecision:
     """Evaluate a tool call against the installed policy.
 
-    Orchestrates the full Enforcer pipeline:
+    Orchestrates the full Action guard pipeline:
     E1 (load_policy) -> E2 (classify) -> E3/E4 (match + decide) ->
     R3 (audit.append_record when enabled).
 

@@ -1,4 +1,4 @@
-"""Checker core — check orchestration primitives (K2-K6).
+"""Code gate core — check orchestration primitives (K2-K6).
 
 Orchestrates code quality checks across commit and push stages
 by delegating to pre-commit framework and custom check commands.

@@ -1,8 +1,8 @@
-"""Tests for Enforcer tool call classifier (E2)."""
+"""Tests for Action guard tool call classifier (E2)."""
 
 from __future__ import annotations
 
-from ac_guard.enforcer.classifier import classify
+from ac_guard.action_guard.classifier import classify
 
 
 class TestClassifyReadOps:

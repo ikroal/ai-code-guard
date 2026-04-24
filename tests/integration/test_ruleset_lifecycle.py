@@ -2,7 +2,7 @@
 
 Verifies Ruleset management end-to-end across four dimensions:
     D1: Lifecycle stages (fetch → install → update → uninstall)
-    D2: Rule merging correctness (Enforcer evaluates ruleset rules)
+    D2: Rule merging correctness (Action guard evaluates ruleset rules)
     D3: File copy completeness (files/ and checks/ survive update)
     D4: Multi-ruleset interaction (merge order, file aggregation)
 """
@@ -16,9 +16,9 @@ import pytest
 import yaml
 from typer.testing import CliRunner
 
+from ac_guard.action_guard.engine import evaluate
+from ac_guard.action_guard.matcher import Decision
 from ac_guard.cli.main import app
-from ac_guard.enforcer.engine import evaluate
-from ac_guard.enforcer.matcher import Decision
 from ac_guard.generator.models import STATE_FILE
 
 runner = CliRunner()
@@ -208,10 +208,10 @@ class TestLifecycleStages:
 
 
 class TestRuleMergingCorrectness:
-    """D2: Enforcer evaluates ruleset rules correctly."""
+    """D2: Action guard evaluates ruleset rules correctly."""
 
     def test_ruleset_rule_enforced(self, tmp_path: Path) -> None:
-        """D2-1: Ruleset adds read.forbidden → Enforcer denies."""
+        """D2-1: Ruleset adds read.forbidden → Action guard denies."""
         (tmp_path / ".git").mkdir()
         url = _create_bare_repo(
             tmp_path / "repos",
@@ -349,7 +349,7 @@ class TestMultiRulesetInteraction:
     """D4: Multiple rulesets merge correctly."""
 
     def test_both_ruleset_rules_enforced(self, tmp_path: Path) -> None:
-        """D4-1: Rules from both rulesets are active in Enforcer."""
+        """D4-1: Rules from both rulesets are active in Action guard."""
         (tmp_path / ".git").mkdir()
 
         url_a = _create_bare_repo(

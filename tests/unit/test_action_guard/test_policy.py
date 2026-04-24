@@ -1,4 +1,4 @@
-"""Tests for Enforcer policy loader (E1)."""
+"""Tests for Action guard policy loader (E1)."""
 
 from __future__ import annotations
 
@@ -7,9 +7,9 @@ from pathlib import Path
 
 import pytest
 
+from ac_guard.action_guard.exceptions import PolicyCorruptError
+from ac_guard.action_guard.policy import load_policy
 from ac_guard.config.models import BehaviorConfig
-from ac_guard.enforcer.exceptions import PolicyCorruptError
-from ac_guard.enforcer.policy import load_policy
 
 
 def _write_policy(project_root: Path, policy_data: dict) -> None:

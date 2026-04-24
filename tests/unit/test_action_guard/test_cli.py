@@ -1,4 +1,4 @@
-"""Tests for Enforcer CLI entry point."""
+"""Tests for Action guard CLI entry point."""
 
 from __future__ import annotations
 
@@ -8,11 +8,11 @@ import sys
 from pathlib import Path
 
 
-def _run_enforcer(input_data: dict, project_root: Path) -> dict:
-    """Run enforcer CLI via subprocess and return parsed output."""
+def _run_action_guard(input_data: dict, project_root: Path) -> dict:
+    """Run action_guard CLI via subprocess and return parsed output."""
     input_data["project_root"] = str(project_root)
     result = subprocess.run(
-        [sys.executable, "-m", "ac_guard.enforcer"],
+        [sys.executable, "-m", "ac_guard.action_guard"],
         input=json.dumps(input_data),
         capture_output=True,
         text=True,
@@ -56,12 +56,12 @@ def _standard_policy() -> dict:
     }
 
 
-class TestEnforcerCli:
-    """Tests for python3 -m ac_guard.enforcer."""
+class TestActionGuardCli:
+    """Tests for python3 -m ac_guard.action_guard."""
 
     def test_no_policy_allows(self, tmp_path: Path) -> None:
         """No runtime.json returns allow."""
-        result = _run_enforcer(
+        result = _run_action_guard(
             {"tool_name": "Write", "tool_input": {"file_path": ".git/config"}},
             tmp_path,
         )
@@ -70,7 +70,7 @@ class TestEnforcerCli:
     def test_forbidden_denies(self, tmp_path: Path) -> None:
         """Forbidden pattern returns deny with reason."""
         _write_policy(tmp_path, _standard_policy())
-        result = _run_enforcer(
+        result = _run_action_guard(
             {"tool_name": "Write", "tool_input": {"file_path": ".git/config"}},
             tmp_path,
         )
@@ -80,7 +80,7 @@ class TestEnforcerCli:
     def test_allowed_allows(self, tmp_path: Path) -> None:
         """Allowed pattern returns allow."""
         _write_policy(tmp_path, _standard_policy())
-        result = _run_enforcer(
+        result = _run_action_guard(
             {"tool_name": "Write", "tool_input": {"file_path": "src/main.py"}},
             tmp_path,
         )
@@ -89,7 +89,7 @@ class TestEnforcerCli:
     def test_invalid_json_denies(self, tmp_path: Path) -> None:
         """Invalid JSON input returns deny (fail-closed)."""
         result = subprocess.run(
-            [sys.executable, "-m", "ac_guard.enforcer"],
+            [sys.executable, "-m", "ac_guard.action_guard"],
             input="not json{{{",
             capture_output=True,
             text=True,
@@ -100,7 +100,7 @@ class TestEnforcerCli:
         assert output["decision"] == "deny"
 
 
-class TestEnforcerCliAudit:
+class TestActionGuardCliAudit:
     """Regression for #75: subprocess entry threads agent into audit."""
 
     def test_agent_from_stdin_is_recorded(self, tmp_path: Path) -> None:
@@ -111,7 +111,7 @@ class TestEnforcerCliAudit:
             "retention_days": 30,
         }
         _write_policy(tmp_path, policy)
-        _run_enforcer(
+        _run_action_guard(
             {
                 "tool_name": "Write",
                 "tool_input": {"file_path": ".git/config"},
