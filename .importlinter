@@ -8,14 +8,14 @@
 ; Allowed dependencies (each module implicitly depends on itself):
 ;   config, domain  — leaves (no internal deps)
 ;   adapters           → config, domain
-;   checker            → config, domain
+;   code_gate          → config, domain
 ;   reporter           → config, domain
 ;   generator          → config, adapters, domain
-;   enforcer           → config, checker, reporter
-;   cli                → config, generator, adapters, enforcer, checker, reporter, domain
+;   enforcer           → config, code_gate, reporter
+;   cli                → config, generator, adapters, enforcer, code_gate, reporter, domain
 ;
 ; Within the same layer, modules may NOT import each other — e.g.
-; enforcer must not import generator, checker must not import adapters.
+; enforcer must not import generator, code_gate must not import adapters.
 ;
 ; The `domain` layer holds cross-module *intermediate* data contracts
 ; (FileSpec / StageOutcome / CheckResult / Violation) plus the ac-guard
@@ -39,7 +39,7 @@ type = layers
 layers =
     cli
     enforcer | generator
-    checker | reporter | adapters
+    code_gate | reporter | adapters
     config | domain
 containers =
     ac_guard
@@ -54,7 +54,7 @@ type = forbidden
 allow_indirect_imports = True
 source_modules =
     ac_guard.adapters
-    ac_guard.checker
+    ac_guard.code_gate
     ac_guard.cli
     ac_guard.enforcer
     ac_guard.generator

@@ -67,7 +67,7 @@ class TestCheckCommand:
     def test_check_passed(self, tmp_path: Path) -> None:
         """Passing checks return exit 0 and PASSED."""
         config = _write_config(tmp_path)
-        with patch("ac_guard.checker.core.get_changed_files", return_value=[]):
+        with patch("ac_guard.code_gate.core.get_changed_files", return_value=[]):
             result = runner.invoke(app, ["check", "--config", str(config)])
         assert result.exit_code == 0
         assert "PASSED" in result.output
@@ -92,7 +92,7 @@ class TestCheckCommand:
             ),
             encoding="utf-8",
         )
-        with patch("ac_guard.checker.core.get_changed_files", return_value=[]):
+        with patch("ac_guard.code_gate.core.get_changed_files", return_value=[]):
             result = runner.invoke(app, ["check", "--config", str(config)])
         assert result.exit_code == 1
         assert "FAILED" in result.output
@@ -104,11 +104,11 @@ class TestCheckCommand:
         assert result.exit_code == 1
 
     def test_check_with_files(self, tmp_path: Path) -> None:
-        """--files option passes files to checker."""
+        """--files option passes files to code_gate."""
         config = _write_config(tmp_path)
         # With format/naming enabled and explicit files, pre-commit will
         # be called but skip (no pre-commit config in tmp_path)
-        with patch("ac_guard.checker.core.shutil.which", return_value=None):
+        with patch("ac_guard.code_gate.core.shutil.which", return_value=None):
             result = runner.invoke(
                 app,
                 [
@@ -135,7 +135,7 @@ class TestVerifyCommand:
     def test_verify_passed(self, tmp_path: Path) -> None:
         """Passing verify returns exit 0."""
         config = _write_config(tmp_path)
-        with patch("ac_guard.checker.core.get_changed_files", return_value=[]):
+        with patch("ac_guard.code_gate.core.get_changed_files", return_value=[]):
             result = runner.invoke(app, ["verify", "--config", str(config)])
         assert result.exit_code == 0
         assert "PASSED" in result.output
@@ -143,7 +143,7 @@ class TestVerifyCommand:
     def test_verify_skip_build(self, tmp_path: Path) -> None:
         """--skip-build skips build step."""
         config = _write_config(tmp_path)
-        with patch("ac_guard.checker.core.get_changed_files", return_value=[]):
+        with patch("ac_guard.code_gate.core.get_changed_files", return_value=[]):
             result = runner.invoke(
                 app, ["verify", "--skip-build", "--config", str(config)]
             )
@@ -161,7 +161,7 @@ class TestRunCommand:
     def test_run_builtin_format(self, tmp_path: Path) -> None:
         """Running built-in format check."""
         config = _write_config(tmp_path)
-        with patch("ac_guard.checker.core.get_changed_files", return_value=[]):
+        with patch("ac_guard.code_gate.core.get_changed_files", return_value=[]):
             result = runner.invoke(app, ["run", "format", "--config", str(config)])
         # pre-commit skipped (no files) → passed
         assert result.exit_code == 0
@@ -169,7 +169,7 @@ class TestRunCommand:
     def test_run_custom_check(self, tmp_path: Path) -> None:
         """Running a custom check by name."""
         config = _write_config_with_checks(tmp_path)
-        with patch("ac_guard.checker.core.get_changed_files", return_value=[]):
+        with patch("ac_guard.code_gate.core.get_changed_files", return_value=[]):
             result = runner.invoke(app, ["run", "echo-test", "--config", str(config)])
         assert result.exit_code == 0
 
@@ -192,7 +192,7 @@ class TestGateRunCommand:
     def test_gate_commit_passed(self, tmp_path: Path) -> None:
         """Gate run with passing checks outputs minimal text."""
         config = _write_config(tmp_path)
-        with patch("ac_guard.checker.core.get_changed_files", return_value=[]):
+        with patch("ac_guard.code_gate.core.get_changed_files", return_value=[]):
             result = runner.invoke(
                 app, ["gate", "run", "--stage", "pre-commit", "--config", str(config)]
             )
@@ -218,7 +218,7 @@ class TestGateRunCommand:
             ),
             encoding="utf-8",
         )
-        with patch("ac_guard.checker.core.get_changed_files", return_value=[]):
+        with patch("ac_guard.code_gate.core.get_changed_files", return_value=[]):
             result = runner.invoke(
                 app, ["gate", "run", "--stage", "pre-commit", "--config", str(config)]
             )
@@ -228,7 +228,7 @@ class TestGateRunCommand:
     def test_gate_push(self, tmp_path: Path) -> None:
         """Gate run push stage works."""
         config = _write_config(tmp_path)
-        with patch("ac_guard.checker.core.get_changed_files", return_value=[]):
+        with patch("ac_guard.code_gate.core.get_changed_files", return_value=[]):
             result = runner.invoke(
                 app, ["gate", "run", "--stage", "pre-push", "--config", str(config)]
             )
@@ -244,7 +244,7 @@ class TestJsonOutput:
         import json
 
         config = _write_config(tmp_path)
-        with patch("ac_guard.checker.core.get_changed_files", return_value=[]):
+        with patch("ac_guard.code_gate.core.get_changed_files", return_value=[]):
             result = runner.invoke(
                 app, ["check", "--config", str(config), "--format", "json"]
             )
@@ -259,7 +259,7 @@ class TestJsonOutput:
         import json
 
         config = _write_config(tmp_path)
-        with patch("ac_guard.checker.core.get_changed_files", return_value=[]):
+        with patch("ac_guard.code_gate.core.get_changed_files", return_value=[]):
             result = runner.invoke(
                 app,
                 [
@@ -315,7 +315,7 @@ class TestCliAutoPostPrComment:
         """check dispatches post_pr_comment with report + pr_report + locale."""
         config = _write_config_with_pr_report(tmp_path, enabled=True)
         with (
-            patch("ac_guard.checker.core.get_changed_files", return_value=[]),
+            patch("ac_guard.code_gate.core.get_changed_files", return_value=[]),
             patch("ac_guard.cli.check._maybe_post_pr") as mock_post,
         ):
             result = runner.invoke(app, ["check", "--config", str(config)])
@@ -333,7 +333,7 @@ class TestCliAutoPostPrComment:
         """Even when disabled, CLI calls post_pr_comment (primitive self-gates)."""
         config = _write_config_with_pr_report(tmp_path, enabled=False)
         with (
-            patch("ac_guard.checker.core.get_changed_files", return_value=[]),
+            patch("ac_guard.code_gate.core.get_changed_files", return_value=[]),
             patch("ac_guard.cli.check._maybe_post_pr") as mock_post,
         ):
             result = runner.invoke(app, ["check", "--config", str(config)])
@@ -347,7 +347,7 @@ class TestCliAutoPostPrComment:
         """verify also dispatches post_pr_comment at end."""
         config = _write_config_with_pr_report(tmp_path, enabled=True)
         with (
-            patch("ac_guard.checker.core.get_changed_files", return_value=[]),
+            patch("ac_guard.code_gate.core.get_changed_files", return_value=[]),
             patch("ac_guard.cli.check._maybe_post_pr") as mock_post,
         ):
             result = runner.invoke(
@@ -363,7 +363,7 @@ class TestCliAutoPostPrComment:
         """gate run also dispatches post_pr_comment at end."""
         config = _write_config_with_pr_report(tmp_path, enabled=True)
         with (
-            patch("ac_guard.checker.core.get_changed_files", return_value=[]),
+            patch("ac_guard.code_gate.core.get_changed_files", return_value=[]),
             patch("ac_guard.cli.check._maybe_post_pr") as mock_post,
         ):
             result = runner.invoke(
@@ -383,7 +383,7 @@ class TestCliAutoPostPrComment:
         """
         config = _write_config_with_checks(tmp_path)
         with (
-            patch("ac_guard.checker.core.get_changed_files", return_value=[]),
+            patch("ac_guard.code_gate.core.get_changed_files", return_value=[]),
             patch("ac_guard.cli.check._maybe_post_pr") as mock_post,
         ):
             result = runner.invoke(app, ["run", "echo-test", "--config", str(config)])

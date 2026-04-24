@@ -1,8 +1,8 @@
-"""Tests for Checker data models."""
+"""Tests for code_gate data models."""
 
 from __future__ import annotations
 
-from ac_guard.checker.models import CheckResult, StageOutcome, Violation
+from ac_guard.code_gate.models import CheckResult, StageOutcome, Violation
 
 
 class TestViolation:
