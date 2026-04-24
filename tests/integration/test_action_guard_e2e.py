@@ -1,6 +1,6 @@
-"""Integration tests for Phase 2 Enforcer end-to-end (WP2.4).
+"""Integration tests for Phase 2 Action guard end-to-end (WP2.4).
 
-Verifies Enforcer pipeline, Hook template integration, audit logging,
+Verifies Action guard pipeline, Hook template integration, audit logging,
 and error recovery scenarios using real file I/O.
 """
 
@@ -12,10 +12,10 @@ from pathlib import Path
 import yaml
 from typer.testing import CliRunner
 
+from ac_guard.action_guard.engine import evaluate
+from ac_guard.action_guard.matcher import Decision
 from ac_guard.audit import append_record, prune_by_age
 from ac_guard.cli.main import app
-from ac_guard.enforcer.engine import evaluate
-from ac_guard.enforcer.matcher import Decision
 
 runner = CliRunner()
 
@@ -28,8 +28,8 @@ def _init_and_install(tmp_path: Path, agents: str = "claude-code") -> None:
     runner.invoke(app, ["install", "--agent", agents, "--config", str(config)])
 
 
-class TestEnforcerPipeline:
-    """Enforcer evaluate() with real runtime.json from install."""
+class TestActionGuardPipeline:
+    """Action guard evaluate() with real runtime.json from install."""
 
     def test_install_then_evaluate(self, tmp_path: Path) -> None:
         """install generates runtime.json that evaluate() can use."""
@@ -87,24 +87,24 @@ class TestEnforcerPipeline:
         assert result.matched_rule.reason == "secrets"
 
 
-class TestHookEnforcerIntegration:
-    """Hook templates correctly reference Enforcer."""
+class TestHookActionGuardIntegration:
+    """Hook templates correctly reference Action guard."""
 
-    def test_claude_code_hook_has_enforcer(self, tmp_path: Path) -> None:
-        """Claude Code hook script imports enforcer.engine."""
+    def test_claude_code_hook_has_action_guard(self, tmp_path: Path) -> None:
+        """Claude Code hook script imports action_guard.engine."""
         _init_and_install(tmp_path)
         hook_path = tmp_path / ".claude" / "hooks" / "interceptor.py"
         assert hook_path.is_file()
         content = hook_path.read_text(encoding="utf-8")
-        assert "from ac_guard.enforcer.engine import evaluate" in content
+        assert "from ac_guard.action_guard.engine import evaluate" in content
 
-    def test_cursor_hook_calls_enforcer(self, tmp_path: Path) -> None:
-        """Cursor hook script calls python3 -m ac_guard.enforcer."""
+    def test_cursor_hook_calls_action_guard(self, tmp_path: Path) -> None:
+        """Cursor hook script calls python3 -m ac_guard.action_guard."""
         _init_and_install(tmp_path, agents="cursor")
         hook_path = tmp_path / ".cursor" / "hooks" / "check.sh"
         assert hook_path.is_file()
         content = hook_path.read_text(encoding="utf-8")
-        assert "python3 -m ac_guard.enforcer" in content
+        assert "python3 -m ac_guard.action_guard" in content
 
     def test_multi_agent_hooks(self, tmp_path: Path) -> None:
         """Multi-agent install generates hooks for each agent."""
@@ -114,7 +114,7 @@ class TestHookEnforcerIntegration:
 
 
 class TestAuditLoggingE2E:
-    """Audit logging with real Enforcer decisions."""
+    """Audit logging with real Action guard decisions."""
 
     def test_evaluate_then_audit(self, tmp_path: Path) -> None:
         """evaluate() auto-audits when audit is enabled (standard preset)."""

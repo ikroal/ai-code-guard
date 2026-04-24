@@ -1,4 +1,4 @@
-"""Tests for Enforcer engine — top-level evaluate() (E1+E2+E3/E4)."""
+"""Tests for Action guard engine — top-level evaluate() (E1+E2+E3/E4)."""
 
 from __future__ import annotations
 
@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from ac_guard.enforcer.engine import evaluate
-from ac_guard.enforcer.matcher import Decision, PolicyDecision
+from ac_guard.action_guard.engine import evaluate
+from ac_guard.action_guard.matcher import Decision, PolicyDecision
 
 
 def _write_policy(project_root: Path, policy_data: dict) -> None:

@@ -3,7 +3,7 @@ Cursor Hook template (shell script).
 
 Generates a bash script that:
 1. Reads stdin JSON (Cursor format)
-2. Calls Enforcer via python3 -m ac_guard.enforcer subprocess
+2. Calls Action guard via python3 -m ac_guard.action_guard subprocess
 3. Outputs stdout JSON (Cursor format)
 
 This template is rendered by adapters/_render.render_hook("cursor", behavior).
@@ -27,17 +27,17 @@ input=$(cat)
 # Parse tool call (Cursor uses different formats for different hooks)
 tool_name=$(echo "$input" | jq -r '.tool // .command // .name // "unknown"' 2>/dev/null || echo "unknown")
 
-# Build Enforcer input JSON (agent identifies the caller in audit records)
-enforcer_input=$(jq -n \
+# Build Action guard input JSON (agent identifies the caller in audit records)
+action_guard_input=$(jq -n \
     --arg tn "$tool_name" \
     --argjson ti "$(echo "$input" | jq '.args // .arguments // {}' 2>/dev/null || echo '{}')" \
     '{tool_name: $tn, tool_input: $ti, agent: "cursor"}')
 
-# Call Enforcer via Python subprocess
-enforcer_output=$(echo "$enforcer_input" | python3 -m ac_guard.enforcer 2>/dev/null || echo '{"decision": "deny"}')
+# Call Action guard via Python subprocess
+action_guard_output=$(echo "$action_guard_input" | python3 -m ac_guard.action_guard 2>/dev/null || echo '{"decision": "deny"}')
 
 # Extract decision
-decision=$(echo "$enforcer_output" | jq -r '.decision // "deny"' 2>/dev/null || echo "deny")
+decision=$(echo "$action_guard_output" | jq -r '.decision // "deny"' 2>/dev/null || echo "deny")
 
 # Cursor does not support "ask" — downgrade to "deny"
 if [ "$decision" = "ask" ]; then

@@ -1,11 +1,11 @@
-"""Enforcer CLI entry point for subprocess invocation.
+"""Action guard CLI entry point for subprocess invocation.
 
 Provides a thin JSON stdin/stdout interface for non-Python hooks
-(Cursor bash, OpenCode TypeScript) to call the Enforcer engine.
+(Cursor bash, OpenCode TypeScript) to call the Action guard engine.
 
 Usage:
     echo '{"tool_name": "Write", "tool_input": {"file_path": "x.py"}}' | \
-        python3 -m ac_guard.enforcer
+        python3 -m ac_guard.action_guard
 
 Input (stdin JSON):
     {"tool_name": "...", "tool_input": {...}, "agent": "cursor", "project_root": "."}
@@ -23,7 +23,7 @@ import json
 import sys
 from pathlib import Path
 
-from ac_guard.enforcer.engine import evaluate
+from ac_guard.action_guard.engine import evaluate
 
 __all__: list[str] = []
 

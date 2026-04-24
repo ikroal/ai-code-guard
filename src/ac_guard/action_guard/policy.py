@@ -1,4 +1,4 @@
-"""Enforcer policy loader (E1 primitive).
+"""Action guard policy loader (E1 primitive).
 
 Loads ``.ac-guard/runtime.json`` and reconstructs a
 :class:`BehaviorConfig` for runtime rule evaluation.
@@ -9,13 +9,13 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING, Any
 
+from ac_guard.action_guard.exceptions import PolicyCorruptError
 from ac_guard.config import (
     AuditConfig,
     BehaviorConfig,
     OperationRules,
     Rule,
 )
-from ac_guard.enforcer.exceptions import PolicyCorruptError
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -28,7 +28,7 @@ _RUNTIME_FILE = ".ac-guard/runtime.json"
 def load_policy(
     project_root: Path,
 ) -> tuple[BehaviorConfig, str, AuditConfig] | None:
-    """Load Enforcer runtime cache from ``.ac-guard/runtime.json``.
+    """Load Action guard runtime cache from ``.ac-guard/runtime.json``.
 
     Args:
         project_root: Path to the project root directory.

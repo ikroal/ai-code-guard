@@ -52,7 +52,7 @@ class ClaudeCodeAdapter(AgentAdapter):
         Uses Jinja2 template (hooks/claude_code.j2) for the Hook script.
         Returns a Python Hook script that:
         - Reads stdin JSON (tool_name, tool_input)
-        - Calls Enforcer for policy decision (placeholder for WP2)
+        - Calls Action guard for policy decision (placeholder for WP2)
         - Returns stdout JSON (hookSpecificOutput.permissionDecision)
         """
         hook_content = render_hook("claude_code", behavior)

@@ -50,7 +50,7 @@ class OpenCodeAdapter(AgentAdapter):
         Uses Jinja2 template (hooks/opencode.j2) for the plugin.
         Returns a TypeScript plugin file that:
         - Intercepts tool calls via OpenCode plugin API
-        - Calls Enforcer for policy decision (placeholder for WP2)
+        - Calls Action guard for policy decision (placeholder for WP2)
         - Throws error to block forbidden operations
         """
         plugin_content = render_hook("opencode", behavior)

@@ -11,11 +11,11 @@
 ;   code_gate          → config, domain
 ;   reporter           → config, domain
 ;   generator          → config, adapters, domain
-;   enforcer           → config, code_gate, reporter
-;   cli                → config, generator, adapters, enforcer, code_gate, reporter, domain
+;   action_guard       → config, code_gate, reporter
+;   cli                → config, generator, adapters, action_guard, code_gate, reporter, domain
 ;
 ; Within the same layer, modules may NOT import each other — e.g.
-; enforcer must not import generator, code_gate must not import adapters.
+; action_guard must not import generator, code_gate must not import adapters.
 ;
 ; The `domain` layer holds cross-module *intermediate* data contracts
 ; (FileSpec / StageOutcome / CheckResult / Violation) plus the ac-guard
@@ -38,7 +38,7 @@ name = ac-guard module layering
 type = layers
 layers =
     cli
-    enforcer | generator
+    action_guard | generator
     code_gate | reporter | adapters
     config | domain
 containers =
@@ -56,7 +56,7 @@ source_modules =
     ac_guard.adapters
     ac_guard.code_gate
     ac_guard.cli
-    ac_guard.enforcer
+    ac_guard.action_guard
     ac_guard.generator
     ac_guard.reporter
 forbidden_modules =

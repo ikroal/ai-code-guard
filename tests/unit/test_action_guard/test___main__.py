@@ -1,8 +1,8 @@
-"""Tests for enforcer __main__ module."""
+"""Tests for action_guard __main__ module."""
 
 from __future__ import annotations
 
-from ac_guard.enforcer.__main__ import main
+from ac_guard.action_guard.__main__ import main
 
 
 class TestMain:

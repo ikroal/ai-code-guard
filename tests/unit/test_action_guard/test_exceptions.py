@@ -1,17 +1,17 @@
-"""Tests for Enforcer exception types."""
+"""Tests for Action guard exception types."""
 
 from __future__ import annotations
 
-from ac_guard.enforcer.exceptions import EnforcerError, PolicyCorruptError
+from ac_guard.action_guard.exceptions import ActionGuardError, PolicyCorruptError
 
 
 class TestPolicyCorruptError:
     """Tests for PolicyCorruptError."""
 
-    def test_inherits_enforcer_error(self) -> None:
-        """PolicyCorruptError is an EnforcerError."""
+    def test_inherits_action_guard_error(self) -> None:
+        """PolicyCorruptError is an ActionGuardError."""
         err = PolicyCorruptError("/path/runtime.json", "bad json")
-        assert isinstance(err, EnforcerError)
+        assert isinstance(err, ActionGuardError)
 
     def test_attributes(self) -> None:
         """PolicyCorruptError stores path and detail."""
@@ -25,9 +25,9 @@ class TestPolicyCorruptError:
         assert "/path/runtime.json" in str(err)
 
 
-class TestEnforcerError:
-    """Tests for EnforcerError base class."""
+class TestActionGuardError:
+    """Tests for ActionGuardError base class."""
 
     def test_is_exception(self) -> None:
-        """EnforcerError is an Exception."""
-        assert issubclass(EnforcerError, Exception)
+        """ActionGuardError is an Exception."""
+        assert issubclass(ActionGuardError, Exception)

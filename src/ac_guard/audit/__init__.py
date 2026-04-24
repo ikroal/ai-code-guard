@@ -13,7 +13,7 @@ Guarantees
   partial-state corruption on crash mid-write.
 - **Availability (Q3)**: ``append_record`` and ``prune_by_age`` are
   non-blocking (``OSError`` logged to stderr, not raised) — audit
-  failures never block enforcer's hot path.
+  failures never block action_guard's hot path.
 - **Append-only invariant (S2)**: Old records are never modified
   in place; bulk replace via ``rewrite_records`` is the only
   mutation path.

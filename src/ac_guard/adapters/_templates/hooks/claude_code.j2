@@ -3,7 +3,7 @@ Claude Code PreToolUse Hook template.
 
 Generates a Python script that:
 1. Reads stdin JSON (Claude Code format: tool_name, tool_input)
-2. Calls Enforcer engine for policy decision
+2. Calls Action guard engine for policy decision
 3. Outputs stdout JSON (Claude Code format: hookSpecificOutput.permissionDecision)
 
 This template is rendered by adapters/_render.render_hook("claude_code", behavior).
@@ -40,7 +40,7 @@ if sys.executable != _INSTALL_PY and os.path.exists(_INSTALL_PY):
 # removed, venv rebuilt, package uninstalled), never let the tool call
 # silently pass — emit an `ask` decision so the user sees the problem.
 try:
-    from ac_guard.enforcer.engine import evaluate
+    from ac_guard.action_guard.engine import evaluate
 except ImportError as _exc:
     json.dump(
         {
@@ -66,7 +66,7 @@ def main():
     tool_name = input_data.get("tool_name", "")
     tool_input = input_data.get("tool_input", {})
 
-    # Evaluate policy via Enforcer
+    # Evaluate policy via Action guard
     result = evaluate(tool_name, tool_input, Path("."), agent="claude-code")
 
     # Build reason string for deny/ask decisions

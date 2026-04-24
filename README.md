@@ -114,8 +114,8 @@ Check results can be posted as PR comments on GitHub, GitLab, Gitea, and Bitbuck
 
 ```mermaid
 flowchart LR
-    P1[✅ Phase 1<br/>Config + Generator + CLI] --> P2[✅ Phase 2<br/>Enforcer]
-    P2 --> P3[✅ Phase 3<br/>Checker + Reporter]
+    P1[✅ Phase 1<br/>Config + Generator + CLI] --> P2[✅ Phase 2<br/>Action Guard]
+    P2 --> P3[✅ Phase 3<br/>Code Gate + Reporter]
     P3 --> P4[✅ Phase 4<br/>Ruleset Management]
     P4 --> P5[✅ Phase 5<br/>PR Report + CI/CD]
     P5 --> M6[🚧 M6<br/>Production Readiness]
