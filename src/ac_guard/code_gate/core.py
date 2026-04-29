@@ -22,7 +22,6 @@ if TYPE_CHECKING:
     from ac_guard.config import CheckItem, CodeConfig
 
 __all__ = [
-    "BUCKET_AWARE_STAGES",
     "StageOptions",
     "get_changed_files",
     "run_build",
@@ -55,12 +54,6 @@ class StageOptions:
 
 
 _DEFAULT_STAGE_OPTIONS = StageOptions()
-
-
-# Stages where ac-guard provides bucket-aware orchestration (format/lint
-# shortcuts, build command, StageOutcome for reporter/audit). Other gating
-# stages delegate to ``pre-commit run --hook-stage`` via cli/check.py.
-BUCKET_AWARE_STAGES: frozenset[str] = frozenset({"pre-commit", "pre-push"})
 
 
 # ---------------------------------------------------------------------------
