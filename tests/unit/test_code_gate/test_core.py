@@ -255,7 +255,7 @@ class TestRunStage:
 
     def test_push_build_failure_skips_lint_and_checks(self, tmp_path: Path) -> None:
         """#77: a failing build must mark lint + push.checks as skipped."""
-        from ac_guard.code_gate.models import CheckResult
+        from ac_guard.domain.models import CheckResult
 
         config = CodeConfig(
             pre_commit=StageBucket(format=False),
@@ -301,7 +301,7 @@ class TestRunStage:
 
     def test_push_build_success_runs_downstream(self, tmp_path: Path) -> None:
         """Build success preserves the existing downstream execution path."""
-        from ac_guard.code_gate.models import CheckResult
+        from ac_guard.domain.models import CheckResult
 
         config = CodeConfig(
             pre_commit=StageBucket(format=False),

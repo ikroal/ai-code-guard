@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from ac_guard.code_gate.core import (
+from ac_guard.code_gate import (
     BUCKET_AWARE_STAGES,
     StageOptions,
     get_changed_files,

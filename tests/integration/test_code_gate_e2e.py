@@ -19,7 +19,7 @@ import yaml
 from typer.testing import CliRunner
 
 from ac_guard.cli.main import app
-from ac_guard.code_gate.models import CheckResult, StageOutcome
+from ac_guard.domain.models import CheckResult, StageOutcome
 from ac_guard.reporter.formatting import format_markdown
 
 runner = CliRunner()

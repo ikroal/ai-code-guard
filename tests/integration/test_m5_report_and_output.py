@@ -17,7 +17,7 @@ import yaml
 from typer.testing import CliRunner
 
 from ac_guard.cli.main import app
-from ac_guard.code_gate.core import run_stage
+from ac_guard.code_gate import run_stage
 from ac_guard.reporter import (
     ChannelError,
     GitPlatformCfg,
