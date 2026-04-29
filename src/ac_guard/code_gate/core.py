@@ -13,6 +13,7 @@ import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from ac_guard.domain.languages import TYPE_EXTENSIONS
 from ac_guard.domain.models import CheckResult, StageOutcome
 
 if TYPE_CHECKING:
@@ -23,7 +24,6 @@ if TYPE_CHECKING:
 __all__ = [
     "BUCKET_AWARE_STAGES",
     "StageOptions",
-    "detect_language",
     "get_changed_files",
     "run_build",
     "run_check",
@@ -61,34 +61,6 @@ _DEFAULT_STAGE_OPTIONS = StageOptions()
 # shortcuts, build command, StageOutcome for reporter/audit). Other gating
 # stages delegate to ``pre-commit run --hook-stage`` via cli/check.py.
 BUCKET_AWARE_STAGES: frozenset[str] = frozenset({"pre-commit", "pre-push"})
-
-
-# Maps ac-guard language identifier → set of file extensions. Shared by
-# the file-type filter and by ``doctor``'s language coverage check.
-TYPE_EXTENSIONS: dict[str, frozenset[str]] = {
-    "python": frozenset({".py", ".pyi"}),
-    "javascript": frozenset({".js", ".jsx", ".mjs"}),
-    "typescript": frozenset({".ts", ".tsx", ".mts"}),
-    "go": frozenset({".go"}),
-    "rust": frozenset({".rs"}),
-    "java": frozenset({".java"}),
-    "c": frozenset({".c", ".h"}),
-    "cpp": frozenset({".cpp", ".cc", ".cxx", ".hpp", ".hh"}),
-}
-
-
-def detect_language(path: str) -> str | None:
-    """Return the ac-guard language name for a file path, or None.
-
-    Uses the extension → language map in ``TYPE_EXTENSIONS``. Returns
-    ``None`` for paths with no matching extension (configs, text files,
-    binaries, etc.).
-    """
-    lower = path.lower()
-    for lang, exts in TYPE_EXTENSIONS.items():
-        if any(lower.endswith(ext) for ext in exts):
-            return lang
-    return None
 
 
 # ---------------------------------------------------------------------------

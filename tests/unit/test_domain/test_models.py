@@ -56,7 +56,7 @@ class TestValueObjectExports:
 
 
 class TestPackageApi:
-    """Domain package exposes VOs + managed_block Domain Service namespace."""
+    """Domain package exposes VOs + Domain Service sub-modules."""
 
     def test_domain_all(self) -> None:
         import ac_guard.domain as domain
@@ -66,6 +66,7 @@ class TestPackageApi:
             "FileSpec",
             "StageOutcome",
             "Violation",
+            "languages",
             "managed_block",
         }
 
