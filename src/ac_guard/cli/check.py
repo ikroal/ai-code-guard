@@ -6,10 +6,10 @@ the code_gate module for execution and Reporter for output formatting.
 
 from __future__ import annotations
 
+import subprocess
 from typing import TYPE_CHECKING
 
 from ac_guard.code_gate import (
-    BUCKET_AWARE_STAGES,
     StageOptions,
     get_changed_files,
     run_check,
@@ -41,6 +41,13 @@ _NAMING_NOT_IMPLEMENTED_MSG = (
     "Naming check is not yet implemented — tracked in "
     "https://github.com/ikroal/ai-code-guard/issues/95"
 )
+
+# Stages where ac-guard provides bucket-aware orchestration (format/lint
+# shortcuts, build command, StageOutcome for reporter/audit). Other
+# gating stages delegate to ``pre-commit run --hook-stage`` via
+# ``_run_precommit_stage``. ``cli/status.py`` (doctor) imports this
+# constant for its stage-semantic-fit diagnostic.
+BUCKET_AWARE_STAGES: frozenset[str] = frozenset({"pre-commit", "pre-push"})
 
 
 def check_command(
@@ -238,15 +245,35 @@ def gate_run_command(
     # pre-commit's native stage runner; it reads the generated
     # .pre-commit-config.yaml and executes hooks declared for this
     # stage via their ``stages:`` field.
-    import subprocess
+    raise SystemExit(_run_precommit_stage(stage, project_root, argv=argv))
 
+
+def _run_precommit_stage(
+    stage: str,
+    project_root: Path,
+    *,
+    argv: list[str] | None = None,
+) -> int:
+    """Delegate to ``pre-commit run --hook-stage <stage>`` and return its exit code.
+
+    Used by :func:`gate_run_command` for gating stages that ac-guard does
+    not model in its bucket-aware code_gate (``commit-msg`` /
+    ``pre-merge-commit`` / ``pre-rebase``). pre-commit reads the
+    generated ``.pre-commit-config.yaml`` and runs hooks declared at the
+    given stage via their ``stages:`` field; its stdout/stderr are not
+    captured so the user sees pre-commit's native output.
+
+    For ``commit-msg``, the first positional argv entry (the message
+    file path passed by git as ``$1``) is forwarded as
+    ``--commit-msg-filename``. Other stages always use ``--all-files``.
+    """
     cmd = ["pre-commit", "run", "--hook-stage", stage]
     if stage == "commit-msg" and argv:
         cmd.extend(["--commit-msg-filename", argv[0]])
     else:
         cmd.append("--all-files")
     result = subprocess.run(cmd, cwd=project_root, check=False)
-    raise SystemExit(result.returncode)
+    return result.returncode
 
 
 def _report_to_terminal(outcome: StageOutcome, output_format: str, locale: str) -> None:

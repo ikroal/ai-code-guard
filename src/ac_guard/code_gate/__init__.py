@@ -7,7 +7,6 @@ white-box tests of internal helpers.
 """
 
 from ac_guard.code_gate.core import (
-    BUCKET_AWARE_STAGES,
     StageOptions,
     get_changed_files,
     run_build,
@@ -17,7 +16,6 @@ from ac_guard.code_gate.core import (
 )
 
 __all__ = [
-    "BUCKET_AWARE_STAGES",
     "StageOptions",
     "get_changed_files",
     "run_build",

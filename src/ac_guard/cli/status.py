@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING
 
 from ac_guard import __version__
 from ac_guard.adapters.registry import get_adapter, list_adapters
-from ac_guard.code_gate import BUCKET_AWARE_STAGES
+from ac_guard.cli.check import BUCKET_AWARE_STAGES
 from ac_guard.config import ConfigError, load_config, resolve_config
 from ac_guard.domain.languages import detect_language
 from ac_guard.generator.core import read_state

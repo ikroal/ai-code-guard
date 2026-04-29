@@ -236,6 +236,95 @@ class TestGateRunCommand:
         assert "PASSED" in result.output
 
 
+class TestRunPrecommitStage:
+    """White-box tests for cli/check.py _run_precommit_stage helper.
+
+    Covers the D3b passthrough path used by gate_run_command for stages
+    not in BUCKET_AWARE_STAGES (commit-msg / pre-merge-commit /
+    pre-rebase). The helper delegates to ``pre-commit run --hook-stage``
+    and propagates its exit code.
+    """
+
+    def test_returns_subprocess_returncode(self, tmp_path: Path) -> None:
+        """Exit code from the pre-commit subprocess propagates verbatim."""
+        from subprocess import CompletedProcess
+
+        from ac_guard.cli.check import _run_precommit_stage
+
+        with patch("ac_guard.cli.check.subprocess.run") as mock_run:
+            mock_run.return_value = CompletedProcess([], returncode=42)
+            assert _run_precommit_stage("pre-rebase", tmp_path) == 42
+
+    def test_invokes_pre_commit_with_hook_stage(self, tmp_path: Path) -> None:
+        """Command starts with `pre-commit run --hook-stage <stage>`."""
+        from subprocess import CompletedProcess
+
+        from ac_guard.cli.check import _run_precommit_stage
+
+        with patch("ac_guard.cli.check.subprocess.run") as mock_run:
+            mock_run.return_value = CompletedProcess([], returncode=0)
+            _run_precommit_stage("pre-merge-commit", tmp_path)
+            cmd = mock_run.call_args.args[0]
+            assert cmd[:4] == [
+                "pre-commit",
+                "run",
+                "--hook-stage",
+                "pre-merge-commit",
+            ]
+
+    def test_commit_msg_argv_forwarded(self, tmp_path: Path) -> None:
+        """commit-msg with argv passes msg file via --commit-msg-filename."""
+        from subprocess import CompletedProcess
+
+        from ac_guard.cli.check import _run_precommit_stage
+
+        with patch("ac_guard.cli.check.subprocess.run") as mock_run:
+            mock_run.return_value = CompletedProcess([], returncode=0)
+            _run_precommit_stage("commit-msg", tmp_path, argv=["/tmp/msg-file"])
+            cmd = mock_run.call_args.args[0]
+            assert "--commit-msg-filename" in cmd
+            assert "/tmp/msg-file" in cmd
+            assert "--all-files" not in cmd
+
+    def test_commit_msg_no_argv_falls_back_to_all_files(self, tmp_path: Path) -> None:
+        """commit-msg without argv falls back to --all-files."""
+        from subprocess import CompletedProcess
+
+        from ac_guard.cli.check import _run_precommit_stage
+
+        with patch("ac_guard.cli.check.subprocess.run") as mock_run:
+            mock_run.return_value = CompletedProcess([], returncode=0)
+            _run_precommit_stage("commit-msg", tmp_path, argv=None)
+            cmd = mock_run.call_args.args[0]
+            assert "--all-files" in cmd
+            assert "--commit-msg-filename" not in cmd
+
+    def test_non_commit_msg_uses_all_files_even_with_argv(self, tmp_path: Path) -> None:
+        """Non-commit-msg stages always use --all-files; argv is ignored."""
+        from subprocess import CompletedProcess
+
+        from ac_guard.cli.check import _run_precommit_stage
+
+        with patch("ac_guard.cli.check.subprocess.run") as mock_run:
+            mock_run.return_value = CompletedProcess([], returncode=0)
+            _run_precommit_stage("pre-rebase", tmp_path, argv=["arg1"])
+            cmd = mock_run.call_args.args[0]
+            assert "--all-files" in cmd
+            assert "--commit-msg-filename" not in cmd
+
+    def test_passes_cwd_and_check_false(self, tmp_path: Path) -> None:
+        """project_root is forwarded as cwd; check=False so we own exit code."""
+        from subprocess import CompletedProcess
+
+        from ac_guard.cli.check import _run_precommit_stage
+
+        with patch("ac_guard.cli.check.subprocess.run") as mock_run:
+            mock_run.return_value = CompletedProcess([], returncode=0)
+            _run_precommit_stage("pre-merge-commit", tmp_path)
+            assert mock_run.call_args.kwargs["cwd"] == tmp_path
+            assert mock_run.call_args.kwargs["check"] is False
+
+
 class TestJsonOutput:
     """Tests for --format json output."""
 
