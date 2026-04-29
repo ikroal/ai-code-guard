@@ -22,7 +22,6 @@ if TYPE_CHECKING:
 
 __all__ = [
     "BUCKET_AWARE_STAGES",
-    "TYPE_EXTENSIONS",
     "StageOptions",
     "detect_language",
     "get_changed_files",
