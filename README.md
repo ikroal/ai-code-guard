@@ -25,11 +25,13 @@ pip install ac-guard
 ## Quick Start
 
 ```bash
-ac-guard init --language python          # create guard.yaml
-ac-guard install --agent claude-code     # generate rules + hooks
-ac-guard check                           # run quality checks
-ac-guard check --format json             # machine-readable output for CI
-ac-guard ruleset fetch <url>#v1.0        # fetch shared ruleset
+ac-guard init --language python                       # create guard.yaml
+ac-guard install --agent claude-code                  # generate rules + hooks
+ac-guard run --stage pre-commit                       # run commit-stage checks
+ac-guard run --stage pre-push                         # run push-stage checks (with build)
+ac-guard run --stage pre-commit --format json         # machine-readable output for CI
+ac-guard run mypy                                     # run a single check by name
+ac-guard ruleset fetch <url>#v1.0                     # fetch shared ruleset
 ```
 
 New here? Walk through the full flow in the
@@ -84,10 +86,8 @@ See [guard.yaml reference](design/AI_GUARD_SYSTEM_DESIGN.md) for full schema.
 | `ac-guard install --agent <name>` | Generate rules, hooks, and configs |
 | `ac-guard update` | Regenerate after config changes |
 | `ac-guard uninstall` | Remove generated artifacts |
-| `ac-guard check` | Run commit-stage checks |
-| `ac-guard verify` | Run push-stage validation |
-| `ac-guard run <name>` | Run a single check |
-| `ac-guard gate run --stage <s>` | Git hook entry point |
+| `ac-guard run --stage <s>` | Run all checks for a gating stage (also the entry point invoked by generated git hooks) |
+| `ac-guard run <name>` | Run a single check by name (developer iteration) |
 | `ac-guard status` | Installation state and drift detection |
 | `ac-guard doctor` | Environment diagnostics |
 | `ac-guard agents` | Agent capability matrix |
@@ -98,7 +98,7 @@ See [guard.yaml reference](design/AI_GUARD_SYSTEM_DESIGN.md) for full schema.
 | `ac-guard validation list` | List configured checks by stage |
 | `ac-guard validation report` | Check configuration report table |
 
-All check commands (`check`, `verify`, `status`) support `--format json` for machine-readable output in CI/CD pipelines.
+`ac-guard run` and `ac-guard status` support `--format json` for machine-readable output in CI/CD pipelines.
 
 ## How It Works
 
@@ -108,7 +108,7 @@ When the agent runs, its hook script loads the pre-built policy and matches each
 
 At commit and push time, pre-commit hooks run format, lint, naming, and custom checks. The agent cannot skip these because `git commit --no-verify` is itself a forbidden pattern.
 
-Check results can be posted as PR comments on GitHub, GitLab, Gitea, and Bitbucket via the `output.pr_report` configuration. When `enabled: true`, `check`, `verify`, and `gate run` automatically publish a comment on the associated PR after execution. If no PR can be identified in the current context (e.g. local branch, no PR open yet), the dispatch is silently skipped — no noise in local development.
+Check results can be posted as PR comments on GitHub, GitLab, Gitea, and Bitbucket via the `output.pr_report` configuration. When `enabled: true`, full-stage runs (`ac-guard run --stage <s>`, including hook-driven invocations) automatically publish a comment on the associated PR after execution. Single-check runs (`ac-guard run <name>`) deliberately skip PR posting to avoid noise during developer iteration. If no PR can be identified in the current context (e.g. local branch, no PR open yet), the dispatch is silently skipped — no noise in local development either.
 
 ## Roadmap
 
@@ -148,7 +148,7 @@ uv run ac-guard install --agent claude-code    # materialises runtime.json + Cla
 ```
 
 That's it — `ac-guard install` writes its own `.git/hooks/pre-commit` wrapper
-that delegates to `ac-guard gate run --stage commit`, so no separate
+that delegates to `ac-guard run --stage pre-commit`, so no separate
 `pre-commit install` step is needed. The committed [`guard.yaml`](guard.yaml)
 and [`CLAUDE.md`](CLAUDE.md) are the source of truth for agent behavior rules;
 everything under `.claude/hooks/`, `.ac-guard/`, and `.git/hooks/` is

@@ -165,8 +165,8 @@ your-python-project/
 │   └── runtime.json             # runtime policy cache
 ├── .claude/hooks/interceptor.py  # Claude Code pre_tool_use hook
 └── .git/hooks/
-    ├── pre-commit              # → ac-guard gate run --stage commit
-    └── pre-push                # → ac-guard gate run --stage push
+    ├── pre-commit              # → ac-guard run --stage pre-commit
+    └── pre-push                # → ac-guard run --stage pre-push
 ```
 
 Every file above is **managed**: re-running `ac-guard install` or
@@ -203,7 +203,7 @@ still receive the behavior rules as soft constraints in their rule document.
 
 ```bash
 git add -A
-ac-guard check
+ac-guard run --stage pre-commit
 ```
 
 On a clean codebase:
@@ -227,7 +227,7 @@ Stage and re-run:
 
 ```bash
 git add -A
-ac-guard check
+ac-guard run --stage pre-commit
 ```
 
 ```
@@ -241,7 +241,7 @@ Stage: pre-commit — FAILED
 For the actual violations, switch to the machine-readable format:
 
 ```bash
-ac-guard check --format json
+ac-guard run --stage pre-commit --format json
 ```
 
 ```json
@@ -265,7 +265,7 @@ ac-guard check --format json
 ```
 
 Delete `src/bad.py` and re-check — you're green again. The same
-`ac-guard check` runs automatically when you `git commit`, because the
+`ac-guard run --stage pre-commit` runs automatically when you `git commit`, because the
 generated `.git/hooks/pre-commit` invokes it. Agents also cannot bypass the
 gate with `git commit --no-verify`: ac-guard injects that pattern (and its
 `git push` counterpart) into `execute.forbidden` by default, so the

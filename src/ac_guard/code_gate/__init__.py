@@ -1,25 +1,24 @@
-"""Code gate — git hook-time code quality orchestration (K2-K6).
+"""Code gate — git lifecycle code quality orchestration.
 
-Public API for running ac-guard-controlled code quality checks. This
-facade exposes the symbols that constitute the package's contract;
-importing from :mod:`ac_guard.code_gate.core` directly is reserved for
-white-box tests of internal helpers.
+Public contract: two domain operations (``gate_stage`` / ``gate_check``)
+that run a quality contract slice and return a verdict-bearing
+``StageOutcome``. Importing from :mod:`ac_guard.code_gate.core` is
+reserved for white-box tests of internal helpers.
 """
 
 from ac_guard.code_gate.core import (
-    StageOptions,
-    get_changed_files,
-    run_build,
-    run_check,
-    run_precommit,
-    run_stage,
+    GateOptions,
+    gate_check,
+    gate_stage,
+    is_modeled_stage,
 )
+from ac_guard.domain.models import CheckResult, StageOutcome
 
 __all__ = [
-    "StageOptions",
-    "get_changed_files",
-    "run_build",
-    "run_check",
-    "run_precommit",
-    "run_stage",
+    "CheckResult",
+    "GateOptions",
+    "StageOutcome",
+    "gate_check",
+    "gate_stage",
+    "is_modeled_stage",
 ]

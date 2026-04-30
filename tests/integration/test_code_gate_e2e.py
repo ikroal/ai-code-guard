@@ -91,21 +91,19 @@ class TestFullCheckLifecycle:
         assert r.exit_code == 0
 
         # check (commit stage)
-        with patch("ac_guard.code_gate.core.get_changed_files", return_value=[]):
-            r = runner.invoke(app, ["check", "-c", str(config)])
+        with patch("ac_guard.code_gate.core._get_changed_files", return_value=[]):
+            r = runner.invoke(app, ["run", "--stage", "pre-commit", "-c", str(config)])
         assert r.exit_code == 0
         assert "PASSED" in r.output
 
         # verify (push stage)
-        with patch("ac_guard.code_gate.core.get_changed_files", return_value=[]):
-            r = runner.invoke(app, ["verify", "-c", str(config)])
+        with patch("ac_guard.code_gate.core._get_changed_files", return_value=[]):
+            r = runner.invoke(app, ["run", "--stage", "pre-push", "-c", str(config)])
         assert r.exit_code == 0
 
         # gate run (commit)
-        with patch("ac_guard.code_gate.core.get_changed_files", return_value=[]):
-            r = runner.invoke(
-                app, ["gate", "run", "-s", "pre-commit", "-c", str(config)]
-            )
+        with patch("ac_guard.code_gate.core._get_changed_files", return_value=[]):
+            r = runner.invoke(app, ["run", "--stage", "pre-commit", "-c", str(config)])
         assert r.exit_code == 0
         assert "PASSED" in r.output
 
@@ -121,16 +119,16 @@ class TestFullCheckLifecycle:
         (tmp_path / ".git").mkdir()
         runner.invoke(app, ["install", "-a", "claude-code", "-c", str(config)])
 
-        with patch("ac_guard.code_gate.core.get_changed_files", return_value=[]):
-            r = runner.invoke(app, ["check", "-c", str(config)])
+        with patch("ac_guard.code_gate.core._get_changed_files", return_value=[]):
+            r = runner.invoke(app, ["run", "--stage", "pre-commit", "-c", str(config)])
         assert r.exit_code == 0
 
         # Change to failing check
         _config_with_checks(tmp_path, fail=True)
         runner.invoke(app, ["update", "-c", str(config)])
 
-        with patch("ac_guard.code_gate.core.get_changed_files", return_value=[]):
-            r = runner.invoke(app, ["check", "-c", str(config)])
+        with patch("ac_guard.code_gate.core._get_changed_files", return_value=[]):
+            r = runner.invoke(app, ["run", "--stage", "pre-commit", "-c", str(config)])
         assert r.exit_code == 1
         assert "FAILED" in r.output
 
@@ -146,16 +144,16 @@ class TestCheckCommand:
     def test_default_config_passes(self, tmp_path: Path) -> None:
         """B1: Default config with no files → all checks pass."""
         config = _write_config(tmp_path)
-        with patch("ac_guard.code_gate.core.get_changed_files", return_value=[]):
-            r = runner.invoke(app, ["check", "-c", str(config)])
+        with patch("ac_guard.code_gate.core._get_changed_files", return_value=[]):
+            r = runner.invoke(app, ["run", "--stage", "pre-commit", "-c", str(config)])
         assert r.exit_code == 0
         assert "PASSED" in r.output
 
     def test_custom_check_fails(self, tmp_path: Path) -> None:
         """B2: Failing custom check → exit 1 + FAILED."""
         config = _config_with_checks(tmp_path, fail=True)
-        with patch("ac_guard.code_gate.core.get_changed_files", return_value=[]):
-            r = runner.invoke(app, ["check", "-c", str(config)])
+        with patch("ac_guard.code_gate.core._get_changed_files", return_value=[]):
+            r = runner.invoke(app, ["run", "--stage", "pre-commit", "-c", str(config)])
         assert r.exit_code == 1
         assert "FAILED" in r.output
         assert "custom-commit" in r.output
@@ -164,12 +162,17 @@ class TestCheckCommand:
         """B3: --files passes explicit file list."""
         config = _write_config(tmp_path)
         with patch("ac_guard.code_gate.core.shutil.which", return_value=None):
-            r = runner.invoke(app, ["check", "--files", "a.py", "-c", str(config)])
+            r = runner.invoke(
+                app,
+                ["run", "--stage", "pre-commit", "--files", "a.py", "-c", str(config)],
+            )
         assert r.exit_code == 0
 
     def test_missing_config(self, tmp_path: Path) -> None:
         """B4: Missing guard.yaml → exit 1."""
-        r = runner.invoke(app, ["check", "-c", str(tmp_path / "guard.yaml")])
+        r = runner.invoke(
+            app, ["run", "--stage", "pre-commit", "-c", str(tmp_path / "guard.yaml")]
+        )
         assert r.exit_code == 1
 
 
@@ -184,15 +187,15 @@ class TestVerifyCommand:
     def test_push_all_pass(self, tmp_path: Path) -> None:
         """C1: Push stage all passing → exit 0."""
         config = _config_with_checks(tmp_path, fail=False)
-        with patch("ac_guard.code_gate.core.get_changed_files", return_value=[]):
-            r = runner.invoke(app, ["verify", "-c", str(config)])
+        with patch("ac_guard.code_gate.core._get_changed_files", return_value=[]):
+            r = runner.invoke(app, ["run", "--stage", "pre-push", "-c", str(config)])
         assert r.exit_code == 0
 
     def test_commit_fail_fast(self, tmp_path: Path) -> None:
         """C2: Commit failure → push not reached."""
         config = _config_with_checks(tmp_path, fail=True)
-        with patch("ac_guard.code_gate.core.get_changed_files", return_value=[]):
-            r = runner.invoke(app, ["verify", "-c", str(config)])
+        with patch("ac_guard.code_gate.core._get_changed_files", return_value=[]):
+            r = runner.invoke(app, ["run", "--stage", "pre-push", "-c", str(config)])
         assert r.exit_code == 1
         # Push-only check should NOT appear (fail-fast)
         assert "custom-push" not in r.output
@@ -200,8 +203,10 @@ class TestVerifyCommand:
     def test_skip_build(self, tmp_path: Path) -> None:
         """C3: --skip-build skips build step."""
         config = _write_config(tmp_path, {"build": {"command": "exit 1"}})
-        with patch("ac_guard.code_gate.core.get_changed_files", return_value=[]):
-            r = runner.invoke(app, ["verify", "--skip-build", "-c", str(config)])
+        with patch("ac_guard.code_gate.core._get_changed_files", return_value=[]):
+            r = runner.invoke(
+                app, ["run", "--stage", "pre-push", "--skip-build", "-c", str(config)]
+            )
         assert r.exit_code == 0
 
     def test_build_command_runs(self, tmp_path: Path) -> None:
@@ -216,8 +221,8 @@ class TestVerifyCommand:
                 },
             },
         )
-        with patch("ac_guard.code_gate.core.get_changed_files", return_value=[]):
-            r = runner.invoke(app, ["verify", "-c", str(config)])
+        with patch("ac_guard.code_gate.core._get_changed_files", return_value=[]):
+            r = runner.invoke(app, ["run", "--stage", "pre-push", "-c", str(config)])
         assert r.exit_code == 0
         assert "build" in r.output.lower()
 
@@ -248,8 +253,11 @@ class TestVerifyCommand:
                 },
             },
         )
-        with patch("ac_guard.code_gate.core.get_changed_files", return_value=["a.py"]):
-            r = runner.invoke(app, ["verify", "-c", str(config), "--format", "json"])
+        with patch("ac_guard.code_gate.core._get_changed_files", return_value=["a.py"]):
+            r = runner.invoke(
+                app,
+                ["run", "--stage", "pre-push", "-c", str(config), "--format", "json"],
+            )
         assert r.exit_code == 1
         data = json_mod.loads(r.output)
         names = {item["name"]: item for item in data["results"]}
@@ -271,14 +279,14 @@ class TestRunCommand:
     def test_builtin_format(self, tmp_path: Path) -> None:
         """D1: Running built-in format (skipped with no files)."""
         config = _write_config(tmp_path)
-        with patch("ac_guard.code_gate.core.get_changed_files", return_value=[]):
+        with patch("ac_guard.code_gate.core._get_changed_files", return_value=[]):
             r = runner.invoke(app, ["run", "format", "-c", str(config)])
         assert r.exit_code == 0
 
     def test_custom_check_pass(self, tmp_path: Path) -> None:
         """D2: Running a passing custom check."""
         config = _config_with_checks(tmp_path, fail=False)
-        with patch("ac_guard.code_gate.core.get_changed_files", return_value=[]):
+        with patch("ac_guard.code_gate.core._get_changed_files", return_value=[]):
             r = runner.invoke(app, ["run", "custom-commit", "-c", str(config)])
         assert r.exit_code == 0
         assert "custom-commit" in r.output
@@ -286,7 +294,7 @@ class TestRunCommand:
     def test_custom_check_fail(self, tmp_path: Path) -> None:
         """D3: Running a failing custom check."""
         config = _config_with_checks(tmp_path, fail=True)
-        with patch("ac_guard.code_gate.core.get_changed_files", return_value=[]):
+        with patch("ac_guard.code_gate.core._get_changed_files", return_value=[]):
             r = runner.invoke(app, ["run", "custom-commit", "-c", str(config)])
         assert r.exit_code == 1
 
@@ -309,10 +317,8 @@ class TestGateCommand:
     def test_commit_passed(self, tmp_path: Path) -> None:
         """E1: Commit stage pass → minimal 'passed' + exit 0."""
         config = _write_config(tmp_path)
-        with patch("ac_guard.code_gate.core.get_changed_files", return_value=[]):
-            r = runner.invoke(
-                app, ["gate", "run", "-s", "pre-commit", "-c", str(config)]
-            )
+        with patch("ac_guard.code_gate.core._get_changed_files", return_value=[]):
+            r = runner.invoke(app, ["run", "--stage", "pre-commit", "-c", str(config)])
         assert r.exit_code == 0
         assert "PASSED" in r.output
         # Gate output should be minimal (no PASS/FAIL indicators)
@@ -321,18 +327,16 @@ class TestGateCommand:
     def test_commit_failed(self, tmp_path: Path) -> None:
         """E2: Commit stage fail → minimal 'FAILED' + exit 1."""
         config = _config_with_checks(tmp_path, fail=True)
-        with patch("ac_guard.code_gate.core.get_changed_files", return_value=[]):
-            r = runner.invoke(
-                app, ["gate", "run", "-s", "pre-commit", "-c", str(config)]
-            )
+        with patch("ac_guard.code_gate.core._get_changed_files", return_value=[]):
+            r = runner.invoke(app, ["run", "--stage", "pre-commit", "-c", str(config)])
         assert r.exit_code == 1
         assert "FAILED" in r.output
 
     def test_push_passed(self, tmp_path: Path) -> None:
         """E3: Push stage pass → exit 0."""
         config = _config_with_checks(tmp_path, fail=False)
-        with patch("ac_guard.code_gate.core.get_changed_files", return_value=[]):
-            r = runner.invoke(app, ["gate", "run", "-s", "pre-push", "-c", str(config)])
+        with patch("ac_guard.code_gate.core._get_changed_files", return_value=[]):
+            r = runner.invoke(app, ["run", "--stage", "pre-push", "-c", str(config)])
         assert r.exit_code == 0
 
 
@@ -367,13 +371,15 @@ class TestMultiLanguageE2E:
             ),
             encoding="utf-8",
         )
-        with patch("ac_guard.code_gate.core.run_precommit") as mock_run:
+        with patch("ac_guard.code_gate.core._run_managed_hook") as mock_run:
             stub = CheckResult(name="stub", passed=True, duration_ms=0)
             mock_run.return_value = stub
             with patch(
-                "ac_guard.code_gate.core.get_changed_files", return_value=["a.py"]
+                "ac_guard.code_gate.core._get_changed_files", return_value=["a.py"]
             ):
-                r = runner.invoke(app, ["verify", "-c", str(config)])
+                r = runner.invoke(
+                    app, ["run", "--stage", "pre-push", "-c", str(config)]
+                )
         assert r.exit_code == 0
         hook_ids = {call.args[0] for call in mock_run.call_args_list}
         assert {
@@ -386,12 +392,14 @@ class TestMultiLanguageE2E:
     def test_single_language_auto_populated(self, tmp_path: Path) -> None:
         """Only project.language configured → auto-populate fills defaults."""
         config = _write_config(tmp_path)  # project.language: python, no languages
-        with patch("ac_guard.code_gate.core.run_precommit") as mock_run:
+        with patch("ac_guard.code_gate.core._run_managed_hook") as mock_run:
             mock_run.return_value = CheckResult(name="stub", passed=True, duration_ms=0)
             with patch(
-                "ac_guard.code_gate.core.get_changed_files", return_value=["a.py"]
+                "ac_guard.code_gate.core._get_changed_files", return_value=["a.py"]
             ):
-                r = runner.invoke(app, ["check", "-c", str(config)])
+                r = runner.invoke(
+                    app, ["run", "--stage", "pre-commit", "-c", str(config)]
+                )
         assert r.exit_code == 0
         hook_ids = [call.args[0] for call in mock_run.call_args_list]
         assert "format-python" in hook_ids
@@ -505,8 +513,8 @@ class TestLocalePropagation:
                 },
             },
         )
-        with patch("ac_guard.code_gate.core.get_changed_files", return_value=[]):
-            r = runner.invoke(app, ["check", "-c", str(config)])
+        with patch("ac_guard.code_gate.core._get_changed_files", return_value=[]):
+            r = runner.invoke(app, ["run", "--stage", "pre-commit", "-c", str(config)])
         assert r.exit_code == 0
         assert "阶段: pre-commit — 通过" in r.output
         assert "项检查通过" in r.output
@@ -514,8 +522,8 @@ class TestLocalePropagation:
 
     def test_default_locale_keeps_english_output(self, tmp_path: Path) -> None:
         config = _write_config(tmp_path)  # no locale → defaults to en
-        with patch("ac_guard.code_gate.core.get_changed_files", return_value=[]):
-            r = runner.invoke(app, ["check", "-c", str(config)])
+        with patch("ac_guard.code_gate.core._get_changed_files", return_value=[]):
+            r = runner.invoke(app, ["run", "--stage", "pre-commit", "-c", str(config)])
         assert r.exit_code == 0
         assert "PASSED" in r.output
         assert "checks passed" in r.output
@@ -528,8 +536,8 @@ class TestReportFormats:
     def test_terminal_has_details(self, tmp_path: Path) -> None:
         """F1: Terminal output includes check details and counts."""
         config = _config_with_checks(tmp_path, fail=True)
-        with patch("ac_guard.code_gate.core.get_changed_files", return_value=[]):
-            r = runner.invoke(app, ["check", "-c", str(config)])
+        with patch("ac_guard.code_gate.core._get_changed_files", return_value=[]):
+            r = runner.invoke(app, ["run", "--stage", "pre-commit", "-c", str(config)])
         assert "FAIL" in r.output
         assert "custom-commit" in r.output
         # Should have pass/fail count

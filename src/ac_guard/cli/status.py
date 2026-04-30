@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING
 
 from ac_guard import __version__
 from ac_guard.adapters.registry import get_adapter, list_adapters
-from ac_guard.cli.check import BUCKET_AWARE_STAGES
+from ac_guard.code_gate import is_modeled_stage
 from ac_guard.config import ConfigError, load_config, resolve_config
 from ac_guard.domain.languages import detect_language
 from ac_guard.generator.core import read_state
@@ -534,7 +534,7 @@ def _check_stage_semantic_fit(resolved: ResolvedConfig, tally: _Tally) -> None:
     """
     offenders: list[tuple[str, str]] = []
     for stage_name, bucket in resolved.code.buckets():
-        if stage_name in BUCKET_AWARE_STAGES:
+        if is_modeled_stage(stage_name):
             continue
         if bucket.format:
             offenders.append((stage_name, "format"))
