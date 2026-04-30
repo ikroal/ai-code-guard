@@ -25,11 +25,13 @@ pip install ac-guard
 ## 快速开始
 
 ```bash
-ac-guard init --language python          # 创建 guard.yaml
-ac-guard install --agent claude-code     # 生成规则 + hooks
-ac-guard check                           # 运行质量检查
-ac-guard check --format json             # CI 机器可读输出
-ac-guard ruleset fetch <url>#v1.0        # 拉取共享规则集
+ac-guard init --language python                       # 创建 guard.yaml
+ac-guard install --agent claude-code                  # 生成规则 + hooks
+ac-guard run --stage pre-commit                       # 运行提交阶段检查
+ac-guard run --stage pre-push                         # 运行推送阶段检查（含 build）
+ac-guard run --stage pre-commit --format json         # CI 机器可读输出
+ac-guard run mypy                                     # 按名运行单项检查
+ac-guard ruleset fetch <url>#v1.0                     # 拉取共享规则集
 ```
 
 第一次用？按
@@ -84,10 +86,8 @@ code:
 | `ac-guard install --agent <name>` | 生成规则、Hook 和配置 |
 | `ac-guard update` | 配置变更后重新生成 |
 | `ac-guard uninstall` | 移除生成的产物 |
-| `ac-guard check` | 运行提交阶段检查 |
-| `ac-guard verify` | 运行推送阶段验证 |
-| `ac-guard run <name>` | 运行单项检查 |
-| `ac-guard gate run --stage <s>` | Git Hook 入口 |
+| `ac-guard run --stage <s>` | 运行某个时刻的全部检查（也是生成的 git hook 调用入口）|
+| `ac-guard run <name>` | 按名运行单项检查（开发期迭代）|
 | `ac-guard status` | 安装状态与漂移检测 |
 | `ac-guard doctor` | 环境诊断 |
 | `ac-guard agents` | Agent 能力矩阵 |
@@ -98,7 +98,7 @@ code:
 | `ac-guard validation list` | 按阶段列出已配置的检查项 |
 | `ac-guard validation report` | 检查项配置报告表格 |
 
-所有检查命令（`check`、`verify`、`status`）支持 `--format json` 输出，用于 CI/CD 管道的机器可读格式。
+`ac-guard run` 和 `ac-guard status` 支持 `--format json` 输出，用于 CI/CD 管道的机器可读格式。
 
 ## 工作原理
 
@@ -108,7 +108,7 @@ Agent 工作时，Hook 脚本加载预构建的策略文件，将每个操作与
 
 提交和推送时，pre-commit Hook 运行格式化、Lint、命名和自定义检查。Agent 无法跳过这些检查，因为 `git commit --no-verify` 本身就是被禁止的模式。
 
-检查结果可通过 `output.pr_report` 配置自动发布到 GitHub、GitLab、Gitea 和 Bitbucket 的 PR 评论。开启 `enabled: true` 后，`check`、`verify`、`gate run` 执行结束会自动在关联 PR 上评论；当前环境识别不到 PR 时（例如本地分支、尚未开 PR），会静默跳过——本地开发无噪声。
+检查结果可通过 `output.pr_report` 配置自动发布到 GitHub、GitLab、Gitea 和 Bitbucket 的 PR 评论。开启 `enabled: true` 后，全 stage 跑（`ac-guard run --stage <s>`，含 git hook 触发的调用）执行结束会自动在关联 PR 上评论；单项检查（`ac-guard run <name>`）刻意不发，避免开发期迭代造成噪声。当前环境识别不到 PR 时（例如本地分支、尚未开 PR），会静默跳过——本地开发也无噪声。
 
 ## 路线图
 
@@ -148,7 +148,7 @@ uv run ac-guard install --agent claude-code    # 生成 runtime.json + Claude Co
 ```
 
 两条命令即可。`ac-guard install` 会写一个 `.git/hooks/pre-commit` 包装脚本
-（内部调用 `ac-guard gate run --stage commit`），不需要再单独 `pre-commit install`。
+（内部调用 `ac-guard run --stage pre-commit`），不需要再单独 `pre-commit install`。
 入库的 [`guard.yaml`](guard.yaml) 与 [`CLAUDE.md`](CLAUDE.md) 是 agent 行为规则的
 source of truth；`.claude/hooks/`、`.ac-guard/`、`.git/hooks/` 下的产物
 都是 per-machine 本地生成。

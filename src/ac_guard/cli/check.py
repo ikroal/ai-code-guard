@@ -1,23 +1,24 @@
-"""check, verify, run, and gate command implementations for AI Code Guard CLI.
+"""Unified ``ac-guard run`` command implementation.
 
-Provides CLI entry points for code quality checking, delegating to
-the code_gate module for execution and Reporter for output formatting.
+Thin rendering layer over ``ac_guard.code_gate``:
+
+- Positional ``<name>`` present → single-check path (``gate_check``);
+  no PR comment side effect.
+- ``<name>`` absent → full-stage path (``gate_stage``); posts PR
+  comment when configured.
+
+Both modes share argument parsing, config loading, and reporter
+plumbing. Side effects are determined by **scope** (single check vs
+full stage), not by command name.
 """
 
 from __future__ import annotations
 
-import subprocess
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from ac_guard.code_gate import (
-    StageOptions,
-    get_changed_files,
-    run_check,
-    run_precommit,
-    run_stage,
-)
+from ac_guard.code_gate import GateOptions, gate_check, gate_stage
 from ac_guard.config import ConfigError, resolve_config
-from ac_guard.domain.models import CheckResult, StageOutcome
 from ac_guard.reporter import (
     FormatKind,
     GitPlatformCfg,
@@ -29,261 +30,111 @@ from ac_guard.reporter import (
 if TYPE_CHECKING:
     from pathlib import Path
 
-__all__ = [
-    "check_command",
-    "gate_run_command",
-    "run_command",
-    "verify_command",
-]
+    from ac_guard.domain.models import StageOutcome
 
-_BUILTIN_CHECKS = frozenset({"format", "naming", "lint"})
-_NAMING_NOT_IMPLEMENTED_MSG = (
-    "Naming check is not yet implemented — tracked in "
-    "https://github.com/ikroal/ai-code-guard/issues/95"
-)
-
-# Stages where ac-guard provides bucket-aware orchestration (format/lint
-# shortcuts, build command, StageOutcome for reporter/audit). Other
-# gating stages delegate to ``pre-commit run --hook-stage`` via
-# ``_run_precommit_stage``. ``cli/status.py`` (doctor) imports this
-# constant for its stage-semantic-fit diagnostic.
-BUCKET_AWARE_STAGES: frozenset[str] = frozenset({"pre-commit", "pre-push"})
+__all__ = ["RunRequest", "run_command"]
 
 
-def check_command(
-    files: list[str],
-    config_path: Path,
-    *,
-    output_format: str = "text",
-) -> None:
-    """Execute the check command (commit-stage checks).
+@dataclass(frozen=True)
+class RunRequest:
+    """Bundle of inputs that drive a single ``ac-guard run`` invocation.
 
-    Args:
-        files: Explicit file list, or empty for auto-detect.
+    Bundling keeps :func:`run_command` within the project's argument-count
+    limits and makes the dispatch criteria (``name`` present? what stage?)
+    explicit at call sites.
+
+    Attributes:
+        name: Check name to run, or ``None`` for full-stage mode.
+        stage: Stage selector. In full-stage mode this is the gating
+            stage to run; in single-check mode this is a hint that
+            drives file collection.
+        files: Explicit file list (empty for auto-detect).
         config_path: Path to guard.yaml.
-        output_format: Output format (``"text"`` or ``"json"``).
+        skip_build: Suppress the build step (only meaningful when
+            ``stage == "pre-push"`` in full-stage mode).
+        output_format: ``"text"`` or ``"json"``.
+        argv: Stage-specific positional args forwarded by git hooks
+            (commit-msg uses it for the message file path). Only
+            consumed in full-stage mode.
     """
-    resolved = _load_config(config_path)
-    project_root = config_path.parent.resolve()
-    file_list = files or None
 
-    outcome = run_stage(
-        "pre-commit",
-        resolved.code,
-        project_root,
-        options=StageOptions(
-            files=file_list,
-            languages=list(resolved.languages),
-        ),
-    )
-
-    _report_to_terminal(outcome, output_format, resolved.output.locale)
-    _maybe_post_pr(outcome, resolved.output.pr_report, resolved.output.locale)
-    raise SystemExit(0 if outcome.passed else 1)
+    name: str | None
+    stage: str
+    files: list[str]
+    config_path: Path
+    skip_build: bool = False
+    output_format: str = "text"
+    argv: list[str] | None = None
 
 
-def verify_command(
-    skip_build: bool,
-    config_path: Path,
-    *,
-    output_format: str = "text",
-) -> None:
-    """Execute the verify command (push-stage validation).
+def run_command(request: RunRequest) -> None:
+    """Run quality checks (single check by name, or full stage via stage).
 
-    Args:
-        skip_build: Whether to skip the build step.
-        config_path: Path to guard.yaml.
-        output_format: Output format (``"text"`` or ``"json"``).
+    Dispatches to :func:`gate_check` or :func:`gate_stage` based on
+    whether ``request.name`` is set, and renders the resulting
+    ``StageOutcome`` via the reporter. Always raises ``SystemExit``.
     """
-    resolved = _load_config(config_path)
-    project_root = config_path.parent.resolve()
-    build_cmd = None if skip_build else resolved.build_command
+    resolved = _load_config(request.config_path)
+    project_root = request.config_path.parent.resolve()
 
-    outcome = run_stage(
-        "pre-push",
-        resolved.code,
-        project_root,
-        options=StageOptions(
-            build_command=build_cmd,
-            languages=list(resolved.languages),
-        ),
-    )
-
-    _report_to_terminal(outcome, output_format, resolved.output.locale)
-    _maybe_post_pr(outcome, resolved.output.pr_report, resolved.output.locale)
-    raise SystemExit(0 if outcome.passed else 1)
-
-
-def run_command(
-    name: str,
-    stage: str,
-    files: list[str],
-    config_path: Path,
-) -> None:
-    """Execute the run command (single check item).
-
-    Args:
-        name: Check name to run.
-        stage: Check stage ("pre-commit" or "pre-push").
-        files: Explicit file list, or empty for auto-detect.
-        config_path: Path to guard.yaml.
-    """
-    resolved = _load_config(config_path)
-    project_root = config_path.parent.resolve()
-    file_list = files or get_changed_files(stage, project_root)
-
-    # Built-in pre-commit shortcuts (format / naming / lint)
-    results: list = []
-    if name in _BUILTIN_CHECKS:
-        if name == "naming":
-            results.append(
-                CheckResult(
-                    name="naming",
-                    passed=True,
-                    skipped=True,
-                    output=_NAMING_NOT_IMPLEMENTED_MSG,
-                )
-            )
-        else:  # format or lint — iterate languages
-            results.extend(
-                run_precommit(f"{name}-{lang}", file_list, project_root)
-                for lang in resolved.languages
-            )
-            if not results:
-                # No languages configured — nothing to run
-                results.append(
-                    CheckResult(
-                        name=name,
-                        passed=True,
-                        skipped=True,
-                        output="No languages configured",
-                    )
-                )
+    if request.name is None:
+        outcome = _run_full_stage(request, resolved, project_root)
+        _report_to_terminal(outcome, request.output_format, resolved.output.locale)
+        _maybe_post_pr(outcome, resolved.output.pr_report, resolved.output.locale)
     else:
-        # Search custom checks across every gating stage bucket. A check
-        # ID is unique across the config; first hit wins.
-        check_item = None
-        for _stage_name, bucket in resolved.code.buckets():
-            if name in bucket.checks:
-                check_item = bucket.checks[name]
-                break
-        if check_item is None:
-            print(f"Error: Check '{name}' not found.")
-            available = [
-                check_name
-                for _stage_name, bucket in resolved.code.buckets()
-                for check_name in bucket.checks
-            ]
-            if available:
-                print(f"Available checks: {', '.join(available)}")
-            raise SystemExit(1)
-        results.append(run_check(name, check_item, file_list, project_root))
+        outcome = _run_single_check(request, resolved, project_root)
+        _report_to_terminal(outcome, request.output_format, resolved.output.locale)
 
-    passed = all(r.passed for r in results)
-    duration = sum(r.duration_ms for r in results)
-    outcome = StageOutcome(
-        stage=stage,
-        passed=passed,
-        results=results,
-        duration_ms=duration,
-    )
-
-    _report_to_terminal(outcome, "text", resolved.output.locale)
     raise SystemExit(0 if outcome.passed else 1)
 
 
-_GATING_STAGES = frozenset(
-    {"pre-commit", "commit-msg", "pre-merge-commit", "pre-push", "pre-rebase"}
-)
-
-
-def gate_run_command(
-    stage: str,
-    config_path: Path,
-    *,
-    argv: list[str] | None = None,
-) -> None:
-    """Execute the gate run command (Git Hook entry).
-
-    Args:
-        stage: One of the five pre-commit gating stages
-            (``pre-commit`` / ``commit-msg`` / ``pre-merge-commit`` /
-            ``pre-push`` / ``pre-rebase``). Schema-v1 values
-            (``commit`` / ``push``) are rejected.
-        config_path: Path to guard.yaml.
-        argv: Pass-through positional args (e.g. commit-msg hook
-            receives the message file path as $1).
-    """
-    if stage not in _GATING_STAGES:
-        print(
-            f"Error: unknown stage '{stage}'. Expected one of "
-            f"{sorted(_GATING_STAGES)}.",
-            flush=True,
-        )
-        raise SystemExit(2)
-
-    resolved = _load_config(config_path)
-    project_root = config_path.parent.resolve()
-
-    if stage in BUCKET_AWARE_STAGES:
-        build_cmd = resolved.build_command if stage == "pre-push" else None
-        outcome = run_stage(
-            stage,
+def _run_full_stage(request: RunRequest, resolved, project_root: Path) -> StageOutcome:
+    """Dispatch to ``gate_stage``, mapping ``ValueError`` to exit 2."""
+    build_command = (
+        None
+        if request.skip_build or request.stage != "pre-push"
+        else resolved.build_command
+    )
+    try:
+        return gate_stage(
+            request.stage,
             resolved.code,
             project_root,
-            options=StageOptions(
-                build_command=build_cmd,
+            options=GateOptions(
+                argv=request.argv,
+                build_command=build_command,
+                files=request.files or None,
                 languages=list(resolved.languages),
             ),
         )
-        _report_to_terminal(outcome, "text", resolved.output.locale)
-        _maybe_post_pr(outcome, resolved.output.pr_report, resolved.output.locale)
-        raise SystemExit(0 if outcome.passed else 1)
-
-    # commit-msg / pre-merge-commit / pre-rebase — ac-guard doesn't
-    # yet model these in its bucket-aware code_gate. Delegate to
-    # pre-commit's native stage runner; it reads the generated
-    # .pre-commit-config.yaml and executes hooks declared for this
-    # stage via their ``stages:`` field.
-    raise SystemExit(_run_precommit_stage(stage, project_root, argv=argv))
+    except ValueError as e:
+        print(f"Error: {e}", flush=True)
+        raise SystemExit(2) from None
 
 
-def _run_precommit_stage(
-    stage: str,
-    project_root: Path,
-    *,
-    argv: list[str] | None = None,
-) -> int:
-    """Delegate to ``pre-commit run --hook-stage <stage>`` and return its exit code.
-
-    Used by :func:`gate_run_command` for gating stages that ac-guard does
-    not model in its bucket-aware code_gate (``commit-msg`` /
-    ``pre-merge-commit`` / ``pre-rebase``). pre-commit reads the
-    generated ``.pre-commit-config.yaml`` and runs hooks declared at the
-    given stage via their ``stages:`` field; its stdout/stderr are not
-    captured so the user sees pre-commit's native output.
-
-    For ``commit-msg``, the first positional argv entry (the message
-    file path passed by git as ``$1``) is forwarded as
-    ``--commit-msg-filename``. Other stages always use ``--all-files``.
-    """
-    cmd = ["pre-commit", "run", "--hook-stage", stage]
-    if stage == "commit-msg" and argv:
-        cmd.extend(["--commit-msg-filename", argv[0]])
-    else:
-        cmd.append("--all-files")
-    result = subprocess.run(cmd, cwd=project_root, check=False)
-    return result.returncode
+def _run_single_check(
+    request: RunRequest, resolved, project_root: Path
+) -> StageOutcome:
+    """Dispatch to ``gate_check``, mapping ``KeyError`` to exit 1."""
+    try:
+        return gate_check(
+            request.name,
+            resolved.code,
+            project_root,
+            stage_hint=request.stage,
+            options=GateOptions(
+                files=request.files or None,
+                languages=list(resolved.languages),
+            ),
+        )
+    except KeyError as e:
+        message = e.args[0] if e.args else str(e)
+        print(f"Error: {message}")
+        raise SystemExit(1) from None
 
 
 def _report_to_terminal(outcome: StageOutcome, output_format: str, locale: str) -> None:
-    """Dispatch ``outcome`` to stdout via the reporter.
-
-    Args:
-        outcome: The check outcome.
-        output_format: ``"text"`` or ``"json"``.
-        locale: Label locale for text rendering (ignored for JSON).
-    """
+    """Dispatch ``outcome`` to stdout via the reporter."""
     fmt = FormatKind.JSON if output_format == "json" else FormatKind.TEXT
     report(
         outcome,
@@ -292,12 +143,7 @@ def _report_to_terminal(outcome: StageOutcome, output_format: str, locale: str) 
 
 
 def _maybe_post_pr(outcome: StageOutcome, pr_report, locale: str) -> None:
-    """Post the outcome to the configured Git platform if enabled.
-
-    Short-circuits when ``pr_report.enabled`` is ``False``. Otherwise
-    dispatches via :func:`reporter.report` with ``non_blocking=True`` so
-    HTTP/auth failures never affect the caller's exit code.
-    """
+    """Post the outcome to the configured Git platform if enabled."""
     if not pr_report.enabled:
         return
     report(
@@ -316,14 +162,7 @@ def _maybe_post_pr(outcome: StageOutcome, pr_report, locale: str) -> None:
 
 
 def _load_config(config_path: Path):
-    """Load and resolve config, handling errors.
-
-    Args:
-        config_path: Path to guard.yaml.
-
-    Returns:
-        ResolvedConfig.
-    """
+    """Load and resolve config, handling errors."""
     try:
         return resolve_config(config_path)
     except ConfigError as e:

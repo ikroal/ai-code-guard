@@ -129,6 +129,11 @@ known-first-party = ["ac_guard"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["D", "ANN", "ARG", "PLR0913", "C408", "TC"]  # relax requirements for tests
+# Typer CLI commands map each flag to a parameter, so commands that subsume
+# multiple modes (e.g. `run` covering single-check + full-stage) naturally
+# exceed max-args. The dataclass-bundle pattern (RunRequest in cli.check)
+# applies to the business layer; the Typer surface itself cannot use it.
+"src/ac_guard/cli/main.py" = ["PLR0913"]
 
 [tool.ruff.lint.pep8-naming]
 # Private conventions inherited from the retired scripts/checks/_config.py:

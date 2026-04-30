@@ -17,7 +17,7 @@ import yaml
 from typer.testing import CliRunner
 
 from ac_guard.cli.main import app
-from ac_guard.code_gate import run_stage
+from ac_guard.code_gate import gate_stage
 from ac_guard.reporter import (
     ChannelError,
     GitPlatformCfg,
@@ -95,7 +95,7 @@ class TestPrReportFlow:
         resolved_config = _resolve(config)
 
         # Run real code_gate
-        outcome = run_stage("pre-commit", resolved_config.code, tmp_path)
+        outcome = gate_stage("pre-commit", resolved_config.code, tmp_path)
 
         # Markdown should render without error (sanity check the formatter)
         markdown = format_markdown(outcome)
@@ -138,7 +138,7 @@ class TestPrReportFlow:
         """D1-2: report(non_blocking=True) → delivery failure does not raise."""
         config = _init_and_install(tmp_path)
         resolved_config = _resolve(config)
-        outcome = run_stage("pre-commit", resolved_config.code, tmp_path)
+        outcome = gate_stage("pre-commit", resolved_config.code, tmp_path)
 
         # No env vars → channel will fail. non_blocking=True must absorb it.
         with patch.dict("os.environ", {}, clear=False):
@@ -171,7 +171,16 @@ class TestJsonOutput:
         config = _init_and_install(tmp_path)
 
         result = runner.invoke(
-            app, ["check", "--config", str(config), "--format", "json"]
+            app,
+            [
+                "run",
+                "--stage",
+                "pre-commit",
+                "--config",
+                str(config),
+                "--format",
+                "json",
+            ],
         )
         assert result.exit_code == 0
 
@@ -216,7 +225,16 @@ class TestJsonOutput:
         )
 
         result = runner.invoke(
-            app, ["check", "--config", str(config), "--format", "json"]
+            app,
+            [
+                "run",
+                "--stage",
+                "pre-commit",
+                "--config",
+                str(config),
+                "--format",
+                "json",
+            ],
         )
         assert result.exit_code == 1
 
@@ -317,12 +335,14 @@ class TestCliPrReportIntegration:
         """D4-1: guard check with pr_report.enabled=true → Channel.send called."""
         config = _write_config_pr_report(tmp_path, enabled=True)
         with (
-            patch("ac_guard.code_gate.core.get_changed_files", return_value=[]),
+            patch("ac_guard.code_gate.core._get_changed_files", return_value=[]),
             patch(
                 "ac_guard.reporter.channels.github.GitHubChannel.output"
             ) as mock_send,
         ):
-            result = runner.invoke(app, ["check", "--config", str(config)])
+            result = runner.invoke(
+                app, ["run", "--stage", "pre-commit", "--config", str(config)]
+            )
         assert result.exit_code == 0
         assert mock_send.call_count == 1
         markdown_arg = mock_send.call_args[0][0]
@@ -335,13 +355,13 @@ class TestCliPrReportIntegration:
         """D4-2: guard gate run with pr_report.enabled=true → Channel.send called."""
         config = _write_config_pr_report(tmp_path, enabled=True)
         with (
-            patch("ac_guard.code_gate.core.get_changed_files", return_value=[]),
+            patch("ac_guard.code_gate.core._get_changed_files", return_value=[]),
             patch(
                 "ac_guard.reporter.channels.github.GitHubChannel.output"
             ) as mock_send,
         ):
             result = runner.invoke(
-                app, ["gate", "run", "--stage", "pre-commit", "--config", str(config)]
+                app, ["run", "--stage", "pre-commit", "--config", str(config)]
             )
         assert result.exit_code == 0
         assert mock_send.call_count == 1
@@ -350,14 +370,16 @@ class TestCliPrReportIntegration:
         """D4-3: NoPrContextError from channel.send → no stderr warning."""
         config = _write_config_pr_report(tmp_path, enabled=True)
         with (
-            patch("ac_guard.code_gate.core.get_changed_files", return_value=[]),
+            patch("ac_guard.code_gate.core._get_changed_files", return_value=[]),
             patch(
                 "ac_guard.reporter.channels.github.GitHubChannel.output",
                 side_effect=NoPrContextError("Cannot determine PR number"),
             ),
         ):
             result = runner.invoke(
-                app, ["check", "--config", str(config)], catch_exceptions=False
+                app,
+                ["run", "--stage", "pre-commit", "--config", str(config)],
+                catch_exceptions=False,
             )
         assert result.exit_code == 0
         combined = result.output + (
@@ -372,7 +394,7 @@ class TestCliPrReportIntegration:
         """D4-4: Non-NoPrContext ChannelError → stderr warning preserved."""
         config = _write_config_pr_report(tmp_path, enabled=True)
         with (
-            patch("ac_guard.code_gate.core.get_changed_files", return_value=[]),
+            patch("ac_guard.code_gate.core._get_changed_files", return_value=[]),
             patch(
                 "ac_guard.reporter.channels.github.GitHubChannel.output",
                 side_effect=ChannelError("GitHub API returned 500"),
@@ -380,7 +402,9 @@ class TestCliPrReportIntegration:
         ):
             # CliRunner merges stdout+stderr by default; check full output
             result = runner.invoke(
-                app, ["check", "--config", str(config)], catch_exceptions=False
+                app,
+                ["run", "--stage", "pre-commit", "--config", str(config)],
+                catch_exceptions=False,
             )
         assert result.exit_code == 0
         combined = result.output + (
@@ -395,12 +419,14 @@ class TestCliPrReportIntegration:
         """D4-5: pr_report.enabled=false → channel.send never invoked."""
         config = _write_config_pr_report(tmp_path, enabled=False)
         with (
-            patch("ac_guard.code_gate.core.get_changed_files", return_value=[]),
+            patch("ac_guard.code_gate.core._get_changed_files", return_value=[]),
             patch(
                 "ac_guard.reporter.channels.github.GitHubChannel.output"
             ) as mock_send,
         ):
-            result = runner.invoke(app, ["check", "--config", str(config)])
+            result = runner.invoke(
+                app, ["run", "--stage", "pre-commit", "--config", str(config)]
+            )
         assert result.exit_code == 0
         assert mock_send.call_count == 0
 

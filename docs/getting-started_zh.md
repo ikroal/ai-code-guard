@@ -158,8 +158,8 @@ your-python-project/
 │   └── runtime.json               # 运行时策略缓存
 ├── .claude/hooks/interceptor.py  # Claude Code pre_tool_use hook
 └── .git/hooks/
-    ├── pre-commit                # → ac-guard gate run --stage commit
-    └── pre-push                  # → ac-guard gate run --stage push
+    ├── pre-commit                # → ac-guard run --stage pre-commit
+    └── pre-push                  # → ac-guard run --stage pre-push
 ```
 
 上面每个文件都是 **由工具管理** 的：重跑 `ac-guard install` 或
@@ -193,7 +193,7 @@ opencode      yes     yes     AGENTS.md                         -
 
 ```bash
 git add -A
-ac-guard check
+ac-guard run --stage pre-commit
 ```
 
 干净代码上的输出：
@@ -217,7 +217,7 @@ def bad( x,y ):
 
 ```bash
 git add -A
-ac-guard check
+ac-guard run --stage pre-commit
 ```
 
 ```
@@ -231,7 +231,7 @@ Stage: pre-commit — FAILED
 想看具体违规，用机器可读格式：
 
 ```bash
-ac-guard check --format json
+ac-guard run --stage pre-commit --format json
 ```
 
 ```json

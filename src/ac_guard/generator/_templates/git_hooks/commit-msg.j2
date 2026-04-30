@@ -6,4 +6,4 @@
 # Receives the commit message file path as $1; forward to the gate
 # runner so pre-commit hooks for the commit-msg stage can inspect it.
 
-ac-guard gate run --stage commit-msg "$@"
+ac-guard run --stage commit-msg --message-file "$1"
