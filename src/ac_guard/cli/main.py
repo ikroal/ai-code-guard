@@ -301,12 +301,12 @@ def run_cmd(
         typer.Option("--format", help="Output format: text or json"),
     ] = "text",
     message_file: Annotated[
-        Path | None,
+        str | None,
         typer.Option(
             "--message-file",
             help=(
                 "Commit message file path (commit-msg stage only; forwarded "
-                "to the managed framework as the inspection target)."
+                "verbatim to the managed framework as the inspection target)."
             ),
         ),
     ] = None,
@@ -320,7 +320,7 @@ def run_cmd(
             config_path=config,
             skip_build=skip_build,
             output_format=output_format,
-            argv=[str(message_file)] if message_file else None,
+            argv=[message_file] if message_file else None,
         )
     )
 
