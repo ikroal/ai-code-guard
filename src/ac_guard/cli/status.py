@@ -8,18 +8,13 @@ from __future__ import annotations
 
 import hashlib
 import json
-import shlex
 import shutil
-import subprocess
 import sys
-from collections import Counter
 from typing import TYPE_CHECKING
 
 from ac_guard import __version__
 from ac_guard.adapters.registry import get_adapter, list_adapters
-from ac_guard.code_gate import is_modeled_stage
-from ac_guard.config import ConfigError, load_config, resolve_config
-from ac_guard.domain.languages import detect_language
+from ac_guard.config import ConfigError, load_config, resolve_config, runtime_check
 from ac_guard.generator.core import read_state
 
 if TYPE_CHECKING:
@@ -239,16 +234,15 @@ def doctor_command(
     print("\n4. Drift Detection")
     _check_drift(project_root, config_path, tally)
 
-    # 5-7. Config-dependent checks (skip when config failed to load)
+    # 5. Config semantic-runtime checks (skip when config failed to load).
+    # Stage-semantic fit (format/lint placement) is now enforced at L2
+    # of config validation, not here — broken configs fail step 2 above.
+    # The remaining IO-bearing semantic checks (hook PATH resolvability,
+    # language coverage, ruleset paths) live in ``config.runtime_check``;
+    # doctor just renders the diagnostics and aggregates the tally.
     if resolved is not None:
-        print("\n5. Local Hook Entries")
-        _check_local_hook_entries(resolved, project_root, tally)
-
-        print("\n6. Language Coverage")
-        _check_language_coverage(resolved, project_root, tally)
-
-        print("\n7. Stage Semantic Fit")
-        _check_stage_semantic_fit(resolved, tally)
+        print("\n5. Config Semantic Runtime")
+        _render_runtime_check(resolved, project_root, tally)
 
     # Exit policy: FAIL always exits 1. WARN exits 1 only under --strict.
     if tally.fail > 0 or (strict and tally.warn > 0):
@@ -380,182 +374,31 @@ def _check_drift(project_root: Path, config_path: Path, tally: _Tally) -> None:
 
 
 # ---------------------------------------------------------------------------
-# New Phase 2 PR A checks
+# Config semantic-runtime renderer (delegates to config.runtime_check)
 # ---------------------------------------------------------------------------
 
-# Unguarded-language files below this threshold are ignored — avoids noise
-# from scattered config files (.ts shim, single .go vendored, ...).
-_LANGUAGE_COVERAGE_MIN_FILES = 3
 
-
-def _check_local_hook_entries(
+def _render_runtime_check(
     resolved: ResolvedConfig, project_root: Path, tally: _Tally
 ) -> None:
-    """Verify every ``repo: local`` hook's entry resolves to something runnable.
+    """Run config-layer L4 semantic-runtime checks and print diagnostics.
 
-    For each local hook declared under any ``code.<stage>.hooks`` bucket,
-    take the first token of ``entry`` (via ``shlex.split``) and look for
-    it in ``PATH`` or as a file under the project root. Anything that
-    can't be resolved is a ``[FAIL]`` — pre-commit would only surface
-    the error at the first hook invocation, which is too late.
+    All the actual logic — hook PATH resolution, language coverage,
+    ruleset path existence — lives in ``config.runtime_check``. Doctor's
+    only job here is to render each ``Diagnostic`` in the existing
+    ``[ok] / [WARN] / [FAIL]`` style and feed the tally so the exit
+    policy stays uniform across check sections.
     """
-    found_any = False
-    for _stage_name, bucket in resolved.code.buckets():
-        for repo in bucket.hooks:
-            if repo.repo != "local":
-                continue
-            for hook in repo.hooks:
-                # PATH matters only for ``language: system`` — other
-                # languages (python/node/docker/...) have pre-commit
-                # install the entry into an isolated env, so we can't
-                # and shouldn't second-guess availability.
-                if hook.extra.get("language") != "system":
-                    continue
-                entry = hook.extra.get("entry")
-                if not isinstance(entry, str) or not entry.strip():
-                    continue
-                found_any = True
-                token = shlex.split(entry)[0] if entry.strip() else ""
-                if not token:
-                    continue
-                location = _resolve_entry(token, project_root)
-                if location:
-                    print(f"  [ok] {hook.id}: {token} ({location})")
-                else:
-                    print(f"  [FAIL] {hook.id}: {token} not in PATH or project")
-                    print("         Install the tool or adjust the guard.yaml entry.")
-                    tally.fail_inc()
-    if not found_any:
-        print("  [ok] No system-language local hooks to verify")
-
-
-def _resolve_entry(token: str, project_root: Path) -> str | None:
-    """Return a human-readable location string if ``token`` is runnable.
-
-    Tries ``shutil.which`` (PATH) first, then checks whether the token
-    resolves to a file under ``project_root``. Returns ``None`` if
-    neither works.
-    """
-    path = shutil.which(token)
-    if path:
-        return "PATH"
-    candidate = project_root / token
-    if candidate.is_file():
-        return "project-relative"
-    return None
-
-
-def _check_language_coverage(
-    resolved: ResolvedConfig, project_root: Path, tally: _Tally
-) -> None:
-    """Compare ``languages:`` declarations against actual repo files (D9).
-
-    Uses ``git ls-files`` to enumerate tracked files, attributes each to
-    a language by extension (``detect_language``), and cross-references
-    the ``languages:`` map. Three cases:
-
-    - declared + has files → ``[ok]``
-    - declared + zero files → ``[WARN]`` (user likely forgot to stage / wrong lang)
-    - undeclared + ≥ ``_LANGUAGE_COVERAGE_MIN_FILES`` → ``[WARN]``
-    - undeclared + < threshold → silent (scattered config files, not worth noise)
-    """
-    counts = _count_languages_by_extension(project_root)
-    declared = set(resolved.languages.keys())
-
-    # Declared languages
-    for lang in sorted(declared):
-        n = counts.get(lang, 0)
-        if n > 0:
-            print(f"  [ok] {lang}: {n} files")
-        else:
-            print(
-                f"  [WARN] {lang}: declared in languages: but no source files "
-                f"found under {project_root}"
-            )
+    diags = runtime_check(resolved, project_root)
+    for d in diags:
+        if d.level == "fail":
+            print(f"  [FAIL] {d.message}")
+            tally.fail_inc()
+        elif d.level == "warn":
+            print(f"  [WARN] {d.message}")
             tally.warn_inc()
-
-    # Undeclared languages with meaningful presence
-    undeclared = sorted(
-        lang
-        for lang, n in counts.items()
-        if lang not in declared and n >= _LANGUAGE_COVERAGE_MIN_FILES
-    )
-    for lang in undeclared:
-        print(
-            f"  [WARN] {lang}: {counts[lang]} files but no entry in languages: — "
-            f"format/lint shortcuts won't cover them"
-        )
-        tally.warn_inc()
-
-    if not declared and not undeclared:
-        print("  [ok] No tracked source files to check")
-
-
-def _count_languages_by_extension(project_root: Path) -> Counter[str]:
-    """Return ``{language_name: file_count}`` over git-tracked files.
-
-    Falls back to an empty counter if ``git`` fails (e.g. not a repo) —
-    doctor's ``_check_git`` already reports git issues, so we stay silent
-    here to avoid double-reporting.
-    """
-    try:
-        result = subprocess.run(
-            ["git", "ls-files"],
-            cwd=project_root,
-            capture_output=True,
-            text=True,
-            timeout=30,
-            check=False,
-        )
-    except (subprocess.TimeoutExpired, OSError):
-        return Counter()
-
-    if result.returncode != 0:
-        return Counter()
-
-    counts: Counter[str] = Counter()
-    for path in result.stdout.splitlines():
-        lang = detect_language(path)
-        if lang:
-            counts[lang] += 1
-    return counts
-
-
-def _check_stage_semantic_fit(resolved: ResolvedConfig, tally: _Tally) -> None:
-    """Flag format/lint toggles placed on stages where they silent-skip.
-
-    The ``format``/``lint`` shortcuts inject per-language hooks with
-    ``types: [<lang>]`` filtering. On ``commit-msg``/``pre-merge-commit``
-    /``pre-rebase``, pre-commit's runtime type filter never matches the
-    commit-message file (or the branch name for pre-rebase), so those
-    hooks never run. This is pre-commit's native filtering behavior, not
-    an ac-guard restriction — but it's invisible to the user until they
-    notice lint didn't happen, which is too late.
-    """
-    offenders: list[tuple[str, str]] = []
-    for stage_name, bucket in resolved.code.buckets():
-        if is_modeled_stage(stage_name):
-            continue
-        if bucket.format:
-            offenders.append((stage_name, "format"))
-        if bucket.lint:
-            offenders.append((stage_name, "lint"))
-
-    if not offenders:
-        print("  [ok] format/lint shortcuts only on pre-commit/pre-push")
-        return
-
-    for stage_name, toggle in offenders:
-        print(
-            f"  [WARN] code.{stage_name}.{toggle} is on, but pre-commit's "
-            f"types: filter won't match files at the {stage_name} stage — "
-            f"the generated hooks will silent-skip."
-        )
-        print(
-            f"         Move to code.pre-commit.{toggle} or "
-            f"code.pre-push.{toggle}, or remove the toggle."
-        )
-        tally.warn_inc()
+        else:
+            print(f"  [ok] {d.message}")
 
 
 # ---------------------------------------------------------------------------

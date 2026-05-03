@@ -70,6 +70,7 @@ from ac_guard.config.models import (
     Rule,
     StageBucket,
 )
+from ac_guard.config.runtime_check import Diagnostic, runtime_check
 from ac_guard.config.validator import validate_raw_config
 
 __all__ = [
@@ -77,6 +78,7 @@ __all__ = [
     "resolve_config",
     "load_config",
     "validate_raw_config",
+    "runtime_check",
     # Input schema
     "RawConfig",
     # Output schema tree (14 dataclasses reachable from ResolvedConfig)
@@ -94,6 +96,8 @@ __all__ = [
     "OutputConfig",
     "AuditConfig",
     "PrReportConfig",
+    # Diagnostics (runtime-check output)
+    "Diagnostic",
     # Error types
     "ConfigError",
     "ConfigFileNotFoundError",

@@ -10,7 +10,6 @@ from ac_guard.code_gate.core import (
     GateOptions,
     gate_check,
     gate_stage,
-    is_modeled_stage,
 )
 from ac_guard.domain.models import CheckResult, StageOutcome
 
@@ -20,5 +19,4 @@ __all__ = [
     "StageOutcome",
     "gate_check",
     "gate_stage",
-    "is_modeled_stage",
 ]

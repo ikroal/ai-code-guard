@@ -18,7 +18,6 @@ from ac_guard.code_gate.core import (
     _run_command,
     gate_check,
     gate_stage,
-    is_modeled_stage,
 )
 from ac_guard.config.models import CheckItem, CodeConfig, StageBucket
 from ac_guard.domain.models import CheckResult
@@ -166,19 +165,31 @@ class TestFilterFilesByType:
         ]
 
 
-class TestIsModeledStage:
-    def test_modeled(self) -> None:
-        assert is_modeled_stage("pre-commit") is True
-        assert is_modeled_stage("pre-push") is True
+class TestStrategyDispatch:
+    """``_STRATEGIES`` is the dispatch table behind ``gate_stage``."""
 
-    def test_not_modeled(self) -> None:
-        assert is_modeled_stage("commit-msg") is False
-        assert is_modeled_stage("pre-merge-commit") is False
-        assert is_modeled_stage("pre-rebase") is False
+    def test_modeled_stages_use_self_orchestration(self) -> None:
+        """pre-commit / pre-push run via Commit/Push strategy, not delegated."""
+        from ac_guard.code_gate.core import (
+            _STRATEGIES,
+            _CommitStrategy,
+            _PushStrategy,
+        )
 
-    def test_unknown(self) -> None:
-        """Unknown stages are not modeled."""
-        assert is_modeled_stage("post-commit") is False
+        assert isinstance(_STRATEGIES["pre-commit"], _CommitStrategy)
+        assert isinstance(_STRATEGIES["pre-push"], _PushStrategy)
+
+    def test_delegated_stages_use_delegated_strategy(self) -> None:
+        """commit-msg / pre-merge-commit / pre-rebase delegate to managed framework."""
+        from ac_guard.code_gate.core import _STRATEGIES, _DelegatedStrategy
+
+        for stage in ("commit-msg", "pre-merge-commit", "pre-rebase"):
+            assert isinstance(_STRATEGIES[stage], _DelegatedStrategy)
+
+    def test_unknown_stage_not_in_table(self) -> None:
+        from ac_guard.code_gate.core import _STRATEGIES
+
+        assert "post-commit" not in _STRATEGIES
 
 
 class TestGateStage:
@@ -552,10 +563,10 @@ class TestDelegateManagedStage:
 class TestStageStrategies:
     """White-box tests for the per-stage strategy classes.
 
-    ``gate_stage`` / ``is_modeled_stage`` route to these strategies. The
-    public-facing tests in ``TestGateStage`` / ``TestIsModeledStage``
-    cover end-to-end behavior; here we exercise each strategy directly
-    to pin down their contracts.
+    ``gate_stage`` routes to these strategies. The public-facing tests
+    in ``TestGateStage`` cover end-to-end behavior; here we exercise
+    each strategy directly to pin down their contracts. Strategy
+    modeling flags are also exercised through ``TestStrategyModeling``.
     """
 
     def test_commit_strategy_metadata(self) -> None:
@@ -563,7 +574,6 @@ class TestStageStrategies:
 
         strategy = _CommitStrategy()
         assert strategy.stage == "pre-commit"
-        assert strategy.is_modeled is True
 
     def test_commit_strategy_run_uses_pre_commit_bucket(self, tmp_path: Path) -> None:
         from ac_guard.code_gate.core import _CommitStrategy
@@ -582,7 +592,6 @@ class TestStageStrategies:
 
         strategy = _PushStrategy(_CommitStrategy())
         assert strategy.stage == "pre-push"
-        assert strategy.is_modeled is True
 
     def test_push_strategy_runs_commit_first_for_fail_fast(
         self, tmp_path: Path
@@ -629,7 +638,6 @@ class TestStageStrategies:
 
         strategy = _DelegatedStrategy("commit-msg")
         assert strategy.stage == "commit-msg"
-        assert strategy.is_modeled is False
 
     def test_delegated_strategy_wraps_exit_code(self, tmp_path: Path) -> None:
         from ac_guard.code_gate.core import _DelegatedStrategy
@@ -666,7 +674,7 @@ class TestStageStrategies:
 
 
 class TestStrategyRegistry:
-    """The ``_STRATEGIES`` table backs ``gate_stage`` / ``is_modeled_stage``."""
+    """The ``_STRATEGIES`` table backs ``gate_stage``'s dispatch."""
 
     def test_all_five_gating_stages_registered(self) -> None:
         from ac_guard.code_gate.core import _STRATEGIES

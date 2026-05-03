@@ -33,11 +33,17 @@ class ValidationIssue:
             (e.g. "behavior.read.forbidden[0].pattern").
         message: Human-readable description of the problem.
         value: The offending value, if applicable.
+        rule_code: Stable id of the semantic rule that produced this
+            issue. ``None`` for issues raised by structural schema
+            validation (which has no rule code). The semantic driver
+            post-injects this after the rule populates the issue list,
+            so rule functions only worry about path/message/value.
     """
 
     path: str
     message: str
     value: Any = None
+    rule_code: str | None = None
 
 
 class ConfigWarning(UserWarning):

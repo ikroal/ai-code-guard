@@ -319,11 +319,21 @@ class TestRuleDocMarkers:
     _END = "<!-- AI-GUARD:END -->"
 
     def _bump_config(self, config: Path) -> None:
-        """Mutate guard.yaml so `update` has something to regenerate."""
+        """Mutate guard.yaml so `update` has something to regenerate.
+
+        Each call appends a distinct pattern so successive bumps don't
+        violate the L3 ``pattern-uniqueness`` rule.
+        """
         data = yaml.safe_load(config.read_text(encoding="utf-8"))
-        data.setdefault("behavior", {}).setdefault("write", {}).setdefault(
-            "forbidden", []
-        ).append({"pattern": "file:marker-bump/**", "reason": "test"})
+        forbidden = (
+            data.setdefault("behavior", {})
+            .setdefault("write", {})
+            .setdefault("forbidden", [])
+        )
+        # Distinct pattern per call — uses len() as a monotonic suffix.
+        forbidden.append(
+            {"pattern": f"file:marker-bump-{len(forbidden)}/**", "reason": "test"}
+        )
         config.write_text(yaml.dump(data, default_flow_style=False), encoding="utf-8")
 
     def test_install_and_update_keep_single_marker_pair(self, tmp_path: Path) -> None:

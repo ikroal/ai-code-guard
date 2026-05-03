@@ -423,14 +423,21 @@ class TestLanguagesAutoPopulate:
         result = resolve_config(path)
         assert result.languages["python"].format == "ruff format"
 
-    def test_unknown_project_language_leaves_languages_empty(
-        self, tmp_path: Path
-    ) -> None:
-        # Use a language with no defaults mapping
+    def test_unknown_project_language_rejected_by_schema(self, tmp_path: Path) -> None:
+        """Unknown project.language fails schema validation early.
+
+        Before the language enum was added to the schema, an unregistered
+        language flowed through merger and just left ``languages`` empty.
+        Now the schema rejects it before resolve_config can ever populate
+        anything, so the user gets a clear typo-style error up front.
+        """
+        from ac_guard.config.exceptions import ConfigValidationError
+
         data = {"version": 1, "project": {"language": "brainfuck"}}
         path = _write_yaml(tmp_path, data)
-        result = resolve_config(path)
-        assert result.languages == {}
+        with pytest.raises(ConfigValidationError) as exc_info:
+            resolve_config(path)
+        assert any(e.path == "project.language" for e in exc_info.value.errors)
 
 
 # ---------------------------------------------------------------------------
@@ -882,8 +889,15 @@ class TestEdgeCases:
     def test_languages_empty_when_project_language_unknown(
         self, tmp_path: Path
     ) -> None:
-        # A language with no default tool mapping must not synthesize entries.
+        """Unregistered project.language is now a schema error.
+
+        Was: the merger left ``languages`` empty when given an unknown
+        language. Now: schema rejects it up front so the user gets a
+        clear typo-style error rather than silently broken format/lint.
+        """
+        from ac_guard.config.exceptions import ConfigValidationError
+
         data = {"version": 1, "project": {"language": "brainfuck"}}
         path = _write_yaml(tmp_path, data)
-        result = resolve_config(path)
-        assert result.languages == {}
+        with pytest.raises(ConfigValidationError):
+            resolve_config(path)

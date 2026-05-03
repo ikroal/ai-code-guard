@@ -5,9 +5,6 @@ Public API:
         Run all checks configured for a git lifecycle moment.
     gate_check(name, config, project_root, *, options) -> StageOutcome
         Run a single named check (built-in shortcut or custom check).
-    is_modeled_stage(stage) -> bool
-        Whether ac-guard models the stage with a bucket-aware bucket
-        (vs. delegating to the underlying managed framework).
     GateOptions
         Optional refinements: explicit file list, language identifiers,
         build command override.
@@ -50,7 +47,6 @@ __all__ = [
     "GateOptions",
     "gate_check",
     "gate_stage",
-    "is_modeled_stage",
 ]
 
 
@@ -107,7 +103,6 @@ class _StageStrategy(Protocol):
     """Per-stage runtime orchestration. Internal to code_gate."""
 
     stage: str
-    is_modeled: bool
 
     def run(
         self,
@@ -121,7 +116,6 @@ class _CommitStrategy:
     """pre-commit stage: format → lint → custom checks."""
 
     stage = "pre-commit"
-    is_modeled = True
 
     def run(
         self,
@@ -144,7 +138,6 @@ class _PushStrategy:
     """pre-push stage: pre-commit fail-fast → build → lint → custom checks."""
 
     stage = "pre-push"
-    is_modeled = True
 
     def __init__(self, commit_strategy: _CommitStrategy) -> None:
         self._commit = commit_strategy
@@ -185,8 +178,6 @@ class _PushStrategy:
 
 class _DelegatedStrategy:
     """commit-msg / pre-merge-commit / pre-rebase: delegate to managed framework."""
-
-    is_modeled = False
 
     def __init__(self, stage: str) -> None:
         self.stage = stage
@@ -232,19 +223,6 @@ def _get_strategy(stage: str) -> _StageStrategy:
 # ---------------------------------------------------------------------------
 # Public entrypoints
 # ---------------------------------------------------------------------------
-
-
-def is_modeled_stage(stage: str) -> bool:
-    """Return whether ``stage`` is a bucket-aware ac-guard stage.
-
-    Bucket-aware stages (``pre-commit`` / ``pre-push``) run through
-    ac-guard's own format/lint/check/build orchestration. Other gating
-    stages delegate to the underlying managed framework. Unknown stages
-    return ``False`` (total over all string inputs; doctor relies on
-    this for safe iteration).
-    """
-    strategy = _STRATEGIES.get(stage)
-    return strategy is not None and strategy.is_modeled
 
 
 def gate_stage(

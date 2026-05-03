@@ -68,6 +68,7 @@ class TestPackageApi:
             "Violation",
             "languages",
             "managed_block",
+            "stages",
         }
 
     def test_no_marker_leakage_on_domain(self) -> None:
