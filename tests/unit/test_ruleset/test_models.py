@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ac_guard.ruleset.models import CACHE_DIR, RulesetRef
+from ac_guard.ruleset import RulesetRef
 
 
 class TestRulesetRef:
@@ -23,13 +23,3 @@ class TestRulesetRef:
     def test_version_none(self) -> None:
         ref = RulesetRef(url="url", name="name", version=None, raw="url")
         assert ref.version is None
-
-
-class TestCacheDir:
-    """Test CACHE_DIR constant."""
-
-    def test_value(self) -> None:
-        assert CACHE_DIR == ".ac-guard/cache"
-
-    def test_is_string(self) -> None:
-        assert isinstance(CACHE_DIR, str)

@@ -25,6 +25,7 @@ from ac_guard import __version__
 from ac_guard.domain import FileSpec, managed_block
 from ac_guard.generator.exceptions import ArtifactWriteError
 from ac_guard.generator.models import STATE_FILE, GeneratedState
+from ac_guard.ruleset import get_ruleset_dir
 
 if TYPE_CHECKING:
     from ac_guard.adapters.base import AgentAdapter
@@ -522,10 +523,12 @@ def generate_tool_configs(
         to project root directory.
     """
     artifacts: list[FileSpec] = []
-    cache_dir = project_root / ".ac-guard" / "cache"
 
     for ruleset in rulesets:
-        files_dir = cache_dir / ruleset / "files"
+        ruleset_dir = get_ruleset_dir(project_root, ruleset)
+        if ruleset_dir is None:
+            continue
+        files_dir = ruleset_dir / "files"
         if not files_dir.is_dir():
             continue
 
@@ -573,10 +576,12 @@ def generate_check_scripts(
         to ``.ac-guard/checks/``.
     """
     artifacts: list[FileSpec] = []
-    cache_dir = project_root / ".ac-guard" / "cache"
 
     for ruleset in rulesets:
-        checks_dir = cache_dir / ruleset / "checks"
+        ruleset_dir = get_ruleset_dir(project_root, ruleset)
+        if ruleset_dir is None:
+            continue
+        checks_dir = ruleset_dir / "checks"
         if not checks_dir.is_dir():
             continue
 

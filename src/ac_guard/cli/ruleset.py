@@ -6,13 +6,16 @@ from pathlib import Path
 
 import yaml
 
-from ac_guard.ruleset.cache import clear_cache, get_cache_dir, list_cached, read_meta
-from ac_guard.ruleset.exceptions import (
+from ac_guard.ruleset import (
     RulesetError,
+    clear_cache,
+    fetch_ruleset,
+    get_cache_dir,
+    get_ruleset_dir,
+    list_cached,
+    parse_ruleset_url,
+    read_meta,
 )
-from ac_guard.ruleset.fetcher import fetch_ruleset
-from ac_guard.ruleset.models import CACHE_DIR
-from ac_guard.ruleset.parser import parse_ruleset_url
 
 
 def ruleset_fetch_command(url: str, project_root: Path | None = None) -> None:
@@ -93,11 +96,12 @@ def ruleset_list_command(project_root: Path | None = None) -> None:
         print("No cached rulesets.")
         return
 
+    cache_root = get_cache_dir(root)
     print(f"Cached rulesets ({len(names)}):")
     for name in names:
         meta = read_meta(root, name)
         version = (meta.get("version") if meta else None) or "(default branch)"
-        cache_path = f"{CACHE_DIR}/{name}"
+        cache_path = (cache_root / name).relative_to(root)
         print(f"  {name:<25} {version:<20} {cache_path}")
 
 
@@ -114,9 +118,9 @@ def ruleset_show_command(
         project_root: Project root directory. Defaults to cwd.
     """
     root = project_root or Path.cwd()
-    ruleset_dir = root / CACHE_DIR / name
+    ruleset_dir = get_ruleset_dir(root, name)
 
-    if not ruleset_dir.is_dir():
+    if ruleset_dir is None:
         print(f"Error: Ruleset '{name}' not found in cache.")
         print("Run 'ac-guard ruleset fetch <url>' to download it.")
         raise SystemExit(1)
