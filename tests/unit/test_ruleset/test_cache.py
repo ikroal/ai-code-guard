@@ -5,7 +5,16 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from ac_guard.ruleset.cache import clear_cache, get_cache_dir, list_cached, read_meta
+import yaml
+
+from ac_guard.ruleset import (
+    clear_cache,
+    get_cache_dir,
+    get_ruleset_dir,
+    list_cached,
+    load_ruleset_config,
+    read_meta,
+)
 
 
 class TestGetCacheDir:
@@ -146,3 +155,73 @@ class TestReadMeta:
 
     def test_returns_none_when_no_ruleset(self, tmp_path: Path) -> None:
         assert read_meta(tmp_path, "nonexistent") is None
+
+
+class TestGetRulesetDir:
+    """Test get_ruleset_dir."""
+
+    def test_returns_path_when_exists(self, tmp_path: Path) -> None:
+        ruleset = tmp_path / ".ac-guard" / "cache" / "foo"
+        ruleset.mkdir(parents=True)
+        result = get_ruleset_dir(tmp_path, "foo")
+        assert result == ruleset
+
+    def test_returns_none_when_ruleset_missing(self, tmp_path: Path) -> None:
+        cache = tmp_path / ".ac-guard" / "cache"
+        cache.mkdir(parents=True)
+        assert get_ruleset_dir(tmp_path, "missing") is None
+
+    def test_returns_none_when_cache_root_missing(self, tmp_path: Path) -> None:
+        """Cache directory itself does not exist — must not raise."""
+        assert get_ruleset_dir(tmp_path, "anything") is None
+
+    def test_returns_none_when_path_is_file(self, tmp_path: Path) -> None:
+        cache = tmp_path / ".ac-guard" / "cache"
+        cache.mkdir(parents=True)
+        (cache / "imposter").write_text("not a dir", encoding="utf-8")
+        assert get_ruleset_dir(tmp_path, "imposter") is None
+
+
+class TestLoadRulesetConfig:
+    """Test load_ruleset_config."""
+
+    def test_returns_dict(self, tmp_path: Path) -> None:
+        ruleset = tmp_path / ".ac-guard" / "cache" / "foo"
+        ruleset.mkdir(parents=True)
+        config = {
+            "version": 1,
+            "behavior": {"read": {"forbidden": [{"pattern": "file:secret/**"}]}},
+        }
+        (ruleset / "guard.yaml").write_text(yaml.dump(config), encoding="utf-8")
+
+        result = load_ruleset_config(tmp_path, "foo")
+        assert result == config
+
+    def test_returns_none_when_ruleset_missing(self, tmp_path: Path) -> None:
+        assert load_ruleset_config(tmp_path, "missing") is None
+
+    def test_returns_none_when_no_guard_yaml(self, tmp_path: Path) -> None:
+        ruleset = tmp_path / ".ac-guard" / "cache" / "foo"
+        ruleset.mkdir(parents=True)
+        assert load_ruleset_config(tmp_path, "foo") is None
+
+    def test_returns_none_when_yaml_is_not_dict(self, tmp_path: Path) -> None:
+        """YAML payloads that parse to non-dict (null, list, scalar) are rejected."""
+        ruleset = tmp_path / ".ac-guard" / "cache" / "foo"
+        ruleset.mkdir(parents=True)
+        (ruleset / "guard.yaml").write_text("- one\n- two\n", encoding="utf-8")
+        assert load_ruleset_config(tmp_path, "foo") is None
+
+    def test_returns_none_when_yaml_is_empty(self, tmp_path: Path) -> None:
+        ruleset = tmp_path / ".ac-guard" / "cache" / "foo"
+        ruleset.mkdir(parents=True)
+        (ruleset / "guard.yaml").write_text("", encoding="utf-8")
+        # Empty YAML parses to None — non-dict, so returns None.
+        assert load_ruleset_config(tmp_path, "foo") is None
+
+    def test_returns_none_when_guard_yaml_is_directory(self, tmp_path: Path) -> None:
+        """guard.yaml exists as a directory by mistake — handle gracefully."""
+        ruleset = tmp_path / ".ac-guard" / "cache" / "foo"
+        ruleset.mkdir(parents=True)
+        (ruleset / "guard.yaml").mkdir()
+        assert load_ruleset_config(tmp_path, "foo") is None

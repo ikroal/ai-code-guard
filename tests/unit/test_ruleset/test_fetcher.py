@@ -9,16 +9,17 @@ from pathlib import Path
 import pytest
 import yaml
 
-from ac_guard.ruleset.exceptions import (
+from ac_guard.ruleset import (
     RulesetFetchError,
+    RulesetRef,
     RulesetValidationError,
-)
-from ac_guard.ruleset.fetcher import (
-    _is_commit_sha,
     fetch_ruleset,
-    validate_ruleset_dir,
 )
-from ac_guard.ruleset.models import RulesetRef
+
+# `_is_commit_sha` and `_validate_ruleset_dir` are module-private; tests
+# reach them via deep import on purpose to cover branch decisions and
+# edge cases in isolation without round-tripping through a full clone.
+from ac_guard.ruleset.fetcher import _is_commit_sha, _validate_ruleset_dir
 
 # ---------------------------------------------------------------------------
 # Helpers — create local git repos for testing
@@ -170,24 +171,25 @@ class TestIsCommitSha:
         assert _is_commit_sha("abcdxyz") is False
 
 
-class TestValidateRulesetDir:
-    """Test validate_ruleset_dir."""
+class TestValidateRulesetDirInternal:
+    """Edge cases for the private ``_validate_ruleset_dir`` helper.
 
-    def test_valid_dir(self, tmp_path: Path) -> None:
-        (tmp_path / "guard.yaml").write_text(
-            yaml.dump({"behavior": {}}), encoding="utf-8"
-        )
-        # Should not raise
-        validate_ruleset_dir(tmp_path)
+    The "missing guard.yaml" path is also covered indirectly by
+    :class:`TestFetchRuleset.test_missing_guard_yaml_raises`. This class
+    exists to lock the "empty file is still valid" behaviour without
+    requiring a full git clone round-trip.
+    """
 
-    def test_missing_guard_yaml(self, tmp_path: Path) -> None:
-        with pytest.raises(RulesetValidationError, match=r"guard\.yaml"):
-            validate_ruleset_dir(tmp_path)
-
-    def test_empty_guard_yaml(self, tmp_path: Path) -> None:
+    def test_empty_guard_yaml_is_valid(self, tmp_path: Path) -> None:
         (tmp_path / "guard.yaml").write_text("", encoding="utf-8")
-        # Empty YAML is valid (parsed as None/empty) — should not raise
-        validate_ruleset_dir(tmp_path)
+        # Empty YAML parses to None upstream; the structural check only
+        # cares that the file exists.
+        _validate_ruleset_dir(tmp_path)
+
+    def test_guard_yaml_as_directory_is_invalid(self, tmp_path: Path) -> None:
+        (tmp_path / "guard.yaml").mkdir()
+        with pytest.raises(RulesetValidationError, match=r"guard\.yaml"):
+            _validate_ruleset_dir(tmp_path)
 
 
 class TestFetchRuleset:

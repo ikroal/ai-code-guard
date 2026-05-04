@@ -19,7 +19,7 @@ from ac_guard.ruleset.exceptions import RulesetFetchError, RulesetValidationErro
 if TYPE_CHECKING:
     from ac_guard.ruleset.models import RulesetRef
 
-__all__ = ["fetch_ruleset", "validate_ruleset_dir"]
+__all__ = ["fetch_ruleset"]
 
 _GIT_TIMEOUT = 60
 """Timeout in seconds for git operations."""
@@ -68,7 +68,7 @@ def fetch_ruleset(ref: RulesetRef, cache_root: Path) -> Path:
         )
 
     # Validate
-    validate_ruleset_dir(target)
+    _validate_ruleset_dir(target)
 
     # Write metadata
     _write_meta(target, ref)
@@ -76,8 +76,10 @@ def fetch_ruleset(ref: RulesetRef, cache_root: Path) -> Path:
     return target
 
 
-def validate_ruleset_dir(ruleset_dir: Path) -> None:
-    """Verify a ruleset directory contains a ``guard.yaml``.
+def _validate_ruleset_dir(ruleset_dir: Path) -> None:
+    """Verify a freshly-cloned ruleset directory contains a ``guard.yaml``.
+
+    Internal to :func:`fetch_ruleset`; not part of the public surface.
 
     Args:
         ruleset_dir: Path to the cloned ruleset directory.

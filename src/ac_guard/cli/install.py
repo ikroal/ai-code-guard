@@ -9,8 +9,6 @@ from __future__ import annotations
 import contextlib
 from typing import TYPE_CHECKING, Any
 
-import yaml
-
 from ac_guard.adapters.registry import AdapterNotFoundError, get_adapter, list_adapters
 from ac_guard.audit import prune_by_age
 from ac_guard.config import (
@@ -33,7 +31,7 @@ from ac_guard.generator.core import (
 )
 from ac_guard.generator.exceptions import ArtifactWriteError
 from ac_guard.generator.models import STATE_FILE
-from ac_guard.ruleset.cache import get_cache_dir
+from ac_guard.ruleset import load_ruleset_config
 
 _LEGACY_RUNTIME_CACHE = ".ac-guard/policy.json"
 
@@ -191,13 +189,15 @@ def _load_ruleset_configs(
 ) -> list[tuple[str, dict[str, Any]]]:
     """Load guard.yaml from each cached ruleset.
 
-    For each ruleset name listed in the project config, looks for
-    a cached copy under ``.ac-guard/cache/<name>/guard.yaml``.
-    Warns (but does not fail) if a ruleset is not cached.
+    For each ruleset name in the project config, delegates content
+    access to :func:`ac_guard.ruleset.load_ruleset_config`. Warns (but
+    does not fail) if a ruleset has no usable cached ``guard.yaml`` —
+    either because the ruleset is not cached or because the cached
+    file is missing/unparseable.
 
     Ruleset guard.yaml files are config fragments (they may lack
-    ``version`` and ``project`` fields), so they are loaded without
-    schema validation — the merger handles partial configs.
+    ``version`` and ``project`` fields); schema validation is
+    deferred to the merger.
 
     Args:
         project_root: Path to the project root.
@@ -205,26 +205,17 @@ def _load_ruleset_configs(
 
     Returns:
         List of ``(name, raw_config)`` pairs for rulesets that
-        have a cached ``guard.yaml``.
+        have a usable cached ``guard.yaml``.
     """
-    if not rulesets:
-        return []
-
-    cache_dir = get_cache_dir(project_root)
     pairs: list[tuple[str, dict[str, Any]]] = []
-
     for name in rulesets:
-        rs_config_path = cache_dir / name / "guard.yaml"
-        if rs_config_path.is_file():
-            with open(rs_config_path, encoding="utf-8") as f:
-                data = yaml.safe_load(f)
-            if isinstance(data, dict):
-                pairs.append((name, data))  # type: ignore[arg-type]
+        data = load_ruleset_config(project_root, name)
+        if data is not None:
+            pairs.append((name, data))
         else:
             print(
                 f"Warning: Ruleset '{name}' not cached. Run: ac-guard ruleset fetch <url>"
             )
-
     return pairs
 
 
