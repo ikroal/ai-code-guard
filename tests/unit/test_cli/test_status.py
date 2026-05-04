@@ -11,7 +11,7 @@ import yaml
 from typer.testing import CliRunner
 
 from ac_guard.cli.main import app
-from ac_guard.generator.models import STATE_FILE, GeneratedState
+from ac_guard.generator import Installation, installation_path
 
 runner = CliRunner()
 
@@ -40,15 +40,15 @@ def _write_state(
     agents: list[str] | None = None,
     config_hash: str = "abcd1234",
     artifacts: list[str] | None = None,
-) -> GeneratedState:
-    """Write a state.json and return the GeneratedState."""
-    state = GeneratedState(
+) -> Installation:
+    """Write a state.json and return the Installation."""
+    state = Installation(
         ac_guard_version="0.1.0",
         installed_agents=agents or ["claude-code"],
         config_hash=config_hash,
         artifacts=artifacts or ["CLAUDE.md", ".ac-guard/runtime.json"],
     )
-    state_path = project_root / STATE_FILE
+    state_path = installation_path(project_root)
     state_path.parent.mkdir(parents=True, exist_ok=True)
     state_path.write_text(state.to_json(), encoding="utf-8")
     return state
@@ -143,8 +143,8 @@ class TestStatusCommand:
         """status detects tool version mismatch."""
         config = installed_project / "guard.yaml"
         # Set state version to something different
-        state_path = installed_project / STATE_FILE
-        state = GeneratedState.from_json(state_path.read_text(encoding="utf-8"))
+        state_path = installation_path(installed_project)
+        state = Installation.from_json(state_path.read_text(encoding="utf-8"))
         state.ac_guard_version = "99.99.99"
         state_path.write_text(state.to_json(), encoding="utf-8")
         result = runner.invoke(app, ["status", "--config", str(config)])

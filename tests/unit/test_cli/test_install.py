@@ -9,7 +9,7 @@ import yaml
 from typer.testing import CliRunner
 
 from ac_guard.cli.main import app
-from ac_guard.generator.models import STATE_FILE, GeneratedState
+from ac_guard.generator import Installation, installation_path
 
 runner = CliRunner()
 
@@ -37,13 +37,13 @@ def project_with_config(tmp_path: Path) -> Path:
 @pytest.fixture
 def installed_project(project_with_config: Path) -> Path:
     """Create a project with an existing installation state."""
-    state = GeneratedState(
+    state = Installation(
         ac_guard_version="0.1.0",
         installed_agents=["claude-code"],
         config_hash="abcd1234",
         artifacts=["CLAUDE.md", ".ac-guard/runtime.json"],
     )
-    state_path = project_with_config / STATE_FILE
+    state_path = installation_path(project_with_config)
     state_path.parent.mkdir(parents=True, exist_ok=True)
     state_path.write_text(state.to_json(), encoding="utf-8")
     # Create the artifact files so uninstall can delete them
@@ -90,9 +90,9 @@ class TestInstallCommand:
         )
         assert result.exit_code == 0
         # State file should exist
-        state_path = project_with_config / STATE_FILE
+        state_path = installation_path(project_with_config)
         assert state_path.is_file()
-        state = GeneratedState.from_json(state_path.read_text(encoding="utf-8"))
+        state = Installation.from_json(state_path.read_text(encoding="utf-8"))
         assert "claude-code" in state.installed_agents
         # Rule doc should exist
         assert (project_with_config / "CLAUDE.md").is_file()
@@ -105,8 +105,8 @@ class TestInstallCommand:
             ["install", "--agent", "claude-code,cursor", "--config", str(config)],
         )
         assert result.exit_code == 0
-        state_path = project_with_config / STATE_FILE
-        state = GeneratedState.from_json(state_path.read_text(encoding="utf-8"))
+        state_path = installation_path(project_with_config)
+        state = Installation.from_json(state_path.read_text(encoding="utf-8"))
         assert "claude-code" in state.installed_agents
         assert "cursor" in state.installed_agents
 
@@ -118,8 +118,8 @@ class TestInstallCommand:
             ["install", "--agent", "cursor", "--config", str(config)],
         )
         assert result.exit_code == 0
-        state_path = installed_project / STATE_FILE
-        state = GeneratedState.from_json(state_path.read_text(encoding="utf-8"))
+        state_path = installation_path(installed_project)
+        state = Installation.from_json(state_path.read_text(encoding="utf-8"))
         assert "claude-code" in state.installed_agents
         assert "cursor" in state.installed_agents
 
@@ -133,8 +133,8 @@ class TestInstallCommand:
             ["install", "--agent", "claude-code", "--config", str(config)],
         )
         assert result.exit_code == 0
-        state_path = installed_project / STATE_FILE
-        state = GeneratedState.from_json(state_path.read_text(encoding="utf-8"))
+        state_path = installation_path(installed_project)
+        state = Installation.from_json(state_path.read_text(encoding="utf-8"))
         assert state.installed_agents.count("claude-code") == 1
 
     def test_install_unknown_agent_fails(self, project_with_config: Path) -> None:
@@ -174,7 +174,7 @@ class TestInstallCommand:
         assert result.exit_code == 0
         assert "Warning" in result.output or "warning" in result.output
         # State should still be created
-        state_path = tmp_path / STATE_FILE
+        state_path = installation_path(tmp_path)
         assert state_path.is_file()
 
     def test_install_creates_state_json(self, project_with_config: Path) -> None:
@@ -185,8 +185,8 @@ class TestInstallCommand:
             ["install", "--agent", "claude-code", "--config", str(config)],
         )
         assert result.exit_code == 0
-        state_path = project_with_config / STATE_FILE
-        state = GeneratedState.from_json(state_path.read_text(encoding="utf-8"))
+        state_path = installation_path(project_with_config)
+        state = Installation.from_json(state_path.read_text(encoding="utf-8"))
         assert state.ac_guard_version
         assert state.config_hash
         assert len(state.artifacts) > 0
@@ -210,8 +210,8 @@ class TestUpdateCommand:
         )
         assert result.exit_code == 0
         # State should still have claude-code
-        state_path = installed_project / STATE_FILE
-        state = GeneratedState.from_json(state_path.read_text(encoding="utf-8"))
+        state_path = installation_path(installed_project)
+        state = Installation.from_json(state_path.read_text(encoding="utf-8"))
         assert "claude-code" in state.installed_agents
 
     def test_update_no_state_fails(self, project_with_config: Path) -> None:
@@ -227,8 +227,8 @@ class TestUpdateCommand:
     def test_update_reflects_config_changes(self, installed_project: Path) -> None:
         """update picks up config changes (new hash)."""
         config = installed_project / "guard.yaml"
-        old_state = GeneratedState.from_json(
-            (installed_project / STATE_FILE).read_text(encoding="utf-8")
+        old_state = Installation.from_json(
+            (installation_path(installed_project)).read_text(encoding="utf-8")
         )
         # Modify config
         config.write_text(
@@ -246,8 +246,8 @@ class TestUpdateCommand:
             ["update", "--config", str(config)],
         )
         assert result.exit_code == 0
-        new_state = GeneratedState.from_json(
-            (installed_project / STATE_FILE).read_text(encoding="utf-8")
+        new_state = Installation.from_json(
+            (installation_path(installed_project)).read_text(encoding="utf-8")
         )
         assert new_state.config_hash != old_state.config_hash
 
@@ -268,7 +268,7 @@ class TestUninstallCommand:
         result = runner.invoke(app, ["uninstall"])
         assert result.exit_code == 0
         assert not (installed_project / "CLAUDE.md").exists()
-        assert not (installed_project / STATE_FILE).exists()
+        assert not (installation_path(installed_project)).exists()
 
     def test_uninstall_no_state_exits_clean(
         self, project_with_config: Path, monkeypatch: pytest.MonkeyPatch

@@ -15,22 +15,17 @@ from ac_guard.config import (
     ConfigError,
     resolve_config,
 )
-from ac_guard.generator.core import (
-    create_state,
+from ac_guard.generator import (
+    ArtifactWriteError,
+    create_installation,
     delete_artifacts,
-    generate_check_scripts,
-    generate_git_hooks,
-    generate_hook_files,
-    generate_policy_cache,
-    generate_precommit_config,
-    generate_rule_docs,
-    generate_tool_configs,
-    read_state,
+    delete_installation,
+    generate_all,
+    installation_path,
+    read_installation,
     write_artifacts,
-    write_state,
+    write_installation,
 )
-from ac_guard.generator.exceptions import ArtifactWriteError
-from ac_guard.generator.models import STATE_FILE
 from ac_guard.ruleset import load_ruleset_config
 
 _LEGACY_RUNTIME_CACHE = ".ac-guard/policy.json"
@@ -40,7 +35,6 @@ if TYPE_CHECKING:
 
     from ac_guard.adapters.base import AgentAdapter
     from ac_guard.config import ResolvedConfig
-    from ac_guard.domain import FileSpec
 
 __all__ = ["install_command", "update_command", "uninstall_command"]
 
@@ -88,46 +82,7 @@ def _run_generator_pipeline(
     Raises:
         ArtifactWriteError: If file writes fail.
     """
-
-    artifacts: list[FileSpec] = []
-
-    # G1: Rule documents
-    artifacts.extend(generate_rule_docs(adapters, resolved_config.behavior))
-
-    # G2: Hook files
-    artifacts.extend(generate_hook_files(adapters, resolved_config.behavior))
-
-    # G3: Tool configs from rulesets (skip existing unless --force)
-    artifacts.extend(generate_tool_configs(project_root, rulesets, force=force))
-
-    # G3b: Check scripts from rulesets (always overwrite)
-    artifacts.extend(generate_check_scripts(project_root, rulesets))
-
-    # G4: Pre-commit config
-    artifacts.append(
-        generate_precommit_config(
-            resolved_config.code,
-            resolved_config.languages,
-            resolved_config.pre_commit_meta,
-        )
-    )
-
-    # G5: Policy cache (runtime.json — behavior + audit config)
-    artifacts.append(
-        generate_policy_cache(
-            resolved_config.behavior,
-            resolved_config.config_hash,
-            audit=resolved_config.output.audit,
-        )
-    )
-
-    # G6: Git hooks
-    git_hooks = generate_git_hooks(project_root, resolved_config.code)
-    if not git_hooks:
-        print("Warning: .git directory not found. Git hooks were not installed.")
-    artifacts.extend(git_hooks)
-
-    # G7: Write all artifacts to disk
+    artifacts = generate_all(project_root, resolved_config, adapters, force=force)
     return write_artifacts(project_root, artifacts)
 
 
@@ -295,7 +250,7 @@ def install_command(
         raise SystemExit(1) from None
 
     # Read existing state for incremental install
-    existing_state = read_state(project_root)
+    existing_state = read_installation(project_root)
     existing_agents = existing_state.installed_agents if existing_state else []
     all_agents = _merge_agents(existing_agents, agents)
 
@@ -312,8 +267,8 @@ def install_command(
         raise SystemExit(1) from None
 
     # Update state
-    state = create_state(all_agents, resolved.config_hash, written_paths)
-    write_state(project_root, state)
+    state = create_installation(all_agents, resolved.config_hash, written_paths)
+    write_installation(project_root, state)
 
     _run_post_install_audit_maintenance(project_root, resolved)
 
@@ -335,7 +290,7 @@ def update_command(
         config_path: Path to guard.yaml.
         force: If True, overwrite existing tool config files.
     """
-    existing_state = read_state(project_root)
+    existing_state = read_installation(project_root)
     if existing_state is None:
         print("Error: AI Code Guard is not installed. Run 'ac-guard install' first.")
         raise SystemExit(1)
@@ -369,10 +324,10 @@ def update_command(
         raise SystemExit(1) from None
 
     # Update state
-    state = create_state(
+    state = create_installation(
         existing_state.installed_agents, resolved.config_hash, written_paths
     )
-    write_state(project_root, state)
+    write_installation(project_root, state)
 
     _run_post_install_audit_maintenance(project_root, resolved)
 
@@ -392,7 +347,7 @@ def uninstall_command(
         project_root: Path to project root directory.
         keep_config: If True, preserves guard.yaml.
     """
-    existing_state = read_state(project_root)
+    existing_state = read_installation(project_root)
     if existing_state is None:
         print("Nothing to uninstall.")
         return
@@ -401,10 +356,8 @@ def uninstall_command(
     deleted = delete_artifacts(project_root, existing_state.artifacts)
 
     # Delete state.json
-    state_path = project_root / STATE_FILE
-    if state_path.is_file():
-        state_path.unlink()
-        deleted.append(STATE_FILE)
+    if delete_installation(project_root):
+        deleted.append(str(installation_path(project_root).relative_to(project_root)))
 
     # Clean up .ac-guard directory if empty
     ac_guard_dir = project_root / ".ac-guard"

@@ -15,7 +15,7 @@ import yaml
 from typer.testing import CliRunner
 
 from ac_guard.cli.main import app
-from ac_guard.generator.models import STATE_FILE, GeneratedState
+from ac_guard.generator import Installation, installation_path
 
 runner = CliRunner()
 
@@ -42,9 +42,9 @@ class TestFullLifecycle:
             ["install", "--agent", "claude-code", "--config", str(config)],
         )
         assert result.exit_code == 0, f"install failed: {result.output}"
-        state_path = tmp_path / STATE_FILE
+        state_path = installation_path(tmp_path)
         assert state_path.is_file()
-        state = GeneratedState.from_json(state_path.read_text(encoding="utf-8"))
+        state = Installation.from_json(state_path.read_text(encoding="utf-8"))
         assert "claude-code" in state.installed_agents
         assert (tmp_path / "CLAUDE.md").is_file()
 
@@ -103,13 +103,13 @@ class TestFullLifecycle:
         runner.invoke(
             app, ["install", "--agent", "claude-code", "--config", str(config)]
         )
-        assert (tmp_path / STATE_FILE).is_file()
+        assert (installation_path(tmp_path)).is_file()
 
         # uninstall --keep-config
         mp.chdir(tmp_path)
         result = runner.invoke(app, ["uninstall", "--keep-config"])
         assert result.exit_code == 0, f"uninstall failed: {result.output}"
-        assert not (tmp_path / STATE_FILE).exists()
+        assert not (installation_path(tmp_path)).exists()
         assert config.is_file()  # guard.yaml preserved
         mp.undo()
 
@@ -131,8 +131,8 @@ class TestMultiAgentLifecycle:
             ["install", "--agent", "claude-code", "--config", str(config)],
         )
         assert result.exit_code == 0
-        state = GeneratedState.from_json(
-            (tmp_path / STATE_FILE).read_text(encoding="utf-8")
+        state = Installation.from_json(
+            (installation_path(tmp_path)).read_text(encoding="utf-8")
         )
         assert state.installed_agents == ["claude-code"]
 
@@ -142,8 +142,8 @@ class TestMultiAgentLifecycle:
             ["install", "--agent", "cursor", "--config", str(config)],
         )
         assert result.exit_code == 0
-        state = GeneratedState.from_json(
-            (tmp_path / STATE_FILE).read_text(encoding="utf-8")
+        state = Installation.from_json(
+            (installation_path(tmp_path)).read_text(encoding="utf-8")
         )
         assert "claude-code" in state.installed_agents
         assert "cursor" in state.installed_agents
@@ -177,8 +177,8 @@ class TestMultiAgentLifecycle:
             ],
         )
         assert result.exit_code == 0
-        state = GeneratedState.from_json(
-            (tmp_path / STATE_FILE).read_text(encoding="utf-8")
+        state = Installation.from_json(
+            (installation_path(tmp_path)).read_text(encoding="utf-8")
         )
         assert len(state.installed_agents) == 3
         assert "claude-code" in state.installed_agents
@@ -309,7 +309,7 @@ class TestErrorRecovery:
         )
         assert result.exit_code == 0
         assert "warning" in result.output.lower()
-        assert (tmp_path / STATE_FILE).is_file()
+        assert (installation_path(tmp_path)).is_file()
 
 
 class TestRuleDocMarkers:

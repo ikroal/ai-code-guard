@@ -19,7 +19,7 @@ from ac_guard.config import (
     diagnose_config,
     resolve_config,
 )
-from ac_guard.generator.core import read_state
+from ac_guard.generator import read_installation
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -61,7 +61,7 @@ def status_command(
         show_rules: Whether to display the active rule list.
         output_format: Output format (``"text"`` or ``"json"``).
     """
-    state = read_state(project_root)
+    state = read_installation(project_root)
 
     if output_format == "json":
         _status_json(state, project_root, config_path)
@@ -79,7 +79,7 @@ def _status_text(
     """Output status as text.
 
     Args:
-        state: GeneratedState or None.
+        state: Installation or None.
         project_root: Path to project root.
         config_path: Path to guard.yaml.
         show_rules: Whether to display active rules.
@@ -136,7 +136,7 @@ def _status_json(state: object, project_root: Path, config_path: Path) -> None:
     """Output status as JSON.
 
     Args:
-        state: GeneratedState or None.
+        state: Installation or None.
         project_root: Path to project root.
         config_path: Path to guard.yaml.
     """
@@ -327,7 +327,7 @@ def _check_config(config_path: Path, tally: _Tally) -> ResolvedConfig | None:
 
 def _check_file_integrity(project_root: Path, tally: _Tally) -> None:
     """Check artifact file integrity."""
-    state = read_state(project_root)
+    state = read_installation(project_root)
     if state is None:
         print("  [WARN] Not installed (no state.json)")
         tally.warn_inc()
@@ -351,7 +351,7 @@ def _check_file_integrity(project_root: Path, tally: _Tally) -> None:
 
 def _check_drift(project_root: Path, config_path: Path, tally: _Tally) -> None:
     """Check configuration drift."""
-    state = read_state(project_root)
+    state = read_installation(project_root)
     if state is None:
         print("  [SKIP] Not installed")
         return
@@ -411,7 +411,7 @@ def agents_command(project_root: Path) -> None:
     Args:
         project_root: Path to project root directory.
     """
-    state = read_state(project_root)
+    state = read_installation(project_root)
     installed = set(state.installed_agents) if state else set()
 
     print("Agent Capability Matrix")

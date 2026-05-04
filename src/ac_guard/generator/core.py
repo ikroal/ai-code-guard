@@ -1,8 +1,8 @@
 """Generator core functions for AI Code Guard.
 
 Implements G1-G7 primitives for artifact generation:
-- G1: generate_rule_docs - Agent-specific rule documents
-- G2: generate_hook_files - Agent-specific Hook scripts
+- G1: _generate_rule_docs - Agent-specific rule documents
+- G2: _generate_hook_files - Agent-specific Hook scripts
 - G3-G6: Agent-agnostic artifacts (WP1.3c)
 - G7: write_artifacts - Write all artifacts to disk
 
@@ -22,9 +22,10 @@ from typing import TYPE_CHECKING, Any
 from jinja2 import Environment, FileSystemLoader
 
 from ac_guard import __version__
+from ac_guard.config import PreCommitMeta
 from ac_guard.domain import FileSpec, managed_block
 from ac_guard.generator.exceptions import ArtifactWriteError
-from ac_guard.generator.models import STATE_FILE, GeneratedState
+from ac_guard.generator.models import Installation, installation_path
 from ac_guard.ruleset import get_ruleset_dir
 
 if TYPE_CHECKING:
@@ -35,27 +36,22 @@ if TYPE_CHECKING:
         CodeConfig,
         LanguageTools,
         OperationRules,
-        PreCommitMeta,
         PreCommitRepo,
+        ResolvedConfig,
         Rule,
         StageBucket,
     )
 
 __all__ = [
-    # G1/G2 primitives
-    "generate_rule_docs",
-    "generate_hook_files",
-    # G3-G6 primitives
-    "generate_policy_cache",
-    "generate_git_hooks",
-    "generate_tool_configs",
-    "generate_precommit_config",
-    # State management
-    "read_state",
-    "write_state",
-    "create_state",
-    # Artifact writing (G7)
+    # Orchestration
+    "generate_all",
     "write_artifacts",
+    # Installation lifecycle
+    "read_installation",
+    "write_installation",
+    "create_installation",
+    "delete_installation",
+    # Cleanup
     "delete_artifacts",
 ]
 
@@ -89,7 +85,7 @@ def _get_generator_env() -> Environment:
 # ---------------------------------------------------------------------------
 
 
-def generate_rule_docs(
+def _generate_rule_docs(
     adapters: list[AgentAdapter],
     behavior: BehaviorConfig,
 ) -> list[FileSpec]:
@@ -118,7 +114,7 @@ def generate_rule_docs(
     return artifacts
 
 
-def generate_hook_files(
+def _generate_hook_files(
     adapters: list[AgentAdapter],
     behavior: BehaviorConfig,
 ) -> list[FileSpec]:
@@ -148,42 +144,42 @@ def generate_hook_files(
 # ---------------------------------------------------------------------------
 
 
-def read_state(project_root: Path) -> GeneratedState | None:
+def read_installation(project_root: Path) -> Installation | None:
     """Read installation state from .ac-guard/state.json.
 
     Args:
         project_root: Path to the project root directory.
 
     Returns:
-        GeneratedState if state.json exists, None otherwise.
+        Installation if state.json exists, None otherwise.
     """
-    state_path = project_root / STATE_FILE
+    state_path = installation_path(project_root)
     if not state_path.is_file():
         return None
     content = state_path.read_text(encoding="utf-8")
-    return GeneratedState.from_json(content)
+    return Installation.from_json(content)
 
 
-def write_state(project_root: Path, state: GeneratedState) -> None:
+def write_installation(project_root: Path, state: Installation) -> None:
     """Write installation state to .ac-guard/state.json.
 
     Creates the .ac-guard/ directory if it doesn't exist.
 
     Args:
         project_root: Path to the project root directory.
-        state: The GeneratedState to write.
+        state: The Installation to write.
     """
-    state_path = project_root / STATE_FILE
+    state_path = installation_path(project_root)
     state_path.parent.mkdir(parents=True, exist_ok=True)
     state_path.write_text(state.to_json(), encoding="utf-8")
 
 
-def create_state(
+def create_installation(
     installed_agents: list[str],
     config_hash: str,
     artifacts: list[str],
-) -> GeneratedState:
-    """Create a new GeneratedState with current tool version.
+) -> Installation:
+    """Create a new Installation with current tool version.
 
     Args:
         installed_agents: List of agent identifiers being installed.
@@ -191,9 +187,9 @@ def create_state(
         artifacts: List of generated artifact paths.
 
     Returns:
-        A new GeneratedState instance.
+        A new Installation instance.
     """
-    return GeneratedState(
+    return Installation(
         ac_guard_version=__version__,
         installed_agents=installed_agents,
         config_hash=config_hash,
@@ -361,7 +357,7 @@ def delete_artifacts(
 # ---------------------------------------------------------------------------
 
 
-def generate_policy_cache(
+def _generate_policy_cache(
     behavior: BehaviorConfig,
     config_hash: str,
     audit: AuditConfig | None = None,
@@ -440,7 +436,7 @@ def _serialize_rule(rule: Rule) -> dict:
 # ---------------------------------------------------------------------------
 
 
-def generate_git_hooks(
+def _generate_git_hooks(
     project_root: Path,
     code: CodeConfig | None = None,
 ) -> list[FileSpec]:
@@ -497,7 +493,7 @@ def generate_git_hooks(
 # ---------------------------------------------------------------------------
 
 
-def generate_tool_configs(
+def _generate_tool_configs(
     project_root: Path,
     rulesets: list[str],
     *,
@@ -556,7 +552,7 @@ def generate_tool_configs(
     return artifacts
 
 
-def generate_check_scripts(
+def _generate_check_scripts(
     project_root: Path,
     rulesets: list[str],
 ) -> list[FileSpec]:
@@ -619,7 +615,7 @@ _LANGUAGE_TYPES = {
 }
 
 
-def generate_precommit_config(
+def _generate_precommit_config(
     code: CodeConfig,
     languages: dict[str, LanguageTools],
     pre_commit_meta: PreCommitMeta | None = None,
@@ -641,8 +637,6 @@ def generate_precommit_config(
     ``code.extra_repos`` are rendered at the end with no injected
     ``stages`` (passthrough only).
     """
-    from ac_guard.config import PreCommitMeta
-
     env = _get_generator_env()
     template = env.get_template("precommit_config.yaml.j2")
 
@@ -754,3 +748,95 @@ def _build_external_repos(
         repo_dict["hooks"] = hooks
         result.append(repo_dict)
     return result
+
+
+# ---------------------------------------------------------------------------
+# Orchestration
+# ---------------------------------------------------------------------------
+
+
+def generate_all(
+    project_root: Path,
+    config: ResolvedConfig,
+    adapters: list[AgentAdapter],
+    *,
+    force: bool = False,
+) -> list[FileSpec]:
+    """Generate the full set of artifacts for a single installation.
+
+    Orchestrates G1→G6 in a fixed order.  The caller is responsible for
+    passing the resulting list to :func:`write_artifacts` (G7) and for
+    managing the installation lifecycle (read/write/create/delete).
+
+    Args:
+        project_root: Path to the project root directory.
+        config: Fully resolved configuration from guard.yaml merge.
+        adapters: List of agent adapters to generate for.
+        force: If ``True``, overwrite existing tool config files (G3).
+
+    Returns:
+        List of :class:`FileSpec` artifacts (not yet written to disk).
+
+    Raises:
+        ArtifactWriteError: If an internal write step fails.
+    """
+    artifacts: list[FileSpec] = []
+
+    # G1: Rule documents (agent-specific)
+    artifacts.extend(_generate_rule_docs(adapters, config.behavior))
+
+    # G2: Hook files (agent-specific, only for can_block adapters)
+    artifacts.extend(_generate_hook_files(adapters, config.behavior))
+
+    # G3: Tool configs from rulesets (skip existing unless --force)
+    artifacts.extend(_generate_tool_configs(project_root, config.rulesets, force=force))
+
+    # G3b: Check scripts from rulesets (always overwrite)
+    artifacts.extend(_generate_check_scripts(project_root, config.rulesets))
+
+    # G4: Pre-commit config
+    artifacts.append(
+        _generate_precommit_config(
+            config.code,
+            config.languages,
+            config.pre_commit_meta,
+        )
+    )
+
+    # G5: Policy cache (runtime.json — behavior + audit config)
+    artifacts.append(
+        _generate_policy_cache(
+            config.behavior,
+            config.config_hash,
+            audit=config.output.audit if config.output else None,
+        )
+    )
+
+    # G6: Git hooks
+    git_hooks = _generate_git_hooks(project_root, config.code)
+    if not git_hooks:
+        print("Warning: .git directory not found. Git hooks were not installed.")
+    artifacts.extend(git_hooks)
+
+    return artifacts
+
+
+# ---------------------------------------------------------------------------
+# Installation lifecycle
+# ---------------------------------------------------------------------------
+
+
+def delete_installation(project_root: Path) -> bool:
+    """Remove the installation state file if it exists.
+
+    Args:
+        project_root: Path to the project root directory.
+
+    Returns:
+        ``True`` if the file was removed, ``False`` if it did not exist.
+    """
+    state_path = installation_path(project_root)
+    if state_path.is_file():
+        state_path.unlink()
+        return True
+    return False
