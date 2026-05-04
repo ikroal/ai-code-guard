@@ -16,7 +16,7 @@ import yaml
 from typer.testing import CliRunner
 
 from ac_guard.cli.main import app
-from ac_guard.generator.models import STATE_FILE
+from ac_guard.generator import installation_path
 
 runner = CliRunner()
 
@@ -215,7 +215,7 @@ class TestInstallWithRuleset:
         assert result.exit_code == 0, f"install failed: {result.output}"
 
         # Verify state was written
-        state_path = tmp_path / STATE_FILE
+        state_path = installation_path(tmp_path)
         assert state_path.is_file()
 
         # Verify the ruleset's .editorconfig was copied via G3

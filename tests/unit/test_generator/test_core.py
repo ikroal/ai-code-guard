@@ -15,23 +15,35 @@ from ac_guard.config.models import (
     CodeConfig,
     LanguageTools,
     OperationRules,
+    OutputConfig,
+    ResolvedConfig,
     Rule,
     StageBucket,
 )
-from ac_guard.domain import FileSpec
-from ac_guard.generator.core import (
-    create_state,
+from ac_guard.generator import (
+    ArtifactWriteError,
+    FileSpec,
+    Installation,
+    create_installation,
     delete_artifacts,
-    generate_git_hooks,
-    generate_policy_cache,
-    generate_precommit_config,
-    generate_tool_configs,
-    read_state,
+    delete_installation,
+    generate_all,
+    installation_path,
+    read_installation,
     write_artifacts,
-    write_state,
+    write_installation,
 )
-from ac_guard.generator.exceptions import ArtifactWriteError
-from ac_guard.generator.models import STATE_FILE, GeneratedState
+
+# Seven G primitives are now module-private (gap 4 in the plan).
+# Tests reach them via deep import — same pattern as ruleset PR #151
+# uses for ``_is_commit_sha`` and ``_validate_ruleset_dir``.
+from ac_guard.generator.core import (
+    _generate_check_scripts,
+    _generate_git_hooks,
+    _generate_policy_cache,
+    _generate_precommit_config,
+    _generate_tool_configs,
+)
 
 # Literal markers for fixture construction in this test module only.
 # Production code operates on managed blocks exclusively through
@@ -47,11 +59,11 @@ MARKER_BEGIN_HASH, MARKER_END_HASH = _MB_HASH
 # ---------------------------------------------------------------------------
 
 
-class TestReadState:
-    """read_state function tests."""
+class TestReadInstallation:
+    """read_installation function tests."""
 
     def test_returns_none_when_file_missing(self, tmp_path: Path) -> None:
-        result = read_state(tmp_path)
+        result = read_installation(tmp_path)
         assert result is None
 
     def test_returns_state_when_file_exists(self, tmp_path: Path) -> None:
@@ -62,82 +74,82 @@ class TestReadState:
             "installed_at": "2026-04-16T12:00:00",
             "artifacts": ["CLAUDE.md"],
         }
-        state_file = tmp_path / STATE_FILE
+        state_file = installation_path(tmp_path)
         state_file.parent.mkdir(parents=True, exist_ok=True)
         state_file.write_text(json.dumps(state_data), encoding="utf-8")
 
-        result = read_state(tmp_path)
+        result = read_installation(tmp_path)
         assert result is not None
         assert result.ac_guard_version == "0.1.0"
         assert result.installed_agents == ["claude-code"]
 
     def test_handles_empty_state_file(self, tmp_path: Path) -> None:
-        state_file = tmp_path / STATE_FILE
+        state_file = installation_path(tmp_path)
         state_file.parent.mkdir(parents=True, exist_ok=True)
         state_file.write_text("{}", encoding="utf-8")
 
-        result = read_state(tmp_path)
+        result = read_installation(tmp_path)
         assert result is not None
         assert result.installed_agents == []
 
 
-class TestWriteState:
-    """write_state function tests."""
+class TestWriteInstallation:
+    """write_installation function tests."""
 
     def test_creates_ac_guard_directory(self, tmp_path: Path) -> None:
-        state = GeneratedState(
+        state = Installation(
             ac_guard_version="0.1.0",
             installed_agents=["claude-code"],
             config_hash="abc",
             installed_at=datetime.now(),
             artifacts=["x"],
         )
-        write_state(tmp_path, state)
+        write_installation(tmp_path, state)
         assert (tmp_path / ".ac-guard").is_dir()
-        assert (tmp_path / STATE_FILE).is_file()
+        assert (installation_path(tmp_path)).is_file()
 
     def test_writes_valid_json(self, tmp_path: Path) -> None:
-        state = GeneratedState(
+        state = Installation(
             ac_guard_version="0.1.0",
             installed_agents=["claude-code", "cursor"],
             config_hash="abc123",
             installed_at=datetime(2026, 4, 16, 14, 0, 0),
             artifacts=["CLAUDE.md", ".cursor/rules"],
         )
-        write_state(tmp_path, state)
+        write_installation(tmp_path, state)
 
-        content = (tmp_path / STATE_FILE).read_text(encoding="utf-8")
+        content = (installation_path(tmp_path)).read_text(encoding="utf-8")
         data = json.loads(content)
         assert data["ac_guard_version"] == "0.1.0"
         assert data["installed_agents"] == ["claude-code", "cursor"]
 
     def test_overwrites_existing_state(self, tmp_path: Path) -> None:
         # Write initial state
-        state1 = GeneratedState(
+        state1 = Installation(
             ac_guard_version="0.1.0",
             installed_agents=["claude-code"],
             installed_at=datetime.now(),
         )
-        write_state(tmp_path, state1)
+        write_installation(tmp_path, state1)
 
         # Write updated state
-        state2 = GeneratedState(
+        state2 = Installation(
             ac_guard_version="0.1.0",
             installed_agents=["claude-code", "cursor"],
             installed_at=datetime.now(),
         )
-        write_state(tmp_path, state2)
+        write_installation(tmp_path, state2)
 
-        result = read_state(tmp_path)
+        result = read_installation(tmp_path)
         assert result is not None
         assert result.installed_agents == ["claude-code", "cursor"]
 
 
-class TestCreateState:
-    """create_state function tests."""
+class TestCreateInstallation:
+    """create_installation function tests."""
 
     def test_creates_state_with_current_version(self) -> None:
-        state = create_state(
+        state = create_installation(
             installed_agents=["claude-code"],
             config_hash="abc123",
             artifacts=["CLAUDE.md"],
@@ -408,19 +420,19 @@ class TestGeneratePolicyCache:
 
     def test_returns_file_spec(self) -> None:
         behavior = BehaviorConfig.empty()
-        result = generate_policy_cache(behavior, "abc123")
+        result = _generate_policy_cache(behavior, "abc123")
         assert isinstance(result, FileSpec)
         assert result.path == ".ac-guard/runtime.json"
 
     def test_includes_config_hash(self) -> None:
         behavior = BehaviorConfig.empty()
-        result = generate_policy_cache(behavior, "test_hash")
+        result = _generate_policy_cache(behavior, "test_hash")
         data = json.loads(result.content)
         assert data["config_hash"] == "test_hash"
 
     def test_serializes_empty_behavior(self) -> None:
         behavior = BehaviorConfig.empty()
-        result = generate_policy_cache(behavior, "hash")
+        result = _generate_policy_cache(behavior, "hash")
         data = json.loads(result.content)
         assert "behavior" in data
         assert data["behavior"]["read"]["forbidden"] == []
@@ -439,7 +451,7 @@ class TestGeneratePolicyCache:
             write=OperationRules.empty(),
             execute=OperationRules.empty(),
         )
-        result = generate_policy_cache(behavior, "hash")
+        result = _generate_policy_cache(behavior, "hash")
         data = json.loads(result.content)
         assert data["behavior"]["read"]["forbidden"][0]["pattern"] == "file:.env"
         assert data["behavior"]["read"]["forbidden"][0]["reason"] == "secrets"
@@ -455,7 +467,7 @@ class TestGeneratePolicyCache:
             write=OperationRules.empty(),
             execute=OperationRules.empty(),
         )
-        result = generate_policy_cache(behavior, "hash")
+        result = _generate_policy_cache(behavior, "hash")
         data = json.loads(result.content)
         rule = data["behavior"]["read"]["forbidden"][0]
         assert "reason" not in rule
@@ -467,7 +479,7 @@ class TestGeneratePolicyCache:
 
         behavior = BehaviorConfig.empty()
         audit = AuditConfig(enabled=True, path=".ac-guard/audit.jsonl", retention=60)
-        result = generate_policy_cache(behavior, "hash", audit=audit)
+        result = _generate_policy_cache(behavior, "hash", audit=audit)
         data = json.loads(result.content)
         assert data["audit"] == {
             "enabled": True,
@@ -477,7 +489,7 @@ class TestGeneratePolicyCache:
 
     def test_runtime_cache_omits_audit_when_none(self) -> None:
         behavior = BehaviorConfig.empty()
-        result = generate_policy_cache(behavior, "hash")
+        result = _generate_policy_cache(behavior, "hash")
         data = json.loads(result.content)
         assert "audit" not in data
 
@@ -491,7 +503,7 @@ class TestGeneratePolicyCache:
             write=OperationRules.empty(),
             execute=OperationRules.empty(),
         )
-        result = generate_policy_cache(behavior, "hash")
+        result = _generate_policy_cache(behavior, "hash")
         data = json.loads(result.content)
         rule = data["behavior"]["read"]["forbidden"][0]
         assert rule["regex"] is True
@@ -506,19 +518,19 @@ class TestGenerateGitHooks:
     """generate_git_hooks function tests."""
 
     def test_returns_empty_list_when_git_missing(self, tmp_path: Path) -> None:
-        result = generate_git_hooks(tmp_path)
+        result = _generate_git_hooks(tmp_path)
         assert result == []
 
     def test_returns_hooks_when_git_exists(self, tmp_path: Path) -> None:
         (tmp_path / ".git").mkdir()
         (tmp_path / ".git" / "hooks").mkdir()
-        result = generate_git_hooks(tmp_path)
+        result = _generate_git_hooks(tmp_path)
         assert len(result) == 2
 
     def test_hooks_have_correct_paths(self, tmp_path: Path) -> None:
         (tmp_path / ".git").mkdir()
         (tmp_path / ".git" / "hooks").mkdir()
-        result = generate_git_hooks(tmp_path)
+        result = _generate_git_hooks(tmp_path)
         paths = [a.path for a in result]
         assert ".git/hooks/pre-commit" in paths
         assert ".git/hooks/pre-push" in paths
@@ -526,28 +538,28 @@ class TestGenerateGitHooks:
     def test_hooks_are_executable(self, tmp_path: Path) -> None:
         (tmp_path / ".git").mkdir()
         (tmp_path / ".git" / "hooks").mkdir()
-        result = generate_git_hooks(tmp_path)
+        result = _generate_git_hooks(tmp_path)
         for hook in result:
             assert hook.executable is True
 
     def test_hooks_contain_guard_command(self, tmp_path: Path) -> None:
         (tmp_path / ".git").mkdir()
         (tmp_path / ".git" / "hooks").mkdir()
-        result = generate_git_hooks(tmp_path)
+        result = _generate_git_hooks(tmp_path)
         for hook in result:
             assert "ac-guard run --stage" in hook.content
 
     def test_pre_commit_has_correct_stage(self, tmp_path: Path) -> None:
         (tmp_path / ".git").mkdir()
         (tmp_path / ".git" / "hooks").mkdir()
-        result = generate_git_hooks(tmp_path)
+        result = _generate_git_hooks(tmp_path)
         pre_commit = next(a for a in result if "pre-commit" in a.path)
         assert "--stage pre-commit" in pre_commit.content
 
     def test_pre_push_has_correct_stage(self, tmp_path: Path) -> None:
         (tmp_path / ".git").mkdir()
         (tmp_path / ".git" / "hooks").mkdir()
-        result = generate_git_hooks(tmp_path)
+        result = _generate_git_hooks(tmp_path)
         pre_push = next(a for a in result if "pre-push" in a.path)
         assert "--stage pre-push" in pre_push.content
 
@@ -561,11 +573,11 @@ class TestGenerateToolConfigs:
     """generate_tool_configs function tests."""
 
     def test_returns_empty_list_when_no_rulesets(self, tmp_path: Path) -> None:
-        result = generate_tool_configs(tmp_path, [])
+        result = _generate_tool_configs(tmp_path, [])
         assert result == []
 
     def test_returns_empty_list_when_cache_missing(self, tmp_path: Path) -> None:
-        result = generate_tool_configs(tmp_path, ["company-rules"])
+        result = _generate_tool_configs(tmp_path, ["company-rules"])
         assert result == []
 
     def test_copies_files_from_ruleset(self, tmp_path: Path) -> None:
@@ -574,7 +586,7 @@ class TestGenerateToolConfigs:
         cache_dir.mkdir(parents=True)
         (cache_dir / ".clang-format").write_text("Format config", encoding="utf-8")
 
-        result = generate_tool_configs(tmp_path, ["company-rules"])
+        result = _generate_tool_configs(tmp_path, ["company-rules"])
         assert len(result) == 1
         assert result[0].path == ".clang-format"
         assert result[0].content == "Format config"
@@ -589,7 +601,7 @@ class TestGenerateToolConfigs:
         cache2.mkdir(parents=True)
         (cache2 / "config-b.yaml").write_text("b", encoding="utf-8")
 
-        result = generate_tool_configs(tmp_path, ["ruleset-a", "ruleset-b"])
+        result = _generate_tool_configs(tmp_path, ["ruleset-a", "ruleset-b"])
         assert len(result) == 2
         paths = [a.path for a in result]
         assert "config-a.yaml" in paths
@@ -601,7 +613,7 @@ class TestGenerateToolConfigs:
         cache.mkdir(parents=True)
         (cache / "file.txt").write_text("content", encoding="utf-8")
 
-        result = generate_tool_configs(tmp_path, ["existing", "missing"])
+        result = _generate_tool_configs(tmp_path, ["existing", "missing"])
         assert len(result) == 1
         assert result[0].path == "file.txt"
 
@@ -612,7 +624,7 @@ class TestGenerateToolConfigs:
         # Write binary file
         (cache / "binary.bin").write_bytes(b"\x00\xff\xfe")
 
-        result = generate_tool_configs(tmp_path, ["ruleset"])
+        result = _generate_tool_configs(tmp_path, ["ruleset"])
         # Should only have text file
         assert len(result) == 1
         assert result[0].path == "text.txt"
@@ -632,7 +644,7 @@ class TestGenerateToolConfigsForce:
         # User already has this file
         (tmp_path / ".editorconfig").write_text("user content", encoding="utf-8")
 
-        result = generate_tool_configs(tmp_path, ["rules"], force=False)
+        result = _generate_tool_configs(tmp_path, ["rules"], force=False)
         assert len(result) == 0
 
         captured = capsys.readouterr()
@@ -647,7 +659,7 @@ class TestGenerateToolConfigsForce:
 
         (tmp_path / ".editorconfig").write_text("user content", encoding="utf-8")
 
-        result = generate_tool_configs(tmp_path, ["rules"], force=True)
+        result = _generate_tool_configs(tmp_path, ["rules"], force=True)
         assert len(result) == 1
         assert result[0].content == "ruleset content"
 
@@ -657,7 +669,7 @@ class TestGenerateToolConfigsForce:
         cache.mkdir(parents=True)
         (cache / "new-config.yml").write_text("new", encoding="utf-8")
 
-        result = generate_tool_configs(tmp_path, ["rules"], force=False)
+        result = _generate_tool_configs(tmp_path, ["rules"], force=False)
         assert len(result) == 1
         assert result[0].path == "new-config.yml"
 
@@ -672,7 +684,7 @@ class TestGenerateToolConfigsForce:
 
         (tmp_path / "existing.cfg").write_text("user version", encoding="utf-8")
 
-        result = generate_tool_configs(tmp_path, ["rules"], force=False)
+        result = _generate_tool_configs(tmp_path, ["rules"], force=False)
         assert len(result) == 1
         assert result[0].path == "new.cfg"
 
@@ -681,32 +693,24 @@ class TestGenerateCheckScripts:
     """generate_check_scripts function tests."""
 
     def test_returns_empty_list_when_no_rulesets(self, tmp_path: Path) -> None:
-        from ac_guard.generator.core import generate_check_scripts
-
-        result = generate_check_scripts(tmp_path, [])
+        result = _generate_check_scripts(tmp_path, [])
         assert result == []
 
     def test_returns_empty_list_when_cache_missing(self, tmp_path: Path) -> None:
-        from ac_guard.generator.core import generate_check_scripts
-
-        result = generate_check_scripts(tmp_path, ["company-rules"])
+        result = _generate_check_scripts(tmp_path, ["company-rules"])
         assert result == []
 
     def test_copies_scripts_to_ac_guard_checks(self, tmp_path: Path) -> None:
-        from ac_guard.generator.core import generate_check_scripts
-
         cache = tmp_path / ".ac-guard" / "cache" / "rules" / "checks"
         cache.mkdir(parents=True)
         (cache / "encoding_check.py").write_text("# check", encoding="utf-8")
 
-        result = generate_check_scripts(tmp_path, ["rules"])
+        result = _generate_check_scripts(tmp_path, ["rules"])
         assert len(result) == 1
         assert result[0].path == ".ac-guard/checks/encoding_check.py"
         assert result[0].content == "# check"
 
     def test_copies_from_multiple_rulesets(self, tmp_path: Path) -> None:
-        from ac_guard.generator.core import generate_check_scripts
-
         cache1 = tmp_path / ".ac-guard" / "cache" / "a" / "checks"
         cache1.mkdir(parents=True)
         (cache1 / "check_a.py").write_text("a", encoding="utf-8")
@@ -715,33 +719,29 @@ class TestGenerateCheckScripts:
         cache2.mkdir(parents=True)
         (cache2 / "check_b.py").write_text("b", encoding="utf-8")
 
-        result = generate_check_scripts(tmp_path, ["a", "b"])
+        result = _generate_check_scripts(tmp_path, ["a", "b"])
         assert len(result) == 2
         paths = [r.path for r in result]
         assert ".ac-guard/checks/check_a.py" in paths
         assert ".ac-guard/checks/check_b.py" in paths
 
     def test_skips_binary_files(self, tmp_path: Path) -> None:
-        from ac_guard.generator.core import generate_check_scripts
-
         cache = tmp_path / ".ac-guard" / "cache" / "rules" / "checks"
         cache.mkdir(parents=True)
         (cache / "check.py").write_text("# ok", encoding="utf-8")
         (cache / "binary.bin").write_bytes(b"\x00\xff\xfe")
 
-        result = generate_check_scripts(tmp_path, ["rules"])
+        result = _generate_check_scripts(tmp_path, ["rules"])
         assert len(result) == 1
         assert result[0].path == ".ac-guard/checks/check.py"
 
     def test_skips_missing_checks_dir(self, tmp_path: Path) -> None:
-        from ac_guard.generator.core import generate_check_scripts
-
         # Ruleset exists in cache but has no checks/ dir
         cache = tmp_path / ".ac-guard" / "cache" / "rules"
         cache.mkdir(parents=True)
         (cache / "guard.yaml").write_text("version: 1", encoding="utf-8")
 
-        result = generate_check_scripts(tmp_path, ["rules"])
+        result = _generate_check_scripts(tmp_path, ["rules"])
         assert result == []
 
 
@@ -756,34 +756,34 @@ class TestGeneratePrecommitConfig:
     def test_returns_file_spec(self) -> None:
         code = CodeConfig()
         languages = {"python": LanguageTools(format="black", lint="ruff")}
-        result = generate_precommit_config(code, languages)
+        result = _generate_precommit_config(code, languages)
         assert isinstance(result, FileSpec)
         assert result.path == ".pre-commit-config.yaml"
 
     def test_includes_repo_local(self) -> None:
         code = CodeConfig(pre_commit=StageBucket(format=True))
         languages = {"python": LanguageTools(format="black", lint="ruff")}
-        result = generate_precommit_config(code, languages)
+        result = _generate_precommit_config(code, languages)
         assert "repo: local" in result.content
 
     def test_includes_format_hooks_when_enabled(self) -> None:
         code = CodeConfig(pre_commit=StageBucket(format=True))
         languages = {"python": LanguageTools(format="black", lint="ruff")}
-        result = generate_precommit_config(code, languages)
+        result = _generate_precommit_config(code, languages)
         assert "format-python" in result.content
         assert "black" in result.content
 
     def test_includes_lint_hooks_when_enabled(self) -> None:
         code = CodeConfig(pre_push=StageBucket(lint=True))
         languages = {"python": LanguageTools(format="black", lint="ruff")}
-        result = generate_precommit_config(code, languages)
+        result = _generate_precommit_config(code, languages)
         assert "lint-python" in result.content
         assert "ruff" in result.content
 
     def test_omits_format_when_disabled(self) -> None:
         code = CodeConfig(pre_commit=StageBucket(format=False))
         languages = {"python": LanguageTools(format="black", lint="ruff")}
-        result = generate_precommit_config(code, languages)
+        result = _generate_precommit_config(code, languages)
         assert "format-python" not in result.content
 
     def test_includes_custom_checks(self) -> None:
@@ -795,14 +795,14 @@ class TestGeneratePrecommitConfig:
             ),
         )
         languages = {}
-        result = generate_precommit_config(code, languages)
+        result = _generate_precommit_config(code, languages)
         assert "custom-test" in result.content
         assert "pytest" in result.content
 
     def test_includes_language_types(self) -> None:
         code = CodeConfig(pre_commit=StageBucket(format=True))
         languages = {"python": LanguageTools(format="black", lint="ruff")}
-        result = generate_precommit_config(code, languages)
+        result = _generate_precommit_config(code, languages)
         # Schema v2 emits JSON-serialized types (via ``tojson`` filter)
         assert '"python"' in result.content
 
@@ -814,7 +814,7 @@ class TestGeneratePrecommitConfig:
             "python": LanguageTools(format="black", lint="ruff"),
             "typescript": LanguageTools(format="prettier", lint="eslint"),
         }
-        result = generate_precommit_config(code, languages)
+        result = _generate_precommit_config(code, languages)
         assert "format-python" in result.content
         assert "format-typescript" in result.content
         assert "lint-python" in result.content
@@ -839,14 +839,14 @@ class TestPrecommitArtifactLifecycle:
             pre_push=StageBucket(lint=lint_on),
         )
         languages = {"python": LanguageTools(format="black", lint="ruff")}
-        spec = generate_precommit_config(code, languages)
+        spec = _generate_precommit_config(code, languages)
         write_artifacts(tmp_path, [spec])
         return (tmp_path / ".pre-commit-config.yaml").read_text(encoding="utf-8")
 
     def test_no_managed_block_markers_emitted(self) -> None:
         code = CodeConfig(pre_commit=StageBucket(format=True))
         languages = {"python": LanguageTools(format="black", lint="ruff")}
-        result = generate_precommit_config(code, languages)
+        result = _generate_precommit_config(code, languages)
         # D4: template no longer embeds AI-GUARD markers.
         assert MARKER_BEGIN_HASH not in result.content
         assert MARKER_END_HASH not in result.content
@@ -855,7 +855,7 @@ class TestPrecommitArtifactLifecycle:
 
     def test_header_warns_against_hand_edit(self) -> None:
         code = CodeConfig(pre_commit=StageBucket(format=True))
-        result = generate_precommit_config(
+        result = _generate_precommit_config(
             code, {"python": LanguageTools(format="black", lint="ruff")}
         )
         assert "Generated by ac-guard install" in result.content
@@ -881,3 +881,172 @@ class TestPrecommitArtifactLifecycle:
         first = self._write_precommit(tmp_path)
         second = self._write_precommit(tmp_path)
         assert first == second
+
+
+# ---------------------------------------------------------------------------
+# generate_all integration tests
+# ---------------------------------------------------------------------------
+
+
+class TestGenerateAll:
+    """generate_all orchestrates all G primitives into one artifact list."""
+
+    @staticmethod
+    def _minimal_resolved_config() -> ResolvedConfig:
+        return ResolvedConfig(
+            version=1,
+            project_name="test",
+            project_language="python",
+            behavior=BehaviorConfig(
+                read=OperationRules.empty(),
+                write=OperationRules.empty(),
+                execute=OperationRules.empty(),
+            ),
+            code=CodeConfig(),
+            languages={},
+            output=OutputConfig(),
+            config_hash="test_hash",
+        )
+
+    @staticmethod
+    def _mock_adapter(name: str = "test-agent", can_block: bool = False):
+        """Create a minimal mock adapter for generate_all tests."""
+        from unittest.mock import MagicMock
+
+        from ac_guard.domain import FileSpec
+
+        adapter = MagicMock()
+        adapter.name = name
+        adapter.capabilities.can_block = can_block
+        adapter.rule_doc_path.return_value = f"{name.upper()}.md"
+        adapter.render_rule_doc.return_value = f"# {name} rules\n"
+        adapter.hook_files.return_value = [
+            FileSpec(path=f".{name}/hook.py", content="# hook", executable=True)
+        ]
+        return adapter
+
+    def test_produces_artifacts_for_adapter(self, tmp_path: Path) -> None:
+        """generate_all returns FileSpec objects with valid paths."""
+        config = self._minimal_resolved_config()
+        adapter = self._mock_adapter()
+
+        artifacts = generate_all(tmp_path, config, [adapter])
+
+        assert len(artifacts) > 0
+        paths = [a.path for a in artifacts]
+        # G4 and G5 are always produced regardless of adapters
+        assert ".pre-commit-config.yaml" in paths
+        assert ".ac-guard/runtime.json" in paths
+
+    def test_produces_git_hooks_when_git_dir_exists(self, tmp_path: Path) -> None:
+        """G6 artifacts are produced when .git exists and stages are active."""
+
+        (tmp_path / ".git").mkdir()
+        config = ResolvedConfig(
+            version=1,
+            project_name="test",
+            project_language="python",
+            behavior=BehaviorConfig(
+                read=OperationRules.empty(),
+                write=OperationRules.empty(),
+                execute=OperationRules.empty(),
+            ),
+            code=CodeConfig(pre_commit=StageBucket(format=True)),
+            languages={
+                "python": LanguageTools(format="ruff format", lint="ruff check")
+            },
+            output=OutputConfig(),
+            config_hash="test_hash",
+        )
+        adapter = self._mock_adapter()
+
+        artifacts = generate_all(tmp_path, config, [adapter])
+
+        paths = [a.path for a in artifacts]
+        assert any(p.startswith(".git/hooks/") for p in paths)
+
+    def test_g2_hook_included_for_block_adapter(self, tmp_path: Path) -> None:
+        config = self._minimal_resolved_config()
+        adapter = self._mock_adapter(can_block=True)
+
+        artifacts = generate_all(tmp_path, config, [adapter])
+
+        paths = [a.path for a in artifacts]
+        assert any("hook.py" in p for p in paths)
+
+    def test_g2_hook_excluded_for_non_block_adapter(self, tmp_path: Path) -> None:
+        config = self._minimal_resolved_config()
+        adapter = self._mock_adapter(can_block=False)
+
+        artifacts = generate_all(tmp_path, config, [adapter])
+
+        paths = [a.path for a in artifacts]
+        assert not any("hook.py" in p for p in paths)
+
+    def test_force_forwarded_to_g3(self, tmp_path: Path) -> None:
+        """generate_all passes force through to _generate_tool_configs."""
+
+        # Create a ruleset cache with a tool config
+        cache = tmp_path / ".ac-guard" / "cache" / "rules" / "files"
+        cache.mkdir(parents=True)
+        (cache / ".clang-format").write_text("style: LLVM\n", encoding="utf-8")
+
+        config = ResolvedConfig(
+            version=1,
+            project_name="test",
+            project_language="python",
+            behavior=BehaviorConfig(
+                read=OperationRules.empty(),
+                write=OperationRules.empty(),
+                execute=OperationRules.empty(),
+            ),
+            code=CodeConfig(),
+            languages={},
+            output=OutputConfig(),
+            config_hash="test_hash",
+            rulesets=["rules"],
+        )
+        adapter = self._mock_adapter()
+
+        artifacts = generate_all(tmp_path, config, [adapter], force=True)
+        paths = [a.path for a in artifacts]
+        assert ".clang-format" in paths
+
+    def test_returns_empty_list_when_no_adapters(self, tmp_path: Path) -> None:
+        config = self._minimal_resolved_config()
+
+        artifacts = generate_all(tmp_path, config, [])
+
+        # Even with no adapters, G4/G5 still produce artifacts
+        paths = [a.path for a in artifacts]
+        assert ".pre-commit-config.yaml" in paths
+
+
+# ---------------------------------------------------------------------------
+# delete_installation tests
+# ---------------------------------------------------------------------------
+
+
+class TestDeleteInstallation:
+    """delete_installation removes the installation state file."""
+
+    def test_returns_false_when_no_state(self, tmp_path: Path) -> None:
+        assert delete_installation(tmp_path) is False
+
+    def test_removes_state_file_and_returns_true(self, tmp_path: Path) -> None:
+        inst = Installation(ac_guard_version="0.1.0", installed_agents=["claude-code"])
+        write_installation(tmp_path, inst)
+        state_file = installation_path(tmp_path)
+        assert state_file.is_file()
+
+        result = delete_installation(tmp_path)
+        assert result is True
+        assert not state_file.is_file()
+
+    def test_state_file_already_gone(self, tmp_path: Path) -> None:
+        """Idempotent: deleting when already deleted returns False."""
+        inst = Installation(ac_guard_version="0.1.0")
+        write_installation(tmp_path, inst)
+        delete_installation(tmp_path)
+        # Second call
+        assert delete_installation(tmp_path) is False

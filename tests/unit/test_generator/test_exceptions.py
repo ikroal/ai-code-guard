@@ -2,15 +2,11 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 
 from ac_guard.generator.exceptions import (
-    AdapterNotRegisteredError,
     ArtifactWriteError,
     GeneratorError,
-    GitDirectoryNotFoundError,
 )
 
 
@@ -44,45 +40,3 @@ class TestArtifactWriteError:
 
     def test_inherits_generator_error(self) -> None:
         assert issubclass(ArtifactWriteError, GeneratorError)
-
-
-class TestGitDirectoryNotFoundError:
-    """GitDirectoryNotFoundError tests."""
-
-    def test_project_root_attribute(self) -> None:
-        path = Path("/tmp/project")
-        err = GitDirectoryNotFoundError(path)
-        assert err.project_root == path
-
-    def test_message_contains_path(self) -> None:
-        path = Path("/tmp/myproject")
-        err = GitDirectoryNotFoundError(path)
-        assert "myproject" in str(err)
-        assert ".git" in str(err)
-
-    def test_inherits_generator_error(self) -> None:
-        assert issubclass(GitDirectoryNotFoundError, GeneratorError)
-
-
-class TestAdapterNotRegisteredError:
-    """AdapterNotRegisteredError tests."""
-
-    def test_attributes(self) -> None:
-        err = AdapterNotRegisteredError(
-            agent_name="unknown-agent",
-            available_agents=["claude-code", "cursor"],
-        )
-        assert err.agent_name == "unknown-agent"
-        assert err.available_agents == ["claude-code", "cursor"]
-
-    def test_str_contains_agent_name(self) -> None:
-        err = AdapterNotRegisteredError(
-            agent_name="myagent",
-            available_agents=["agent1", "agent2"],
-        )
-        assert "myagent" in str(err)
-        assert "agent1" in str(err)
-        assert "agent2" in str(err)
-
-    def test_inherits_generator_error(self) -> None:
-        assert issubclass(AdapterNotRegisteredError, GeneratorError)

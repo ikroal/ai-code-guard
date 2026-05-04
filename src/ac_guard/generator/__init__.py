@@ -1,59 +1,45 @@
 """Generator module for AI Code Guard.
 
-Consumes ResolvedConfig and generates all static artifacts (rule docs,
+Consumes ResolvedConfig and produces all static artifacts (rule docs,
 hook scripts, tool configs, pre-commit config, policy cache, git hooks).
 
-G primitives:
-- G1: generate_rule_docs - Agent-specific rule documents
-- G2: generate_hook_files - Agent-specific Hook scripts
-- G3-G6: Agent-agnostic artifacts (WP1.3c)
-- G7: write_artifacts - Write all artifacts to disk
+``generate_all`` is the single orchestration entry-point for
+``install`` / ``update``.  The seven per-G primitives are
+module-private (test via deep import from ``core``).
 """
 
-from ac_guard.domain import FileSpec  # Shared type
+from ac_guard.domain import FileSpec  # Shared DTO, re-exported for callers
 from ac_guard.generator.core import (
-    create_state,
+    create_installation,
     delete_artifacts,
-    generate_git_hooks,
-    generate_hook_files,
-    generate_policy_cache,
-    generate_precommit_config,
-    generate_rule_docs,
-    generate_tool_configs,
-    read_state,
+    delete_installation,
+    generate_all,
+    read_installation,
     write_artifacts,
-    write_state,
+    write_installation,
 )
 from ac_guard.generator.exceptions import (
-    AdapterNotRegisteredError,
     ArtifactWriteError,
     GeneratorError,
-    GitDirectoryNotFoundError,
 )
-from ac_guard.generator.models import STATE_FILE, GeneratedState
+from ac_guard.generator.models import Installation, installation_path
 
 __all__ = [
+    # Schema
+    "FileSpec",
+    "Installation",
     # Exceptions
     "GeneratorError",
     "ArtifactWriteError",
-    "GitDirectoryNotFoundError",
-    "AdapterNotRegisteredError",
-    # Models
-    "FileSpec",
-    "GeneratedState",
-    "STATE_FILE",
-    # G1/G2 primitives
-    "generate_rule_docs",
-    "generate_hook_files",
-    # G3-G6 primitives
-    "generate_policy_cache",
-    "generate_git_hooks",
-    "generate_tool_configs",
-    "generate_precommit_config",
-    # Core functions
-    "create_state",
-    "delete_artifacts",
-    "read_state",
-    "write_state",
+    # Orchestration
+    "generate_all",
     "write_artifacts",
+    # Installation lifecycle
+    "read_installation",
+    "write_installation",
+    "create_installation",
+    "delete_installation",
+    "installation_path",
+    # Cleanup
+    "delete_artifacts",
 ]

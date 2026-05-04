@@ -19,7 +19,7 @@ from typer.testing import CliRunner
 from ac_guard.action_guard.engine import evaluate
 from ac_guard.action_guard.matcher import Decision
 from ac_guard.cli.main import app
-from ac_guard.generator.models import STATE_FILE
+from ac_guard.generator import installation_path
 
 runner = CliRunner()
 
@@ -158,7 +158,7 @@ class TestLifecycleStages:
             app, ["install", "--agent", "claude-code", "--config", str(config)]
         )
         assert result.exit_code == 0, f"install failed: {result.output}"
-        assert (tmp_path / STATE_FILE).is_file()
+        assert (installation_path(tmp_path)).is_file()
         assert (tmp_path / ".editorconfig").is_file()
         assert (tmp_path / ".ac-guard" / "checks" / "check_header.py").is_file()
 
@@ -169,7 +169,7 @@ class TestLifecycleStages:
         # uninstall (uses cwd, hence monkeypatch.chdir)
         result = runner.invoke(app, ["uninstall"])
         assert result.exit_code == 0, f"uninstall failed: {result.output}"
-        assert not (tmp_path / STATE_FILE).is_file()
+        assert not (installation_path(tmp_path)).is_file()
 
     def test_fetch_clear_refetch(self, tmp_path: Path) -> None:
         """D1-2: Cache recovery — fetch → clear → re-fetch → install."""
@@ -335,7 +335,7 @@ class TestFileCopyCompleteness:
         # Uninstall
         result = runner.invoke(app, ["uninstall"])
         assert result.exit_code == 0
-        assert not (tmp_path / STATE_FILE).is_file()
+        assert not (installation_path(tmp_path)).is_file()
         # CLAUDE.md (rule doc) should be cleaned
         assert not (tmp_path / "CLAUDE.md").is_file()
 
