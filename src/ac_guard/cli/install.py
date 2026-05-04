@@ -7,6 +7,7 @@ and state management to manage AI Code Guard artifact lifecycle.
 from __future__ import annotations
 
 import contextlib
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from ac_guard.adapters.registry import AdapterNotFoundError, get_adapter, list_adapters
@@ -36,7 +37,48 @@ if TYPE_CHECKING:
     from ac_guard.adapters.base import AgentAdapter
     from ac_guard.config import ResolvedConfig
 
-__all__ = ["install_command", "update_command", "uninstall_command"]
+__all__ = [
+    "InstallRequest",
+    "UninstallRequest",
+    "UpdateRequest",
+    "install_command",
+    "uninstall_command",
+    "update_command",
+]
+
+
+@dataclass(frozen=True)
+class InstallRequest:
+    """Inputs that drive a single ``ac-guard install`` invocation.
+
+    Attributes:
+        agents: Agent names to install (empty = list available, no-op install).
+        project_root: Project root directory.
+        config_path: Path to ``guard.yaml``.
+        force: Overwrite existing tool config files materialised from rulesets.
+    """
+
+    agents: list[str]
+    project_root: Path
+    config_path: Path
+    force: bool = False
+
+
+@dataclass(frozen=True)
+class UpdateRequest:
+    """Inputs that drive a single ``ac-guard update`` invocation."""
+
+    project_root: Path
+    config_path: Path
+    force: bool = False
+
+
+@dataclass(frozen=True)
+class UninstallRequest:
+    """Inputs that drive a single ``ac-guard uninstall`` invocation."""
+
+    project_root: Path
+    keep_config: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -203,32 +245,18 @@ def _run_post_install_audit_maintenance(
         )
 
 
-def install_command(
-    agents: list[str],
-    project_root: Path,
-    config_path: Path,
-    *,
-    force: bool = False,
-) -> None:
+def install_command(request: InstallRequest) -> None:
     """Execute the install command.
 
     Without agents, lists available agents. With agents, generates
     all artifacts and updates installation state.
-
-    Args:
-        agents: Agent names to install (empty to list available).
-        project_root: Path to project root directory.
-        config_path: Path to guard.yaml.
-        force: If True, overwrite existing tool config files.
     """
-    if not agents:
+    if not request.agents:
         _print_available_agents()
         return
 
-    # Normalize agent names
-    agents = [a.strip().lower() for a in agents if a.strip()]
+    agents = [a.strip().lower() for a in request.agents if a.strip()]
 
-    # Validate all agent names first
     available = list_adapters()
     unknown = [name for name in agents if name not in available]
     if unknown:
@@ -238,75 +266,64 @@ def install_command(
         )
         raise SystemExit(1)
 
-    # Resolve config; ruleset cache is fed to the resolver via callback
-    # so we never have to peek the raw yaml ourselves.
     try:
         resolved = resolve_config(
-            config_path,
-            fetch_rulesets=lambda names: _load_ruleset_configs(project_root, names),
+            request.config_path,
+            fetch_rulesets=lambda names: _load_ruleset_configs(
+                request.project_root, names
+            ),
         )
     except ConfigError as e:
         print(f"Error: {e}")
         raise SystemExit(1) from None
 
-    # Read existing state for incremental install
-    existing_state = read_installation(project_root)
+    existing_state = read_installation(request.project_root)
     existing_agents = existing_state.installed_agents if existing_state else []
     all_agents = _merge_agents(existing_agents, agents)
 
-    # Resolve all adapters
     adapters = _resolve_adapters(all_agents)
 
-    # Run generator pipeline
     try:
         written_paths = _run_generator_pipeline(
-            resolved, adapters, project_root, resolved.rulesets, force=force
+            resolved,
+            adapters,
+            request.project_root,
+            resolved.rulesets,
+            force=request.force,
         )
     except ArtifactWriteError as e:
         print(f"Error: Failed to write artifacts: {', '.join(e.failed_paths)}")
         raise SystemExit(1) from None
 
-    # Update state
     state = create_installation(all_agents, resolved.config_hash, written_paths)
-    write_installation(project_root, state)
+    write_installation(request.project_root, state)
 
-    _run_post_install_audit_maintenance(project_root, resolved)
+    _run_post_install_audit_maintenance(request.project_root, resolved)
 
     _print_install_summary(written_paths, all_agents)
 
 
-def update_command(
-    project_root: Path,
-    config_path: Path,
-    *,
-    force: bool = False,
-) -> None:
+def update_command(request: UpdateRequest) -> None:
     """Execute the update command.
 
     Re-generates all artifacts for previously installed agents.
-
-    Args:
-        project_root: Path to project root directory.
-        config_path: Path to guard.yaml.
-        force: If True, overwrite existing tool config files.
     """
-    existing_state = read_installation(project_root)
+    existing_state = read_installation(request.project_root)
     if existing_state is None:
         print("Error: AI Code Guard is not installed. Run 'ac-guard install' first.")
         raise SystemExit(1)
 
-    # Resolve config; ruleset cache is fed to the resolver via callback
-    # so we never have to peek the raw yaml ourselves.
     try:
         resolved = resolve_config(
-            config_path,
-            fetch_rulesets=lambda names: _load_ruleset_configs(project_root, names),
+            request.config_path,
+            fetch_rulesets=lambda names: _load_ruleset_configs(
+                request.project_root, names
+            ),
         )
     except ConfigError as e:
         print(f"Error: {e}")
         raise SystemExit(1) from None
 
-    # Resolve adapters for installed agents
     try:
         adapters = _resolve_adapters(existing_state.installed_agents)
     except AdapterNotFoundError as e:
@@ -314,60 +331,57 @@ def update_command(
         print("Consider reinstalling with 'ac-guard install --agent <agents>'.")
         raise SystemExit(1) from None
 
-    # Run generator pipeline
     try:
         written_paths = _run_generator_pipeline(
-            resolved, adapters, project_root, resolved.rulesets, force=force
+            resolved,
+            adapters,
+            request.project_root,
+            resolved.rulesets,
+            force=request.force,
         )
     except ArtifactWriteError as e:
         print(f"Error: Failed to write artifacts: {', '.join(e.failed_paths)}")
         raise SystemExit(1) from None
 
-    # Update state
     state = create_installation(
         existing_state.installed_agents, resolved.config_hash, written_paths
     )
-    write_installation(project_root, state)
+    write_installation(request.project_root, state)
 
-    _run_post_install_audit_maintenance(project_root, resolved)
+    _run_post_install_audit_maintenance(request.project_root, resolved)
 
     agents_str = ", ".join(existing_state.installed_agents)
     print(f"Updated {len(written_paths)} artifact(s) for agents: {agents_str}")
 
 
-def uninstall_command(
-    project_root: Path,
-    keep_config: bool,
-) -> None:
+def uninstall_command(request: UninstallRequest) -> None:
     """Execute the uninstall command.
 
     Deletes all generated artifacts and state file.
-
-    Args:
-        project_root: Path to project root directory.
-        keep_config: If True, preserves guard.yaml.
     """
-    existing_state = read_installation(project_root)
+    existing_state = read_installation(request.project_root)
     if existing_state is None:
         print("Nothing to uninstall.")
         return
 
-    # Delete artifacts tracked in state
-    deleted = delete_artifacts(project_root, existing_state.artifacts)
+    deleted = delete_artifacts(request.project_root, existing_state.artifacts)
 
-    # Delete state.json
-    if delete_installation(project_root):
-        deleted.append(str(installation_path(project_root).relative_to(project_root)))
+    if delete_installation(request.project_root):
+        deleted.append(
+            str(
+                installation_path(request.project_root).relative_to(
+                    request.project_root
+                )
+            )
+        )
 
-    # Clean up .ac-guard directory if empty
-    ac_guard_dir = project_root / ".ac-guard"
+    ac_guard_dir = request.project_root / ".ac-guard"
     if ac_guard_dir.is_dir():
         with contextlib.suppress(OSError):
             ac_guard_dir.rmdir()  # Only removes if empty
 
-    # Delete guard.yaml unless --keep-config
-    if not keep_config:
-        config_path = project_root / "guard.yaml"
+    if not request.keep_config:
+        config_path = request.project_root / "guard.yaml"
         if config_path.is_file():
             config_path.unlink()
             deleted.append("guard.yaml")

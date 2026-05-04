@@ -338,7 +338,9 @@ rulesets:
 ## 下一步
 
 - **随时自检**：`ac-guard doctor` —— 环境依赖 + 配置漂移检测
-- **看看哪些 check 会跑**：`ac-guard validation report`
+- **看看哪些 check 会跑**：`ac-guard show --section=code --format=table`
+  （表格形态）；去掉 `--format=table` 走默认按 stage 分组的文本视图，或换
+  `--section=behavior` 改看 action_guard 的行为规则。
 - **完整命令清单** → [README](../README_zh.md#命令)
 - **完整 `guard.yaml` schema** →
   [设计文档](../design/AI_GUARD_SYSTEM_DESIGN.md)

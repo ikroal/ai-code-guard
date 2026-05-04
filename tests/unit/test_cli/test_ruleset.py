@@ -9,6 +9,9 @@ import pytest
 import yaml
 
 from ac_guard.cli.ruleset import (
+    RulesetCacheClearRequest,
+    RulesetListRequest,
+    RulesetShowRequest,
     ruleset_cache_clear_command,
     ruleset_list_command,
     ruleset_show_command,
@@ -60,7 +63,7 @@ class TestRulesetListCommand:
     def test_no_cached_rulesets(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        ruleset_list_command(project_root=tmp_path)
+        ruleset_list_command(RulesetListRequest(project_root=tmp_path))
         captured = capsys.readouterr()
         assert "No cached rulesets" in captured.out
 
@@ -69,7 +72,7 @@ class TestRulesetListCommand:
     ) -> None:
         _create_cached_ruleset(tmp_path, "my-rules", version="v1.0")
 
-        ruleset_list_command(project_root=tmp_path)
+        ruleset_list_command(RulesetListRequest(project_root=tmp_path))
         captured = capsys.readouterr()
         assert "my-rules" in captured.out
 
@@ -78,7 +81,7 @@ class TestRulesetListCommand:
     ) -> None:
         _create_cached_ruleset(tmp_path, "rules", version="v2.0")
 
-        ruleset_list_command(project_root=tmp_path)
+        ruleset_list_command(RulesetListRequest(project_root=tmp_path))
         captured = capsys.readouterr()
         assert "v2.0" in captured.out
 
@@ -87,7 +90,7 @@ class TestRulesetListCommand:
     ) -> None:
         _create_cached_ruleset(tmp_path, "rules", version=None)
 
-        ruleset_list_command(project_root=tmp_path)
+        ruleset_list_command(RulesetListRequest(project_root=tmp_path))
         captured = capsys.readouterr()
         assert "default" in captured.out.lower()
 
@@ -99,7 +102,9 @@ class TestRulesetShowCommand:
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
         with pytest.raises(SystemExit):
-            ruleset_show_command("nonexistent", project_root=tmp_path)
+            ruleset_show_command(
+                RulesetShowRequest(name="nonexistent", project_root=tmp_path)
+            )
 
     def test_show_displays_meta(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
@@ -111,7 +116,9 @@ class TestRulesetShowCommand:
             url="https://github.com/org/rules.git",
         )
 
-        ruleset_show_command("company-rules", project_root=tmp_path)
+        ruleset_show_command(
+            RulesetShowRequest(name="company-rules", project_root=tmp_path)
+        )
         captured = capsys.readouterr()
         assert "company-rules" in captured.out
         assert "v1.0" in captured.out
@@ -128,7 +135,7 @@ class TestRulesetShowCommand:
         }
         _create_cached_ruleset(tmp_path, "rules", guard_yaml=config)
 
-        ruleset_show_command("rules", project_root=tmp_path)
+        ruleset_show_command(RulesetShowRequest(name="rules", project_root=tmp_path))
         captured = capsys.readouterr()
         assert "file:.env*" in captured.out
         assert "shell:rm -rf*" in captured.out
@@ -142,7 +149,7 @@ class TestRulesetShowCommand:
             files=[".editorconfig", ".clang-format"],
         )
 
-        ruleset_show_command("rules", project_root=tmp_path)
+        ruleset_show_command(RulesetShowRequest(name="rules", project_root=tmp_path))
         captured = capsys.readouterr()
         assert ".editorconfig" in captured.out
         assert ".clang-format" in captured.out
@@ -156,7 +163,7 @@ class TestRulesetShowCommand:
             checks=["encoding_check.py", "header_check.py"],
         )
 
-        ruleset_show_command("rules", project_root=tmp_path)
+        ruleset_show_command(RulesetShowRequest(name="rules", project_root=tmp_path))
         captured = capsys.readouterr()
         assert "encoding_check.py" in captured.out
         assert "header_check.py" in captured.out
@@ -168,7 +175,7 @@ class TestRulesetCacheClearCommand:
     def test_empty_cache(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        ruleset_cache_clear_command(project_root=tmp_path)
+        ruleset_cache_clear_command(RulesetCacheClearRequest(project_root=tmp_path))
         captured = capsys.readouterr()
         assert "No cached rulesets" in captured.out
 
@@ -180,6 +187,6 @@ class TestRulesetCacheClearCommand:
         (cache / "rules-a").mkdir()
         (cache / "rules-b").mkdir()
 
-        ruleset_cache_clear_command(project_root=tmp_path)
+        ruleset_cache_clear_command(RulesetCacheClearRequest(project_root=tmp_path))
         captured = capsys.readouterr()
         assert "Cleared 2" in captured.out

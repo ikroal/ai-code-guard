@@ -57,13 +57,13 @@ class TestFullLifecycle:
         assert "claude-code" in result.output
         assert "up to date" in result.output.lower()
 
-        # 4. status --rules
+        # 4. show --section=behavior  (replaces former `status --rules`)
         result = runner.invoke(
             app,
-            ["status", "--rules", "--config", str(config)],
+            ["show", "--section", "behavior", "--config", str(config)],
         )
-        assert result.exit_code == 0, f"status --rules failed: {result.output}"
-        assert "rule" in result.output.lower()
+        assert result.exit_code == 0, f"show behavior failed: {result.output}"
+        assert "behavior rules" in result.output.lower()
 
         # 5. agents
         result = runner.invoke(app, ["agents"])

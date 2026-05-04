@@ -245,18 +245,23 @@ class TestJsonOutput:
 
 
 # ---------------------------------------------------------------------------
-# D3: Validation Configuration Discovery
+# D3: Configuration Discovery (via `ac-guard show --section=code`)
 # ---------------------------------------------------------------------------
 
 
-class TestValidationDiscovery:
-    """D3: guard.yaml → validation list/report reflects config."""
+class TestConfiguredCodeGatesDiscovery:
+    """D3: ``show --section=code`` reflects the gates declared in guard.yaml.
 
-    def test_list_with_custom_checks(self, tmp_path: Path) -> None:
-        """D3-1: Custom checks appear grouped by stage."""
+    Replaces the retired ``validation list/report`` commands.
+    """
+
+    def test_text_lists_custom_checks_per_stage(self, tmp_path: Path) -> None:
+        """D3-1: Custom checks appear grouped by stage in text format."""
         config = _write_config_with_checks(tmp_path)
 
-        result = runner.invoke(app, ["validation", "list", "--config", str(config)])
+        result = runner.invoke(
+            app, ["show", "--section", "code", "--config", str(config)]
+        )
         assert result.exit_code == 0
 
         output = result.output
@@ -270,11 +275,14 @@ class TestValidationDiscovery:
         assert "Commit" in output or "commit" in output.lower()
         assert "Push" in output or "push" in output.lower()
 
-    def test_report_with_custom_checks(self, tmp_path: Path) -> None:
-        """D3-2: Report table includes command, timeout, types."""
+    def test_table_renders_command_timeout_types(self, tmp_path: Path) -> None:
+        """D3-2: Table format includes command, timeout, types."""
         config = _write_config_with_checks(tmp_path)
 
-        result = runner.invoke(app, ["validation", "report", "--config", str(config)])
+        result = runner.invoke(
+            app,
+            ["show", "--section", "code", "--format", "table", "--config", str(config)],
+        )
         assert result.exit_code == 0
 
         output = result.output
@@ -283,12 +291,14 @@ class TestValidationDiscovery:
         assert "120" in output
         assert "python" in output.lower()
 
-    def test_list_default_config(self, tmp_path: Path) -> None:
-        """D3-3: Default init config shows builtin checks."""
+    def test_default_init_config_shows_builtin_checks(self, tmp_path: Path) -> None:
+        """D3-3: Default init config shows builtin checks under code section."""
         config = tmp_path / "guard.yaml"
         runner.invoke(app, ["init", "--language", "python", "--output", str(config)])
 
-        result = runner.invoke(app, ["validation", "list", "--config", str(config)])
+        result = runner.invoke(
+            app, ["show", "--section", "code", "--config", str(config)]
+        )
         assert result.exit_code == 0
 
         output = result.output

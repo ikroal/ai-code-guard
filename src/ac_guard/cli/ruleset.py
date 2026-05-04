@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from pathlib import Path
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import yaml
 
@@ -17,21 +18,61 @@ from ac_guard.ruleset import (
     read_meta,
 )
 
+if TYPE_CHECKING:
+    from pathlib import Path
 
-def ruleset_fetch_command(url: str, project_root: Path | None = None) -> None:
+__all__ = [
+    "RulesetCacheClearRequest",
+    "RulesetFetchRequest",
+    "RulesetListRequest",
+    "RulesetShowRequest",
+    "ruleset_cache_clear_command",
+    "ruleset_fetch_command",
+    "ruleset_list_command",
+    "ruleset_show_command",
+]
+
+
+@dataclass(frozen=True)
+class RulesetFetchRequest:
+    """Inputs for ``ac-guard ruleset fetch <url>``."""
+
+    url: str
+    project_root: Path
+
+
+@dataclass(frozen=True)
+class RulesetListRequest:
+    """Inputs for ``ac-guard ruleset list``."""
+
+    project_root: Path
+
+
+@dataclass(frozen=True)
+class RulesetShowRequest:
+    """Inputs for ``ac-guard ruleset show <name>``."""
+
+    name: str
+    project_root: Path
+
+
+@dataclass(frozen=True)
+class RulesetCacheClearRequest:
+    """Inputs for ``ac-guard ruleset cache clear``."""
+
+    project_root: Path
+
+
+def ruleset_fetch_command(request: RulesetFetchRequest) -> None:
     """Execute ``guard ruleset fetch <url>``.
 
     Parses the URL, clones the ruleset into the local cache,
     validates its structure, and prints a summary.
-
-    Args:
-        url: Git URL of the ruleset, optionally with ``#version``.
-        project_root: Project root directory. Defaults to cwd.
     """
-    root = project_root or Path.cwd()
+    root = request.project_root
 
     try:
-        ref = parse_ruleset_url(url)
+        ref = parse_ruleset_url(request.url)
     except RulesetError as e:
         print(f"Error: {e}")
         raise SystemExit(1) from None
@@ -64,16 +105,12 @@ def ruleset_fetch_command(url: str, project_root: Path | None = None) -> None:
     print(f"  checks/: {checks_count} script(s)")
 
 
-def ruleset_cache_clear_command(project_root: Path | None = None) -> None:
+def ruleset_cache_clear_command(request: RulesetCacheClearRequest) -> None:
     """Execute ``guard ruleset cache clear``.
 
     Removes all cached rulesets and prints the count.
-
-    Args:
-        project_root: Project root directory. Defaults to cwd.
     """
-    root = project_root or Path.cwd()
-    count = clear_cache(root)
+    count = clear_cache(request.project_root)
 
     if count == 0:
         print("No cached rulesets to remove.")
@@ -81,15 +118,12 @@ def ruleset_cache_clear_command(project_root: Path | None = None) -> None:
         print(f"Cleared {count} cached ruleset(s).")
 
 
-def ruleset_list_command(project_root: Path | None = None) -> None:
+def ruleset_list_command(request: RulesetListRequest) -> None:
     """Execute ``guard ruleset list``.
 
     Lists cached rulesets with name, version, and cache path.
-
-    Args:
-        project_root: Project root directory. Defaults to cwd.
     """
-    root = project_root or Path.cwd()
+    root = request.project_root
     names = list_cached(root)
 
     if not names:
@@ -105,27 +139,20 @@ def ruleset_list_command(project_root: Path | None = None) -> None:
         print(f"  {name:<25} {version:<20} {cache_path}")
 
 
-def ruleset_show_command(
-    name: str,
-    project_root: Path | None = None,
-) -> None:
+def ruleset_show_command(request: RulesetShowRequest) -> None:
     """Execute ``guard ruleset show <name>``.
 
     Displays ruleset metadata, behavior rules, files, and checks.
-
-    Args:
-        name: Ruleset name (cache directory name).
-        project_root: Project root directory. Defaults to cwd.
     """
-    root = project_root or Path.cwd()
-    ruleset_dir = get_ruleset_dir(root, name)
+    root = request.project_root
+    ruleset_dir = get_ruleset_dir(root, request.name)
 
     if ruleset_dir is None:
-        print(f"Error: Ruleset '{name}' not found in cache.")
+        print(f"Error: Ruleset '{request.name}' not found in cache.")
         print("Run 'ac-guard ruleset fetch <url>' to download it.")
         raise SystemExit(1)
 
-    _print_meta(root, name)
+    _print_meta(root, request.name)
     _print_behavior_rules(ruleset_dir)
     _print_dir_listing(ruleset_dir / "files", "Files")
     _print_dir_listing(ruleset_dir / "checks", "Checks")

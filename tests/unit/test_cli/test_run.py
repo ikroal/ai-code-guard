@@ -337,7 +337,7 @@ class TestCliAutoPostPrComment:
         config = _write_config_with_pr_report(tmp_path, enabled=True)
         with (
             patch("ac_guard.code_gate.core._get_changed_files", return_value=[]),
-            patch("ac_guard.cli.check._maybe_post_pr") as mock_post,
+            patch("ac_guard.cli.run._maybe_post_pr") as mock_post,
         ):
             result = runner.invoke(
                 app, ["run", "--stage", "pre-commit", "--config", str(config)]
@@ -354,7 +354,7 @@ class TestCliAutoPostPrComment:
         config = _write_config_with_pr_report(tmp_path, enabled=False)
         with (
             patch("ac_guard.code_gate.core._get_changed_files", return_value=[]),
-            patch("ac_guard.cli.check._maybe_post_pr") as mock_post,
+            patch("ac_guard.cli.run._maybe_post_pr") as mock_post,
         ):
             result = runner.invoke(
                 app, ["run", "--stage", "pre-commit", "--config", str(config)]
@@ -368,7 +368,7 @@ class TestCliAutoPostPrComment:
         config = _write_config_with_pr_report(tmp_path, enabled=True)
         with (
             patch("ac_guard.code_gate.core._get_changed_files", return_value=[]),
-            patch("ac_guard.cli.check._maybe_post_pr") as mock_post,
+            patch("ac_guard.cli.run._maybe_post_pr") as mock_post,
         ):
             result = runner.invoke(
                 app,
@@ -391,7 +391,7 @@ class TestCliAutoPostPrComment:
         config = _write_config_with_checks(tmp_path)
         with (
             patch("ac_guard.code_gate.core._get_changed_files", return_value=[]),
-            patch("ac_guard.cli.check._maybe_post_pr") as mock_post,
+            patch("ac_guard.cli.run._maybe_post_pr") as mock_post,
         ):
             result = runner.invoke(app, ["run", "echo-test", "--config", str(config)])
         assert result.exit_code == 0
