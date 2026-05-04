@@ -1,0 +1,1 @@
+.opencode/plugins/ac-guard.ts	executable=False
