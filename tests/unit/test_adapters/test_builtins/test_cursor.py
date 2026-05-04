@@ -1,8 +1,8 @@
-"""Tests for ac_guard.adapters.opencode — OpenCode Agent adapter."""
+"""Tests for ac_guard.adapters.builtins.cursor — Cursor Agent adapter."""
 
 from __future__ import annotations
 
-from ac_guard.adapters.opencode import OpenCodeAdapter
+from ac_guard.adapters.builtins.cursor import CursorAdapter
 from ac_guard.config.models import BehaviorConfig, OperationRules, Rule
 from ac_guard.domain import managed_block
 
@@ -11,20 +11,27 @@ from ac_guard.domain import managed_block
 # ---------------------------------------------------------------------------
 
 
-class TestOpenCodeAdapterProperties:
+class TestCursorAdapterProperties:
     def test_name(self) -> None:
-        adapter = OpenCodeAdapter()
-        assert adapter.name == "opencode"
+        adapter = CursorAdapter()
+        assert adapter.name == "cursor"
 
-    def test_capabilities(self) -> None:
-        adapter = OpenCodeAdapter()
+    def test_capabilities_can_block_true(self) -> None:
+        adapter = CursorAdapter()
         caps = adapter.capabilities
         assert caps.can_block is True
-        assert caps.can_ask is True
+
+    def test_capabilities_can_ask_false(self) -> None:
+        # Cursor has limited ask capability, treated as False
+        adapter = CursorAdapter()
+        caps = adapter.capabilities
+        assert caps.can_ask is False
 
     def test_rule_doc_path(self) -> None:
-        adapter = OpenCodeAdapter()
-        assert adapter.rule_doc_path() == "AGENTS.md"
+        adapter = CursorAdapter()
+        # Cursor uses .cursor/rules/ directory with .mdc extension
+        assert ".cursor/rules/" in adapter.rule_doc_path()
+        assert adapter.rule_doc_path().endswith(".mdc")
 
 
 # ---------------------------------------------------------------------------
@@ -32,27 +39,34 @@ class TestOpenCodeAdapterProperties:
 # ---------------------------------------------------------------------------
 
 
-class TestOpenCodeAdapterRenderRuleDoc:
+class TestCursorAdapterRenderRuleDoc:
     def test_output_is_raw_content_without_markers(self) -> None:
-        """Adapter returns plain Markdown; writer layer adds markers."""
-        adapter = OpenCodeAdapter()
+        """Adapter returns plain .mdc content; writer layer adds markers."""
+        adapter = CursorAdapter()
         behavior = BehaviorConfig.empty()
         result = adapter.render_rule_doc(behavior)
         assert not managed_block.has(result, path=adapter.rule_doc_path())
 
     def test_output_structure_with_rules(self) -> None:
-        adapter = OpenCodeAdapter()
+        adapter = CursorAdapter()
         behavior = BehaviorConfig(
             read=OperationRules.empty(),
-            write=OperationRules.empty(),
-            execute=OperationRules(
-                forbidden=[Rule(pattern="shell:rm -rf*", reason="dangerous")],
+            write=OperationRules(
+                forbidden=[Rule(pattern="file:.git/**", reason="git internal")],
                 require_approval=[],
-                allow=[Rule(pattern="shell:git status*")],
+                allow=[Rule(pattern="file:src/**")],
             ),
+            execute=OperationRules.empty(),
         )
         result = adapter.render_rule_doc(behavior)
-        assert "Execute" in result or "execute" in result.lower()
+        assert "Write" in result or "write" in result.lower()
+
+    def test_empty_behavior_produces_valid_output(self) -> None:
+        adapter = CursorAdapter()
+        behavior = BehaviorConfig.empty()
+        result = adapter.render_rule_doc(behavior)
+        assert len(result) > 0
+        assert not managed_block.has(result, path=adapter.rule_doc_path())
 
 
 # ---------------------------------------------------------------------------
@@ -60,23 +74,23 @@ class TestOpenCodeAdapterRenderRuleDoc:
 # ---------------------------------------------------------------------------
 
 
-class TestOpenCodeAdapterHookFiles:
+class TestCursorAdapterHookFiles:
     def test_returns_hook_files(self) -> None:
-        adapter = OpenCodeAdapter()
+        adapter = CursorAdapter()
         behavior = BehaviorConfig.empty()
         files = adapter.hook_files(behavior)
         assert len(files) > 0
 
     def test_hook_file_paths(self) -> None:
-        adapter = OpenCodeAdapter()
+        adapter = CursorAdapter()
         behavior = BehaviorConfig.empty()
         files = adapter.hook_files(behavior)
         paths = [f.path for f in files]
-        # OpenCode plugin under .opencode/plugins/
-        assert any(".opencode/plugins/" in p for p in paths)
+        # Cursor hooks under .cursor/hooks/
+        assert any(".cursor/hooks/" in p for p in paths)
 
     def test_hook_files_have_content(self) -> None:
-        adapter = OpenCodeAdapter()
+        adapter = CursorAdapter()
         behavior = BehaviorConfig.empty()
         files = adapter.hook_files(behavior)
         for f in files:

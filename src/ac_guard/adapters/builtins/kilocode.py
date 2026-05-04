@@ -1,12 +1,12 @@
-"""GitHub Copilot Agent adapter implementation.
+"""KiloCode Agent adapter implementation.
 
-GitHub Copilot has no Hook capability:
+KiloCode has no Hook capability:
 - No runtime interception (can_block=False)
 - No user confirmation prompts (can_ask=False)
 
 Rules are soft constraints only, enforced via rule document.
 
-Rule document: .github/copilot-instructions.md
+Rule document: .kilocode/rules/behavior.md
 """
 
 from __future__ import annotations
@@ -20,32 +20,32 @@ if TYPE_CHECKING:
     from ac_guard.config import BehaviorConfig
     from ac_guard.domain import FileSpec
 
-__all__ = ["CopilotAdapter"]
+__all__ = ["KiloCodeAdapter"]
 
 
-class CopilotAdapter(AgentAdapter):
-    """Adapter for GitHub Copilot AI coding agent."""
+class KiloCodeAdapter(AgentAdapter):
+    """Adapter for KiloCode AI coding agent."""
 
     @property
     def name(self) -> str:
-        return "copilot"
+        return "kilocode"
 
     @property
     def capabilities(self) -> AgentCapabilities:
-        # Copilot has no Hook mechanism
+        # KiloCode has no Hook mechanism
         return AgentCapabilities(can_block=False, can_ask=False)
 
     def rule_doc_path(self) -> str:
-        return ".github/copilot-instructions.md"
+        return ".kilocode/rules/behavior.md"
 
     def render_rule_doc(self, behavior: BehaviorConfig) -> str:
-        """Render behavior rules as Copilot instructions.
+        """Render behavior rules as KiloCode rule document.
 
-        Returns raw ``copilot-instructions.md`` content without managed
-        block markers; the writer layer owns marker wrapping.
+        Returns raw Markdown content without managed block markers;
+        the writer layer owns marker wrapping.
         """
-        return render_rule_doc("copilot", behavior)
+        return render_rule_doc(self, behavior)
 
     def hook_files(self, behavior: BehaviorConfig) -> list[FileSpec]:
-        """Copilot has no Hook capability — returns empty list."""
+        """KiloCode has no Hook capability — returns empty list."""
         return []

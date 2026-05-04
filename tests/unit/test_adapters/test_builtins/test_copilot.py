@@ -1,8 +1,8 @@
-"""Tests for ac_guard.adapters.copilot — GitHub Copilot Agent adapter."""
+"""Tests for ac_guard.adapters.builtins.copilot — GitHub Copilot Agent adapter."""
 
 from __future__ import annotations
 
-from ac_guard.adapters.copilot import CopilotAdapter
+from ac_guard.adapters.builtins.copilot import CopilotAdapter
 from ac_guard.config.models import BehaviorConfig, OperationRules, Rule
 from ac_guard.domain import managed_block
 

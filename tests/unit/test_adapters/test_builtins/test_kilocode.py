@@ -1,8 +1,8 @@
-"""Tests for ac_guard.adapters.kilocode — KiloCode Agent adapter."""
+"""Tests for ac_guard.adapters.builtins.kilocode — KiloCode Agent adapter."""
 
 from __future__ import annotations
 
-from ac_guard.adapters.kilocode import KiloCodeAdapter
+from ac_guard.adapters.builtins.kilocode import KiloCodeAdapter
 from ac_guard.config.models import BehaviorConfig, OperationRules, Rule
 from ac_guard.domain import managed_block
 

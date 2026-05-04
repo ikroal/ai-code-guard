@@ -71,6 +71,18 @@ class AgentAdapter(ABC):
     def capabilities(self) -> AgentCapabilities:
         """Declaration of this Agent's Hook mechanism capabilities."""
 
+    @property
+    def _template_stem(self) -> str:
+        """Jinja2 template basename, derived from :attr:`name`.
+
+        The default mirrors :attr:`name` with hyphens swapped for
+        underscores so a file named ``rule_docs/<stem>.md.j2`` (and,
+        for hook-capable agents, ``hooks/<stem>.j2``) can be located
+        directly. Concrete adapters can override if their templates
+        live under a different stem.
+        """
+        return self.name.replace("-", "_")
+
     @abstractmethod
     def rule_doc_path(self) -> str:
         """Return the rule document file path relative to project root.

@@ -1,12 +1,12 @@
-"""KiloCode Agent adapter implementation.
+"""GitHub Copilot Agent adapter implementation.
 
-KiloCode has no Hook capability:
+GitHub Copilot has no Hook capability:
 - No runtime interception (can_block=False)
 - No user confirmation prompts (can_ask=False)
 
 Rules are soft constraints only, enforced via rule document.
 
-Rule document: .kilocode/rules/behavior.md
+Rule document: .github/copilot-instructions.md
 """
 
 from __future__ import annotations
@@ -20,32 +20,32 @@ if TYPE_CHECKING:
     from ac_guard.config import BehaviorConfig
     from ac_guard.domain import FileSpec
 
-__all__ = ["KiloCodeAdapter"]
+__all__ = ["CopilotAdapter"]
 
 
-class KiloCodeAdapter(AgentAdapter):
-    """Adapter for KiloCode AI coding agent."""
+class CopilotAdapter(AgentAdapter):
+    """Adapter for GitHub Copilot AI coding agent."""
 
     @property
     def name(self) -> str:
-        return "kilocode"
+        return "copilot"
 
     @property
     def capabilities(self) -> AgentCapabilities:
-        # KiloCode has no Hook mechanism
+        # Copilot has no Hook mechanism
         return AgentCapabilities(can_block=False, can_ask=False)
 
     def rule_doc_path(self) -> str:
-        return ".kilocode/rules/behavior.md"
+        return ".github/copilot-instructions.md"
 
     def render_rule_doc(self, behavior: BehaviorConfig) -> str:
-        """Render behavior rules as KiloCode rule document.
+        """Render behavior rules as Copilot instructions.
 
-        Returns raw Markdown content without managed block markers;
-        the writer layer owns marker wrapping.
+        Returns raw ``copilot-instructions.md`` content without managed
+        block markers; the writer layer owns marker wrapping.
         """
-        return render_rule_doc("kilocode", behavior)
+        return render_rule_doc(self, behavior)
 
     def hook_files(self, behavior: BehaviorConfig) -> list[FileSpec]:
-        """KiloCode has no Hook capability — returns empty list."""
+        """Copilot has no Hook capability — returns empty list."""
         return []

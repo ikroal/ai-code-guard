@@ -42,7 +42,7 @@ class OpenCodeAdapter(AgentAdapter):
         Returns raw Markdown content without managed block markers;
         the writer layer owns marker wrapping.
         """
-        return render_rule_doc("opencode", behavior)
+        return render_rule_doc(self, behavior)
 
     def hook_files(self, behavior: BehaviorConfig) -> list[FileSpec]:
         """Generate OpenCode TypeScript plugin.
@@ -53,7 +53,7 @@ class OpenCodeAdapter(AgentAdapter):
         - Calls Action guard for policy decision (placeholder for WP2)
         - Throws error to block forbidden operations
         """
-        plugin_content = render_hook("opencode", behavior)
+        plugin_content = render_hook(self, behavior)
 
         return [
             FileSpec(
