@@ -1,13 +1,16 @@
-"""Tests for ac_guard.config.semantic — L2/L3 semantic validation rules.
+"""Tests for ac_guard.config.semantic — zero-IO semantic rules.
 
-L2 takes raw config dicts (post-L1 schema validation) and checks
-cross-field semantic consistency that schema can't express. L3 takes a
-fully resolved config and checks invariants that depend on the merge
-result. Both layers are zero-IO.
+Four named rules cover the cross-field semantics that L1 schema can't
+express. Tests group them by rule (one ``Test*Rule`` class per code)
+and dispatch through the single ``validate_semantic(payload, rules)``
+driver. Each issue carries a ``rule_code`` so tests can assert which
+rule fired without coupling to error wording.
 
-Each rule is identified by a stable ``rule_code`` that the driver
-injects into every ``ValidationIssue`` it produces, so tests can
-assert which rule fired without coupling to error messages.
+Two of the rules judge yaml content (``_FORMAT_LINT_SCOPE`` /
+``_COMMAND_SYNTAX``) and run from ``loader.py``; the other two judge
+the merged tree (``_TIER_CONSISTENCY`` / ``_PATTERN_UNIQUENESS``) and
+run from ``merger.py``. The split is caller-side strategy, not a
+property of the rules themselves.
 """
 
 from __future__ import annotations
@@ -24,9 +27,17 @@ from ac_guard.config.models import (
     Rule,
 )
 from ac_guard.config.semantic import (
-    validate_semantic_resolved,
-    validate_semantic_static,
+    _COMMAND_SYNTAX,
+    _FORMAT_LINT_SCOPE,
+    _PATTERN_UNIQUENESS,
+    _TIER_CONSISTENCY,
+    validate_semantic,
 )
+
+# Rule groupings used by the package-internal callers (loader / merger).
+# Tests reuse them so behavior matches what loader / merger actually run.
+_YAML_RULES = (_FORMAT_LINT_SCOPE, _COMMAND_SYNTAX)
+_TREE_RULES = (_TIER_CONSISTENCY, _PATTERN_UNIQUENESS)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -47,7 +58,7 @@ def _resolved(behavior: BehaviorConfig | None = None) -> ResolvedConfig:
 
 
 # ---------------------------------------------------------------------------
-# L2: validate_semantic_static (raw dict input)
+# Yaml-content rules: dispatched via validate_semantic(_YAML_RULES)
 # ---------------------------------------------------------------------------
 
 
@@ -64,7 +75,7 @@ class TestFormatLintStageScopeRule:
     def test_format_on_commit_msg_rejected(self) -> None:
         raw = {"code": {"commit-msg": {"format": True}}}
         with pytest.raises(ConfigValidationError) as exc_info:
-            validate_semantic_static(raw, source="guard.yaml")
+            validate_semantic(raw, _YAML_RULES)
         issues = [
             e for e in exc_info.value.errors if e.rule_code == "format-lint-stage-scope"
         ]
@@ -74,7 +85,7 @@ class TestFormatLintStageScopeRule:
     def test_lint_on_pre_rebase_rejected(self) -> None:
         raw = {"code": {"pre-rebase": {"lint": True}}}
         with pytest.raises(ConfigValidationError) as exc_info:
-            validate_semantic_static(raw, source="guard.yaml")
+            validate_semantic(raw, _YAML_RULES)
         issues = [
             e for e in exc_info.value.errors if e.rule_code == "format-lint-stage-scope"
         ]
@@ -83,22 +94,22 @@ class TestFormatLintStageScopeRule:
 
     def test_format_on_pre_commit_passes(self) -> None:
         raw = {"code": {"pre-commit": {"format": True}}}
-        validate_semantic_static(raw, source="guard.yaml")  # no raise
+        validate_semantic(raw, _YAML_RULES)  # no raise
 
     def test_format_on_pre_push_passes(self) -> None:
         raw = {"code": {"pre-push": {"format": True}}}
-        validate_semantic_static(raw, source="guard.yaml")  # no raise
+        validate_semantic(raw, _YAML_RULES)  # no raise
 
     def test_format_false_on_commit_msg_passes(self) -> None:
         """Rule fires only on True; explicit False is benign."""
         raw = {"code": {"commit-msg": {"format": False, "lint": False}}}
-        validate_semantic_static(raw, source="guard.yaml")  # no raise
+        validate_semantic(raw, _YAML_RULES)  # no raise
 
     def test_both_format_and_lint_misplaced_each_reported(self) -> None:
         """Both toggles produce separate issues so the user sees both."""
         raw = {"code": {"commit-msg": {"format": True, "lint": True}}}
         with pytest.raises(ConfigValidationError) as exc_info:
-            validate_semantic_static(raw, source="guard.yaml")
+            validate_semantic(raw, _YAML_RULES)
         paths = sorted(e.path for e in exc_info.value.errors)
         assert paths == ["code.commit-msg.format", "code.commit-msg.lint"]
 
@@ -106,7 +117,7 @@ class TestFormatLintStageScopeRule:
         """Schema (L1) catches non-dict buckets; L2 defends against
         being run independently with a malformed input."""
         raw = {"code": {"pre-commit": "not-a-dict"}}
-        validate_semantic_static(raw, source="guard.yaml")  # no raise
+        validate_semantic(raw, _YAML_RULES)  # no raise
 
 
 class TestCommandSyntaxRule:
@@ -119,7 +130,7 @@ class TestCommandSyntaxRule:
             }
         }
         with pytest.raises(ConfigValidationError) as exc_info:
-            validate_semantic_static(raw, source="guard.yaml")
+            validate_semantic(raw, _YAML_RULES)
         issues = [e for e in exc_info.value.errors if e.rule_code == "command-syntax"]
         assert len(issues) == 1
         assert issues[0].path == "languages.python.tools.format"
@@ -129,7 +140,7 @@ class TestCommandSyntaxRule:
             "languages": {"python": {"tools": {"format": "black", "lint": 'ruff "x'}}}
         }
         with pytest.raises(ConfigValidationError) as exc_info:
-            validate_semantic_static(raw, source="guard.yaml")
+            validate_semantic(raw, _YAML_RULES)
         issues = [e for e in exc_info.value.errors if e.rule_code == "command-syntax"]
         assert len(issues) == 1
         assert issues[0].path == "languages.python.tools.lint"
@@ -141,7 +152,7 @@ class TestCommandSyntaxRule:
             }
         }
         with pytest.raises(ConfigValidationError) as exc_info:
-            validate_semantic_static(raw, source="guard.yaml")
+            validate_semantic(raw, _YAML_RULES)
         issues = [e for e in exc_info.value.errors if e.rule_code == "command-syntax"]
         assert len(issues) == 1
         assert issues[0].path == "code.pre-commit.checks.my-check.command"
@@ -159,16 +170,16 @@ class TestCommandSyntaxRule:
                 },
             },
         }
-        validate_semantic_static(raw, source="guard.yaml")  # no raise
+        validate_semantic(raw, _YAML_RULES)  # no raise
 
     def test_empty_command_skipped(self) -> None:
         """Empty strings are an L1 concern (non_empty); L2 must not double-report."""
         raw = {"languages": {"python": {"tools": {"format": "", "lint": ""}}}}
-        validate_semantic_static(raw, source="guard.yaml")  # no raise
+        validate_semantic(raw, _YAML_RULES)  # no raise
 
 
 # ---------------------------------------------------------------------------
-# L3: validate_semantic_resolved (ResolvedConfig input)
+# Merged-tree rules: dispatched via validate_semantic(_TREE_RULES)
 # ---------------------------------------------------------------------------
 
 
@@ -187,7 +198,7 @@ class TestTierConsistencyRule:
             )
         )
         with pytest.raises(ConfigValidationError) as exc_info:
-            validate_semantic_resolved(cfg)
+            validate_semantic(cfg, _TREE_RULES)
         issues = [e for e in exc_info.value.errors if e.rule_code == "tier-consistency"]
         assert len(issues) == 1
         assert "behavior.read" in issues[0].path
@@ -203,7 +214,7 @@ class TestTierConsistencyRule:
                 read=rules, write=OperationRules.empty(), execute=OperationRules.empty()
             )
         )
-        validate_semantic_resolved(cfg)  # no raise
+        validate_semantic(cfg, _TREE_RULES)  # no raise
 
     def test_same_pattern_in_different_ops_does_not_conflict(self) -> None:
         """forbidden:X under read does not conflict with allow:X under write."""
@@ -222,7 +233,7 @@ class TestTierConsistencyRule:
                 execute=OperationRules.empty(),
             )
         )
-        validate_semantic_resolved(cfg)  # no raise
+        validate_semantic(cfg, _TREE_RULES)  # no raise
 
     def test_each_op_checked_independently(self) -> None:
         """All three operations (read/write/execute) get their own check."""
@@ -233,7 +244,7 @@ class TestTierConsistencyRule:
         )
         cfg = _resolved(BehaviorConfig(read=conflict, write=conflict, execute=conflict))
         with pytest.raises(ConfigValidationError) as exc_info:
-            validate_semantic_resolved(cfg)
+            validate_semantic(cfg, _TREE_RULES)
         paths = {
             e.path for e in exc_info.value.errors if e.rule_code == "tier-consistency"
         }
@@ -259,7 +270,7 @@ class TestPatternUniquenessRule:
             )
         )
         with pytest.raises(ConfigValidationError) as exc_info:
-            validate_semantic_resolved(cfg)
+            validate_semantic(cfg, _TREE_RULES)
         issues = [
             e for e in exc_info.value.errors if e.rule_code == "pattern-uniqueness"
         ]
@@ -282,7 +293,7 @@ class TestPatternUniquenessRule:
                 execute=OperationRules.empty(),
             )
         )
-        validate_semantic_resolved(cfg)  # no raise
+        validate_semantic(cfg, _TREE_RULES)  # no raise
 
     def test_two_user_duplicates_rejected_even_with_system_third(self) -> None:
         """System rule does not save user duplicates from being reported."""
@@ -302,7 +313,7 @@ class TestPatternUniquenessRule:
             )
         )
         with pytest.raises(ConfigValidationError) as exc_info:
-            validate_semantic_resolved(cfg)
+            validate_semantic(cfg, _TREE_RULES)
         issues = [
             e for e in exc_info.value.errors if e.rule_code == "pattern-uniqueness"
         ]
@@ -323,7 +334,7 @@ class TestPatternUniquenessRule:
                 execute=OperationRules.empty(),
             )
         )
-        validate_semantic_resolved(cfg)  # no raise
+        validate_semantic(cfg, _TREE_RULES)  # no raise
 
     def test_duplicates_in_each_tier_reported(self) -> None:
         cfg = _resolved(
@@ -338,7 +349,7 @@ class TestPatternUniquenessRule:
             )
         )
         with pytest.raises(ConfigValidationError) as exc_info:
-            validate_semantic_resolved(cfg)
+            validate_semantic(cfg, _TREE_RULES)
         paths = {
             e.path for e in exc_info.value.errors if e.rule_code == "pattern-uniqueness"
         }
@@ -360,7 +371,7 @@ class TestDriverInjection:
     def test_rule_code_set_on_all_issues_from_rule(self) -> None:
         raw = {"code": {"commit-msg": {"format": True, "lint": True}}}
         with pytest.raises(ConfigValidationError) as exc_info:
-            validate_semantic_static(raw, source="guard.yaml")
+            validate_semantic(raw, _YAML_RULES)
         # Both issues from format-lint-stage-scope must carry the same rule_code.
         for issue in exc_info.value.errors:
             assert issue.rule_code == "format-lint-stage-scope"
@@ -378,7 +389,7 @@ class TestDriverInjection:
             },
         }
         with pytest.raises(ConfigValidationError) as exc_info:
-            validate_semantic_static(raw, source="guard.yaml")
+            validate_semantic(raw, _YAML_RULES)
         codes = {e.rule_code for e in exc_info.value.errors}
         assert codes == {"format-lint-stage-scope", "command-syntax"}
 
@@ -387,16 +398,16 @@ class TestEmptyConfigsPass:
     """Empty / minimal configs should not trigger any rule."""
 
     def test_static_passes_on_empty(self) -> None:
-        validate_semantic_static({}, source="guard.yaml")
+        validate_semantic({}, _YAML_RULES)
 
     def test_static_passes_on_minimal(self) -> None:
-        validate_semantic_static(
+        validate_semantic(
             {"version": 1, "project": {"language": "python"}},
-            source="guard.yaml",
+            _YAML_RULES,
         )
 
     def test_resolved_passes_on_empty_behavior(self) -> None:
-        validate_semantic_resolved(_resolved())
+        validate_semantic(_resolved(), _TREE_RULES)
 
 
 class TestIssueIsValidationIssueInstance:
@@ -405,6 +416,6 @@ class TestIssueIsValidationIssueInstance:
     def test_issue_class(self) -> None:
         raw = {"code": {"commit-msg": {"format": True}}}
         with pytest.raises(ConfigValidationError) as exc_info:
-            validate_semantic_static(raw, source="guard.yaml")
+            validate_semantic(raw, _YAML_RULES)
         for issue in exc_info.value.errors:
             assert isinstance(issue, ValidationIssue)

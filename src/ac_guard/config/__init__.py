@@ -11,8 +11,9 @@ Entry points
     Main entry. Loads, merges, validates, and hashes.
 ``load_config(path) -> RawConfig``
     Raw pass-through: parse + validate a single file, no merge.
-``runtime_check(resolved, project_root) -> list[Diagnostic]``
-    Semantic-runtime checks (IO-bearing, doctor-side).
+``diagnose_config(resolved, project_root) -> list[Diagnostic]``
+    Diagnose configuration consistency against the current environment
+    (IO-bearing; consumed by doctor and other sanity-check callers).
 
 Schemas
 -------
@@ -44,6 +45,7 @@ Everything intended for cross-module use lives in this package's
 from :mod:`ac_guard.config` directly.
 """
 
+from ac_guard.config.diagnose import Diagnostic, diagnose_config
 from ac_guard.config.exceptions import (
     ConfigError,
     ConfigFileNotFoundError,
@@ -70,13 +72,12 @@ from ac_guard.config.models import (
     Rule,
     StageBucket,
 )
-from ac_guard.config.runtime_check import Diagnostic, runtime_check
 
 __all__ = [
     # Entry-point functions
     "resolve_config",
     "load_config",
-    "runtime_check",
+    "diagnose_config",
     # Input schema
     "RawConfig",
     # Output schema tree (14 dataclasses reachable from ResolvedConfig)

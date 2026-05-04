@@ -45,7 +45,11 @@ from ac_guard.config.models import (
     Rule,
     StageBucket,
 )
-from ac_guard.config.semantic import validate_semantic_resolved
+from ac_guard.config.semantic import (
+    _PATTERN_UNIQUENESS,
+    _TIER_CONSISTENCY,
+    validate_semantic,
+)
 
 __all__ = ["resolve_config"]
 
@@ -655,7 +659,7 @@ def resolve_config(
         default_project_name=default_project_name,
     )
 
-    # 10. L3 semantic checks over the merged result (zero IO).
-    validate_semantic_resolved(resolved)
+    # 10. Semantic rules judging the merged tree (zero IO).
+    validate_semantic(resolved, [_TIER_CONSISTENCY, _PATTERN_UNIQUENESS])
 
     return resolved

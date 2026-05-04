@@ -18,8 +18,8 @@ EXPECTED_PUBLIC_API: frozenset[str] = frozenset(
         # Entry-point functions (B1 / B2)
         "resolve_config",
         "load_config",
-        # Semantic-runtime entry — IO-bearing config check used by doctor.
-        "runtime_check",
+        # Configuration-environment diagnosis entry (IO-bearing, doctor-side).
+        "diagnose_config",
         # Input schema (S1)
         "RawConfig",
         # Output schema tree (S2): 14 dataclasses reachable from ResolvedConfig

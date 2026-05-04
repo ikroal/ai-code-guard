@@ -1,21 +1,26 @@
-"""Semantic-runtime config checks (L4) — the only IO-bearing layer
-of config validation.
+"""Configuration-environment consistency diagnosis — the IO-bearing
+half of config validation.
 
-Where ``semantic.py`` is strictly zero-IO, this module is allowed to
-touch the filesystem, the user's PATH, and the project's git working
-tree to cross-check the merged ``ResolvedConfig`` against runtime
+Where ``semantic.py`` is strictly zero-IO, this module touches the
+filesystem, the user's PATH, and the project's git working tree to
+cross-check the merged ``ResolvedConfig`` against the current runtime
 reality. Examples: a hook ``entry`` references a tool that isn't on
 PATH, a ruleset path doesn't exist, a language is declared but the
 repo has no files matching it.
 
-doctor consumes ``runtime_check(resolved, project_root)`` and renders
-the returned ``Diagnostic`` list — diagnostics carry their own
-severity so doctor's only job is grouping/printing/exit-code logic.
+doctor (and any other caller doing a sanity check) calls
+``diagnose_config(resolved, project_root)`` and renders the returned
+``Diagnostic`` list — diagnostics carry their own severity so the
+caller's only job is grouping / printing / exit-code logic. The
+function never raises: configuration validity vs. environment fitness
+are different failure modes, and reporting the latter as a list of
+findings (rather than a thrown exception) keeps doctor in control of
+exit-code policy.
 
-The file boundary between ``semantic.py`` (zero-IO) and
-``runtime_check.py`` (IO-bearing) makes the contract physically
-visible: a future contributor who wants to add a new rule has to
-choose a side, and the choice is unambiguous.
+The file boundary between ``semantic.py`` (zero-IO) and ``diagnose.py``
+(IO-bearing) makes the contract physically visible: a future
+contributor adding a new check has to pick a side, and the choice is
+unambiguous.
 
 Internal submodule — import the public surface via
 :mod:`ac_guard.config` rather than reaching in here directly.
@@ -36,7 +41,7 @@ from ac_guard.domain.languages import detect_language
 if TYPE_CHECKING:
     from ac_guard.config.models import ResolvedConfig
 
-__all__ = ["Diagnostic", "runtime_check"]
+__all__ = ["Diagnostic", "diagnose_config"]
 
 
 # ---------------------------------------------------------------------------
@@ -46,7 +51,7 @@ __all__ = ["Diagnostic", "runtime_check"]
 
 @dataclass(frozen=True)
 class Diagnostic:
-    """A single semantic-runtime finding to display to the user.
+    """A single config-environment consistency finding to display.
 
     Attributes:
         level: Severity. ``"ok"`` is shown for transparency (so the
@@ -69,12 +74,14 @@ class Diagnostic:
 # ---------------------------------------------------------------------------
 
 
-def runtime_check(resolved: ResolvedConfig, project_root: Path) -> list[Diagnostic]:
-    """Run all L4 semantic-runtime checks against ``resolved``.
+def diagnose_config(resolved: ResolvedConfig, project_root: Path) -> list[Diagnostic]:
+    """Diagnose configuration consistency against the current environment.
 
-    Every helper returns its own diagnostic list; this entry point
-    simply concatenates them. The order of helpers in the result is
-    stable so callers (doctor) can present sections consistently.
+    Cross-checks the merged configuration against runtime reality:
+    PATH for declared hook commands, ``git ls-files`` for declared
+    languages, filesystem for local ruleset paths. Emits a
+    ``Diagnostic`` per finding (ok / warn / fail); never raises.
+    Callers (doctor and friends) render the list and decide exit code.
 
     Args:
         resolved: A fully-merged ``ResolvedConfig``.
@@ -83,7 +90,7 @@ def runtime_check(resolved: ResolvedConfig, project_root: Path) -> list[Diagnost
             and as the cwd for ``git ls-files``.
 
     Returns:
-        Concatenated diagnostics from all helpers.
+        Concatenated diagnostics from each helper, in stable order.
     """
     diags: list[Diagnostic] = []
     diags.extend(_verify_command_paths(resolved, project_root))

@@ -14,7 +14,12 @@ from typing import TYPE_CHECKING
 
 from ac_guard import __version__
 from ac_guard.adapters.registry import get_adapter, list_adapters
-from ac_guard.config import ConfigError, load_config, resolve_config, runtime_check
+from ac_guard.config import (
+    ConfigError,
+    diagnose_config,
+    load_config,
+    resolve_config,
+)
 from ac_guard.generator.core import read_state
 
 if TYPE_CHECKING:
@@ -234,15 +239,15 @@ def doctor_command(
     print("\n4. Drift Detection")
     _check_drift(project_root, config_path, tally)
 
-    # 5. Config semantic-runtime checks (skip when config failed to load).
-    # Stage-semantic fit (format/lint placement) is now enforced at L2
-    # of config validation, not here — broken configs fail step 2 above.
-    # The remaining IO-bearing semantic checks (hook PATH resolvability,
-    # language coverage, ruleset paths) live in ``config.runtime_check``;
-    # doctor just renders the diagnostics and aggregates the tally.
+    # 5. Config-environment consistency diagnosis (skip if load failed).
+    # Stage-semantic fit (format/lint placement) is enforced at semantic
+    # validation, not here — broken configs fail step 2 above. The
+    # remaining IO-bearing checks (hook PATH resolvability, language
+    # coverage, ruleset paths) live in ``config.diagnose``; doctor
+    # renders the Diagnostic list and aggregates the tally.
     if resolved is not None:
-        print("\n5. Config Semantic Runtime")
-        _render_runtime_check(resolved, project_root, tally)
+        print("\n5. Configuration Diagnosis")
+        _render_diagnosis(resolved, project_root, tally)
 
     # Exit policy: FAIL always exits 1. WARN exits 1 only under --strict.
     if tally.fail > 0 or (strict and tally.warn > 0):
@@ -374,22 +379,22 @@ def _check_drift(project_root: Path, config_path: Path, tally: _Tally) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Config semantic-runtime renderer (delegates to config.runtime_check)
+# Configuration diagnosis renderer (delegates to config.diagnose_config)
 # ---------------------------------------------------------------------------
 
 
-def _render_runtime_check(
+def _render_diagnosis(
     resolved: ResolvedConfig, project_root: Path, tally: _Tally
 ) -> None:
-    """Run config-layer L4 semantic-runtime checks and print diagnostics.
+    """Run configuration-environment diagnosis and print findings.
 
     All the actual logic — hook PATH resolution, language coverage,
-    ruleset path existence — lives in ``config.runtime_check``. Doctor's
+    ruleset path existence — lives in ``config.diagnose``. Doctor's
     only job here is to render each ``Diagnostic`` in the existing
     ``[ok] / [WARN] / [FAIL]`` style and feed the tally so the exit
     policy stays uniform across check sections.
     """
-    diags = runtime_check(resolved, project_root)
+    diags = diagnose_config(resolved, project_root)
     for d in diags:
         if d.level == "fail":
             print(f"  [FAIL] {d.message}")
