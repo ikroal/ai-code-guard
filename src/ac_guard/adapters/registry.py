@@ -101,11 +101,13 @@ _BUILTIN_ADAPTER_NAMES: Final[tuple[str, ...]] = (
 
 def _register_builtins() -> None:
     """Register all built-in adapters."""
-    from ac_guard.adapters.claude_code import ClaudeCodeAdapter
-    from ac_guard.adapters.copilot import CopilotAdapter
-    from ac_guard.adapters.cursor import CursorAdapter
-    from ac_guard.adapters.kilocode import KiloCodeAdapter
-    from ac_guard.adapters.opencode import OpenCodeAdapter
+    from ac_guard.adapters.builtins import (
+        ClaudeCodeAdapter,
+        CopilotAdapter,
+        CursorAdapter,
+        KiloCodeAdapter,
+        OpenCodeAdapter,
+    )
 
     register_adapter(ClaudeCodeAdapter())
     register_adapter(CursorAdapter())
