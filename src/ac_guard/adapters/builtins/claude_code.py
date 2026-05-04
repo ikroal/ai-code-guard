@@ -44,7 +44,7 @@ class ClaudeCodeAdapter(AgentAdapter):
         owns wrapping so we do not accumulate duplicate markers across
         ``install`` / ``update`` cycles.
         """
-        return render_rule_doc("claude_code", behavior)
+        return render_rule_doc(self, behavior)
 
     def hook_files(self, behavior: BehaviorConfig) -> list[FileSpec]:
         """Generate Claude Code Hook script.
@@ -55,7 +55,7 @@ class ClaudeCodeAdapter(AgentAdapter):
         - Calls Action guard for policy decision (placeholder for WP2)
         - Returns stdout JSON (hookSpecificOutput.permissionDecision)
         """
-        hook_content = render_hook("claude_code", behavior)
+        hook_content = render_hook(self, behavior)
 
         return [
             FileSpec(

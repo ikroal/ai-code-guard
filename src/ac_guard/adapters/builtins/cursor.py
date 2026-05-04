@@ -43,7 +43,7 @@ class CursorAdapter(AgentAdapter):
         Returns raw ``.mdc`` content (with frontmatter) without managed
         block markers. The writer layer owns marker wrapping.
         """
-        return render_rule_doc("cursor", behavior)
+        return render_rule_doc(self, behavior)
 
     def hook_files(self, behavior: BehaviorConfig) -> list[FileSpec]:
         """Generate Cursor Hook script.
@@ -54,7 +54,7 @@ class CursorAdapter(AgentAdapter):
         - Calls Action guard for policy decision (placeholder for WP2)
         - Returns JSON output
         """
-        hook_content = render_hook("cursor", behavior)
+        hook_content = render_hook(self, behavior)
 
         return [
             FileSpec(

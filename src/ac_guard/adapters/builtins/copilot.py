@@ -44,7 +44,7 @@ class CopilotAdapter(AgentAdapter):
         Returns raw ``copilot-instructions.md`` content without managed
         block markers; the writer layer owns marker wrapping.
         """
-        return render_rule_doc("copilot", behavior)
+        return render_rule_doc(self, behavior)
 
     def hook_files(self, behavior: BehaviorConfig) -> list[FileSpec]:
         """Copilot has no Hook capability — returns empty list."""

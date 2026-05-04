@@ -44,7 +44,7 @@ class KiloCodeAdapter(AgentAdapter):
         Returns raw Markdown content without managed block markers;
         the writer layer owns marker wrapping.
         """
-        return render_rule_doc("kilocode", behavior)
+        return render_rule_doc(self, behavior)
 
     def hook_files(self, behavior: BehaviorConfig) -> list[FileSpec]:
         """KiloCode has no Hook capability — returns empty list."""

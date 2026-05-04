@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING
 from jinja2 import Environment, FileSystemLoader
 
 if TYPE_CHECKING:
+    from ac_guard.adapters.base import AgentAdapter
     from ac_guard.config import BehaviorConfig
 
 __all__ = [
@@ -54,13 +55,14 @@ def get_template_dir() -> Path:
     return _TEMPLATE_DIR
 
 
-def render_rule_doc(template_name: str, behavior: BehaviorConfig) -> str:
-    """Render rule document from template.
+def render_rule_doc(adapter: AgentAdapter, behavior: BehaviorConfig) -> str:
+    """Render an adapter's rule document.
 
     Args:
-        template_name: Template name without extension (e.g., "claude_code").
-            Maps to templates/rule_docs/{template_name}.md.j2
-        behavior: BehaviorConfig containing read/write/execute rules.
+        adapter: The :class:`AgentAdapter` whose ``_template_stem``
+            selects ``rule_docs/<stem>.md.j2`` from the template dir.
+        behavior: :class:`BehaviorConfig` containing read/write/execute
+            rules.
 
     Returns:
         Rendered Markdown content (without managed block markers).
@@ -70,7 +72,7 @@ def render_rule_doc(template_name: str, behavior: BehaviorConfig) -> str:
         its managed block (re)written.
     """
     env = _get_env()
-    template = env.get_template(f"rule_docs/{template_name}.md.j2")
+    template = env.get_template(f"rule_docs/{adapter._template_stem}.md.j2")
 
     context = {
         "behavior": behavior,
@@ -84,19 +86,20 @@ def render_rule_doc(template_name: str, behavior: BehaviorConfig) -> str:
     return template.render(context)
 
 
-def render_hook(template_name: str, behavior: BehaviorConfig) -> str:
-    """Render hook script from template.
+def render_hook(adapter: AgentAdapter, behavior: BehaviorConfig) -> str:
+    """Render an adapter's hook script.
 
     Args:
-        template_name: Template name without extension (e.g., "claude_code").
-            Maps to templates/hooks/{template_name}.j2
-        behavior: BehaviorConfig (for future embedding of rules).
+        adapter: The :class:`AgentAdapter` whose ``_template_stem``
+            selects ``hooks/<stem>.j2`` from the template dir.
+        behavior: :class:`BehaviorConfig` (for future embedding of
+            rules).
 
     Returns:
         Rendered script content (Python, Shell, or TypeScript).
     """
     env = _get_env()
-    template = env.get_template(f"hooks/{template_name}.j2")
+    template = env.get_template(f"hooks/{adapter._template_stem}.j2")
 
     context = {
         "behavior": behavior,
