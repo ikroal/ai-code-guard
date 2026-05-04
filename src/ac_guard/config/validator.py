@@ -15,6 +15,8 @@ from dataclasses import dataclass
 from typing import Any
 
 from ac_guard.config.exceptions import ConfigValidationError, ValidationIssue
+from ac_guard.domain.languages import TYPE_EXTENSIONS
+from ac_guard.domain.stages import KNOWN_STAGES
 
 __all__ = ["validate_raw_config"]
 
@@ -82,9 +84,14 @@ class DynDict:
 
     Attributes:
         values: Schema for each value (keys are arbitrary).
+        key_enum: Optional whitelist of allowed keys. ``None`` means
+            keys are unconstrained (e.g. ``checks.<custom-name>``);
+            a ``frozenset`` rejects any key not in it (e.g. ``languages``
+            keys must be in :data:`ac_guard.domain.languages.TYPE_EXTENSIONS`).
     """
 
     values: SchemaNode
+    key_enum: frozenset[str] | None = None
 
 
 @dataclass(frozen=True)
@@ -203,17 +210,20 @@ _OUTPUT_CONFIG = Dict(
 )
 
 _PROJECT_CONFIG = Dict(
-    fields={"name": Str(), "language": Str(non_empty=True)},
+    fields={
+        "name": Str(),
+        "language": Str(non_empty=True, enum=frozenset(TYPE_EXTENSIONS)),
+    },
     required=frozenset({"language"}),
 )
 
+# Stage keys are sourced from the domain registry (KNOWN_STAGES) so the
+# schema and the language-coverage / semantic-rule consumers all share
+# a single source of truth. ``_extra`` is an ac-guard-specific escape
+# hatch for raw pre-commit repos and is not a stage.
 _CODE_CONFIG = Dict(
     fields={
-        "pre-commit": _STAGE_BUCKET,
-        "commit-msg": _STAGE_BUCKET,
-        "pre-merge-commit": _STAGE_BUCKET,
-        "pre-push": _STAGE_BUCKET,
-        "pre-rebase": _STAGE_BUCKET,
+        **dict.fromkeys(KNOWN_STAGES, _STAGE_BUCKET),
         "_extra": _EXTRA,
     }
 )
@@ -236,7 +246,10 @@ _ROOT = Dict(
         "version": Int(enum=frozenset({1})),
         "project": _PROJECT_CONFIG,
         "rulesets": List(items=Str()),
-        "languages": DynDict(values=_LANGUAGE_ENTRY),
+        "languages": DynDict(
+            values=_LANGUAGE_ENTRY,
+            key_enum=frozenset(TYPE_EXTENSIONS),
+        ),
         "behavior": _BEHAVIOR_CONFIG,
         "code": _CODE_CONFIG,
         "build": _BUILD_CONFIG,
@@ -414,6 +427,14 @@ class _Validator:
 
         for key, value in data.items():
             child_path = f"{path}.{key}" if path else key
+            if node.key_enum is not None and key not in node.key_enum:
+                sorted_vals = sorted(node.key_enum)
+                self._add(
+                    child_path,
+                    f"unknown key '{key}', must be one of: {sorted_vals}",
+                    key,
+                )
+                continue  # skip value recursion to avoid cascading noise
             self._walk(value, node.values, child_path)
 
     def _check_list(self, data: Any, node: List, path: str) -> None:

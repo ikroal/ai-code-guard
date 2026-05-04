@@ -45,6 +45,7 @@ from ac_guard.config.models import (
     Rule,
     StageBucket,
 )
+from ac_guard.config.semantic import validate_semantic_resolved
 
 __all__ = ["resolve_config"]
 
@@ -648,8 +649,13 @@ def resolve_config(
 
     # 9. Convert to dataclasses
     default_project_name = resolved_path.parent.name
-    return _to_resolved_config(
+    resolved = _to_resolved_config(
         merged,
         config_hash=config_hash,
         default_project_name=default_project_name,
     )
+
+    # 10. L3 semantic checks over the merged result (zero IO).
+    validate_semantic_resolved(resolved)
+
+    return resolved

@@ -6,7 +6,8 @@
 ; in Track B.1 of the M6 cleanup.
 ;
 ; Allowed dependencies (each module implicitly depends on itself):
-;   config, domain  — leaves (no internal deps)
+;   domain             — leaf (no internal deps)
+;   config             → domain
 ;   adapters           → config, domain
 ;   code_gate          → config, domain
 ;   reporter           → config, domain
@@ -17,12 +18,18 @@
 ; Within the same layer, modules may NOT import each other — e.g.
 ; action_guard must not import generator, code_gate must not import adapters.
 ;
+; ``config`` sits one layer above ``domain`` because schema and semantic
+; validation consume domain registries (TYPE_EXTENSIONS / KNOWN_STAGES)
+; as the single source of truth for valid language and stage names.
+; ``domain`` itself remains a stdlib-only leaf with no internal
+; dependencies.
+;
 ; The `domain` layer holds cross-module *intermediate* data contracts
-; (FileSpec / StageOutcome / CheckResult / Violation) plus the ac-guard
-; managed-block protocol constants and stdlib-only helpers
-; (markers_for / wrap_with_markers). It is NOT a general-purpose
-; shared/common bucket — see src/ac_guard/domain/__init__.py for
-; admission criteria.
+; (FileSpec / StageOutcome / CheckResult / Violation), domain registries
+; (languages / stages), the ac-guard managed-block protocol constants,
+; and stdlib-only helpers (markers_for / wrap_with_markers). It is NOT
+; a general-purpose shared/common bucket — see
+; src/ac_guard/domain/__init__.py for admission criteria.
 ;
 ; The `config-encapsulation` forbidden contract below makes the
 ; ac_guard.config package facade the single import path for config
@@ -40,7 +47,8 @@ layers =
     cli
     action_guard | generator
     code_gate | reporter | adapters
-    config | domain
+    config
+    domain
 containers =
     ac_guard
 

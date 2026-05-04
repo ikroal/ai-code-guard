@@ -364,22 +364,35 @@ class TestDoctorLanguageCoverage:
         _init_git_with_files(tmp_path, {"x.go": "", "scripts/setup.go": ""})
         config = _yaml_with_languages(tmp_path, {"python": {}})
         result = runner.invoke(app, ["doctor", "--config", str(config)])
-        # Go files below threshold → no warn line about go.
-        assert "go" not in result.output.lower().split("\n6.")[1].split("\n7.")[0]
+        # Go files below threshold → no warn line mentioning go.
+        # Section 5 is the only section that reports language coverage now.
+        section = result.output.lower().split("\n5.")[1]
+        assert "go: " not in section, section
 
-    def test_not_a_git_repo_is_silent(self, tmp_path: Path) -> None:
-        """When git ls-files fails, check stays quiet (git diag already covered)."""
+    def test_not_a_git_repo_does_not_crash(self, tmp_path: Path) -> None:
+        """When git ls-files fails, doctor stays sane and continues.
+
+        The git diagnostic check (Step 1) already calls out git issues,
+        so the language-coverage check here just reports the empty repo
+        as ``WARN`` for declared-but-missing files — that's an
+        acceptable downstream signal.
+        """
         config = _yaml_with_languages(tmp_path, {"python": {}})
         # No .git dir in tmp_path → git ls-files returns non-zero
         result = runner.invoke(app, ["doctor", "--config", str(config)])
-        # Declared python with 0 files → WARN (repo empty). That's
-        # acceptable; we're only asserting no crash.
-        assert "6. Language Coverage" in result.output
+        assert "5. Config Semantic Runtime" in result.output
 
 
 # ---------------------------------------------------------------------------
-# TestDoctorStageSemanticFit (Phase 2 PR A)
+# TestDoctorStageSemanticFitMigrated
 # ---------------------------------------------------------------------------
+#
+# Format/lint placement on non-file-scoped stages was previously a doctor
+# WARN. It moved to L2 of config validation (rule code
+# ``format-lint-stage-scope`` in ``test_semantic.py``), so doctor now fails
+# at config-load time instead of soft-warning. The doctor side just needs
+# to confirm config-load failures are surfaced via exit 1 and the rule
+# message reaches the user.
 
 
 def _yaml_with_stage(tmp_path: Path, stage: str, field: str, value: bool) -> Path:
@@ -392,60 +405,58 @@ def _yaml_with_stage(tmp_path: Path, stage: str, field: str, value: bool) -> Pat
     return _write_guard_yaml(tmp_path, data)
 
 
-class TestDoctorStageSemanticFit:
-    """Phase 2 PR A — warn on format/lint toggles attached to non-fitting stages."""
+class TestDoctorStageSemanticFitMigrated:
+    """format/lint stage-scope misconfig now fails at config-load time."""
 
-    def test_pre_commit_format_is_ok(self, tmp_path: Path) -> None:
-        """Canonical placement — no warning."""
+    def test_pre_commit_format_passes_load(self, tmp_path: Path) -> None:
+        """Canonical placement — config loads cleanly, doctor proceeds."""
         config = _yaml_with_stage(tmp_path, "pre-commit", "format", True)
         result = runner.invoke(app, ["doctor", "--config", str(config)])
-        assert "[ok] format/lint shortcuts only on pre-commit/pre-push" in (
-            result.output
+        # Doctor's config step printed [ok], not a load error.
+        assert (
+            "[FAIL]"
+            not in result.output.split("Configuration")[1].split("File Integrity")[0]
         )
 
-    def test_commit_msg_format_is_warn(self, tmp_path: Path) -> None:
-        """commit-msg.format: true is a silent-skip footgun."""
+    def test_commit_msg_format_fails_at_load(self, tmp_path: Path) -> None:
+        """commit-msg.format: true is rejected at L2 (rule format-lint-stage-scope)."""
         config = _yaml_with_stage(tmp_path, "commit-msg", "format", True)
         result = runner.invoke(app, ["doctor", "--config", str(config)])
-        assert "[WARN]" in result.output
+        assert result.exit_code == 1
         assert "code.commit-msg.format" in result.output
-        # Exit 0 because WARN alone doesn't fail without --strict
-        assert result.exit_code == 0
 
-    def test_pre_rebase_lint_is_warn(self, tmp_path: Path) -> None:
-        """pre-rebase.lint: true is equally meaningless (no files to lint)."""
+    def test_pre_rebase_lint_fails_at_load(self, tmp_path: Path) -> None:
         config = _yaml_with_stage(tmp_path, "pre-rebase", "lint", True)
         result = runner.invoke(app, ["doctor", "--config", str(config)])
-        assert "[WARN]" in result.output
+        assert result.exit_code == 1
         assert "code.pre-rebase.lint" in result.output
 
-    def test_pre_push_lint_is_ok(self, tmp_path: Path) -> None:
-        """pre-push is bucket-aware — lint there is the canonical place."""
-        config = _yaml_with_stage(tmp_path, "pre-push", "lint", True)
-        result = runner.invoke(app, ["doctor", "--config", str(config)])
-        assert "[ok] format/lint shortcuts only on pre-commit/pre-push" in (
-            result.output
-        )
-
 
 # ---------------------------------------------------------------------------
-# TestDoctorStrict (Phase 2 PR A)
+# TestDoctorStrict
 # ---------------------------------------------------------------------------
+
+
+def _yaml_declared_lang_no_files(tmp_path: Path, lang: str) -> Path:
+    """Project declares ``lang`` in languages: but commits no source files
+    for it — produces a [WARN] from doctor's language-coverage check."""
+    _init_git_with_files(tmp_path, {"README.md": ""})  # one tracked non-source
+    return _yaml_with_languages(tmp_path, {lang: {}})
 
 
 class TestDoctorStrict:
-    """Phase 2 PR A — --strict policy for CI."""
+    """--strict turns WARNs into exit-1 for CI; FAILs always exit 1."""
 
     def test_strict_with_warn_exits_one(self, tmp_path: Path) -> None:
         """With --strict, any WARN causes exit 1."""
-        config = _yaml_with_stage(tmp_path, "commit-msg", "format", True)
+        config = _yaml_declared_lang_no_files(tmp_path, "rust")
         result = runner.invoke(app, ["doctor", "--config", str(config), "--strict"])
         assert result.exit_code == 1
         assert "[WARN]" in result.output
 
     def test_non_strict_with_warn_exits_zero(self, tmp_path: Path) -> None:
         """Without --strict, WARN is informational and doctor still exits 0."""
-        config = _yaml_with_stage(tmp_path, "commit-msg", "format", True)
+        config = _yaml_declared_lang_no_files(tmp_path, "rust")
         result = runner.invoke(app, ["doctor", "--config", str(config)])
         assert result.exit_code == 0
         assert "[WARN]" in result.output

@@ -157,6 +157,26 @@ class TestProjectField:
             validate_raw_config(data)
         assert any("project.extra" in e.path for e in exc_info.value.errors)
 
+    def test_project_language_unknown_value(self) -> None:
+        """language must be a registered ac-guard language (typo guard)."""
+        data = {"version": 1, "project": {"language": "pythonn"}}
+        with pytest.raises(ConfigValidationError) as exc_info:
+            validate_raw_config(data)
+        msgs = [
+            e.message for e in exc_info.value.errors if "project.language" in e.path
+        ]
+        assert msgs, "expected an issue at path project.language"
+        assert any("python" in m for m in msgs), (
+            "error message should mention valid choices including 'python'"
+        )
+
+    def test_project_language_all_registered_values_pass(self) -> None:
+        """Every language in domain.languages.TYPE_EXTENSIONS is a valid value."""
+        from ac_guard.domain.languages import TYPE_EXTENSIONS
+
+        for lang in TYPE_EXTENSIONS:
+            validate_raw_config({"version": 1, "project": {"language": lang}})
+
 
 class TestRulesetsField:
     def test_rulesets_not_list(self) -> None:
@@ -321,6 +341,36 @@ class TestLanguagesField:
         with pytest.raises(ConfigValidationError) as exc_info:
             validate_raw_config(data)
         assert any("lint" in e.path for e in exc_info.value.errors)
+
+    def test_unknown_language_key(self) -> None:
+        """languages keys must be registered ac-guard languages (typo guard)."""
+        data = _minimal_config(
+            languages={"pythonn": {"tools": {"format": "x", "lint": "y"}}}
+        )
+        with pytest.raises(ConfigValidationError) as exc_info:
+            validate_raw_config(data)
+        # The unknown key should produce an issue at languages.<bad>
+        paths = [e.path for e in exc_info.value.errors]
+        assert any(p == "languages.pythonn" for p in paths), (
+            f"expected unknown-key issue at languages.pythonn; got paths={paths}"
+        )
+
+    def test_unknown_language_key_skips_value_recursion(self) -> None:
+        """Unknown DynDict key should not produce cascading value errors."""
+        # If value validation kept running, missing 'tools' or other field
+        # errors would also surface — those would be noise, not signal.
+        data = _minimal_config(languages={"pythonn": "completely-bad-value"})
+        with pytest.raises(ConfigValidationError) as exc_info:
+            validate_raw_config(data)
+        # Only the unknown-key issue at languages.pythonn should appear,
+        # not a "expected mapping" issue at languages.pythonn for the value.
+        issues_for_path = [
+            e for e in exc_info.value.errors if e.path == "languages.pythonn"
+        ]
+        assert len(issues_for_path) == 1, (
+            f"expected exactly one issue at languages.pythonn; "
+            f"got {[(e.path, e.message) for e in exc_info.value.errors]}"
+        )
 
 
 class TestBuildField:

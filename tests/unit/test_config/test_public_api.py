@@ -15,10 +15,11 @@ import ac_guard.config as config_pkg
 
 EXPECTED_PUBLIC_API: frozenset[str] = frozenset(
     {
-        # Entry-point functions (B1 / B2 / B3)
+        # Entry-point functions (B1 / B2)
         "resolve_config",
         "load_config",
-        "validate_raw_config",
+        # Semantic-runtime entry — IO-bearing config check used by doctor.
+        "runtime_check",
         # Input schema (S1)
         "RawConfig",
         # Output schema tree (S2): 14 dataclasses reachable from ResolvedConfig
@@ -36,6 +37,8 @@ EXPECTED_PUBLIC_API: frozenset[str] = frozenset(
         "OutputConfig",
         "AuditConfig",
         "PrReportConfig",
+        # Diagnostics (runtime_check output)
+        "Diagnostic",
         # Error types (Q2 / Q4)
         "ConfigError",
         "ConfigFileNotFoundError",
@@ -48,7 +51,7 @@ EXPECTED_PUBLIC_API: frozenset[str] = frozenset(
 
 
 def test_public_api_matches_snapshot() -> None:
-    """``__all__`` must match the derived 24-symbol public surface."""
+    """``__all__`` must match the snapshot above."""
     assert frozenset(config_pkg.__all__) == EXPECTED_PUBLIC_API
 
 

@@ -89,7 +89,7 @@ See [guard.yaml reference](design/AI_GUARD_SYSTEM_DESIGN.md) for full schema.
 | `ac-guard run --stage <s>` | Run all checks for a gating stage (also the entry point invoked by generated git hooks) |
 | `ac-guard run <name>` | Run a single check by name (developer iteration) |
 | `ac-guard status` | Installation state and drift detection |
-| `ac-guard doctor` | Environment diagnostics |
+| `ac-guard doctor` | Environment + config-runtime diagnostics |
 | `ac-guard agents` | Agent capability matrix |
 | `ac-guard ruleset fetch` | Fetch a ruleset from a git repository |
 | `ac-guard ruleset list` | List cached rulesets |

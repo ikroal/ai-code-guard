@@ -38,6 +38,27 @@ class TestValidationIssue:
         issue = ValidationIssue(path="x", message="y")
         assert hasattr(issue, "__dataclass_fields__")
 
+    def test_rule_code_default_none(self) -> None:
+        """rule_code is optional; legacy callers leave it None."""
+        issue = ValidationIssue(path="x", message="y", value=None)
+        assert issue.rule_code is None
+
+    def test_rule_code_settable_via_kwarg(self) -> None:
+        """Semantic rules pass rule_code to mark which rule produced an issue."""
+        issue = ValidationIssue(
+            path="code.commit-msg.format",
+            message="not allowed here",
+            value=True,
+            rule_code="format-lint-stage-scope",
+        )
+        assert issue.rule_code == "format-lint-stage-scope"
+
+    def test_rule_code_mutable_for_driver_injection(self) -> None:
+        """Semantic driver post-injects rule_code after the rule populates issues."""
+        issue = ValidationIssue(path="x", message="y")
+        issue.rule_code = "some-rule"
+        assert issue.rule_code == "some-rule"
+
 
 class TestConfigError:
     def test_is_base_class(self) -> None:
