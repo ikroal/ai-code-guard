@@ -14,6 +14,7 @@ Regenerate after an intentional output change:
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 
 import pytest
@@ -25,6 +26,19 @@ _SNAPSHOT_DIR = Path(__file__).parent / "_snapshots"
 _UPDATE = os.environ.get("AC_GUARD_UPDATE_SNAPSHOTS") == "1"
 
 _BUILTIN_NAMES = ("claude-code", "cursor", "opencode", "copilot", "kilocode")
+
+# Hook templates bake ``sys.executable`` so the rendered hook can
+# re-exec into the interpreter that ran ``ac-guard install``. That
+# path is machine-dependent (macOS vs. Linux vs. Windows runners), so
+# we pin it during snapshot tests to keep the captured output
+# reproducible across hosts. Tests in test_hooks.py still cover the
+# real-``sys.executable`` baking behaviour dynamically.
+_PINNED_PYTHON = "/usr/local/bin/python3"
+
+
+@pytest.fixture(autouse=True)
+def _pin_sys_executable(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(sys, "executable", _PINNED_PYTHON)
 
 
 def _canonical_behavior() -> BehaviorConfig:

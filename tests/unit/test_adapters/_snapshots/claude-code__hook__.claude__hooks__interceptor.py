@@ -21,7 +21,7 @@ from pathlib import Path
 # any launch path, we bake the absolute path of the Python that ran
 # `ac-guard install` (which, by definition, can import ac_guard) and
 # re-exec into it when they differ.
-_INSTALL_PY = "/Users/ikroal/Data/code/ai-guard/.venv/bin/python"
+_INSTALL_PY = "/usr/local/bin/python3"
 if sys.executable != _INSTALL_PY and os.path.exists(_INSTALL_PY):
     os.execv(_INSTALL_PY, [_INSTALL_PY, __file__, *sys.argv[1:]])
 
