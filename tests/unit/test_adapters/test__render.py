@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
-from ac_guard.adapters._render import get_template_dir, render_hook, render_rule_doc
+from ac_guard.adapters._render import _TEMPLATE_DIR, render_hook, render_rule_doc
 from ac_guard.adapters.builtins.claude_code import ClaudeCodeAdapter
 from ac_guard.adapters.builtins.copilot import CopilotAdapter
 from ac_guard.adapters.builtins.cursor import CursorAdapter
@@ -18,19 +16,6 @@ _CURSOR = CursorAdapter()
 _OPENCODE = OpenCodeAdapter()
 _COPILOT = CopilotAdapter()
 _KILOCODE = KiloCodeAdapter()
-
-
-class TestGetTemplateDir:
-    """get_template_dir function tests."""
-
-    def test_returns_path(self) -> None:
-        result = get_template_dir()
-        assert isinstance(result, Path)
-        assert result.name == "_templates"
-
-    def test_template_dir_exists(self) -> None:
-        result = get_template_dir()
-        assert result.is_dir()
 
 
 class TestRenderRuleDoc:
@@ -146,7 +131,7 @@ class TestTemplateStems:
 
     def test_rule_doc_template_exists_for_each_builtin(self) -> None:
         adapters = [_CLAUDE_CODE, _CURSOR, _OPENCODE, _COPILOT, _KILOCODE]
-        rule_doc_dir = get_template_dir() / "rule_docs"
+        rule_doc_dir = _TEMPLATE_DIR / "rule_docs"
         for adapter in adapters:
             template = rule_doc_dir / f"{adapter._template_stem}.md.j2"
             assert template.is_file(), (
@@ -156,7 +141,7 @@ class TestTemplateStems:
     def test_hook_template_exists_for_each_block_capable_builtin(self) -> None:
         # Only adapters with can_block=True render hook scripts.
         block_capable = [_CLAUDE_CODE, _CURSOR, _OPENCODE]
-        hook_dir = get_template_dir() / "hooks"
+        hook_dir = _TEMPLATE_DIR / "hooks"
         for adapter in block_capable:
             template = hook_dir / f"{adapter._template_stem}.j2"
             assert template.is_file(), (

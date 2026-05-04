@@ -1,12 +1,14 @@
-"""Shared rendering utilities for Agent adapters.
+"""Shared rendering utilities for Agent adapters — package-internal.
 
-Uses Jinja2 to load templates from adapters/_templates/ directory.
-Templates are static files, not imported by Python, so they don't
-trigger ALLOWED_DEPS checks.
+Loads Jinja2 templates from ``adapters/_templates/`` to produce rule
+documents and hook scripts. Templates are static files (not imported
+by Python), so they fall outside the import-linter layering contract
+and can include vendor-specific syntax freely.
 
-This module provides:
-- render_rule_doc(): Render rule document from template
-- render_hook(): Render hook script from template
+The module is private to :mod:`ac_guard.adapters` (leading-underscore
+filename); only adapters in :mod:`ac_guard.adapters.builtins` may
+import from here. External callers should go through the adapter
+public API instead.
 """
 
 from __future__ import annotations
@@ -20,12 +22,6 @@ from jinja2 import Environment, FileSystemLoader
 if TYPE_CHECKING:
     from ac_guard.adapters.base import AgentAdapter
     from ac_guard.config import BehaviorConfig
-
-__all__ = [
-    "render_rule_doc",
-    "render_hook",
-    "get_template_dir",
-]
 
 # Template directory relative to this module (internal/private)
 _TEMPLATE_DIR = Path(__file__).parent / "_templates"
@@ -48,11 +44,6 @@ def _get_env() -> Environment:
             keep_trailing_newline=True,
         )
     return _env
-
-
-def get_template_dir() -> Path:
-    """Return the template directory path."""
-    return _TEMPLATE_DIR
 
 
 def render_rule_doc(adapter: AgentAdapter, behavior: BehaviorConfig) -> str:
