@@ -34,4 +34,3 @@ The following rules define what operations are permitted, blocked, or require ap
 
 **Allowed** (permitted):
 - `shell:pytest *`
-

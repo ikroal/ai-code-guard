@@ -105,6 +105,18 @@ def _canonical_behavior() -> BehaviorConfig:
     )
 
 
+def _normalize_eof(text: str) -> str:
+    """Collapse trailing newlines to exactly one ``\\n`` (POSIX text-file form).
+
+    Snapshots are committed alongside source and pass through standard
+    pre-commit hooks (``end-of-file-fixer``) that strip extra trailing
+    blank lines. Normalising both sides on read/write keeps the
+    canonical form stable across local generation, CI checkout, and
+    hook fix-ups.
+    """
+    return text.rstrip("\n") + "\n" if text else text
+
+
 def _compare_or_write(actual: str, snapshot_path: Path) -> None:
     """Assert *actual* equals snapshot file content, or write under update mode.
 
@@ -112,6 +124,7 @@ def _compare_or_write(actual: str, snapshot_path: Path) -> None:
     and the assertion is skipped. Without the flag, a missing snapshot
     fails the test loudly so CI can never silently accept new output.
     """
+    actual = _normalize_eof(actual)
     if _UPDATE:
         snapshot_path.parent.mkdir(parents=True, exist_ok=True)
         snapshot_path.write_text(actual, encoding="utf-8")
@@ -122,7 +135,7 @@ def _compare_or_write(actual: str, snapshot_path: Path) -> None:
             "Regenerate with: AC_GUARD_UPDATE_SNAPSHOTS=1 pytest "
             f"{Path(__file__).name}"
         )
-    expected = snapshot_path.read_text(encoding="utf-8")
+    expected = _normalize_eof(snapshot_path.read_text(encoding="utf-8"))
     assert actual == expected, (
         f"Snapshot mismatch: {snapshot_path}\n"
         "If the change is intentional regenerate with "

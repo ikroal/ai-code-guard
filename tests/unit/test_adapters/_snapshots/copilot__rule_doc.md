@@ -36,4 +36,3 @@ The following rules define recommended constraints for AI operations.
 
 **Allowed** (permitted):
 - `shell:pytest *`
-
