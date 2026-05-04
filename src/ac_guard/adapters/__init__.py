@@ -1,34 +1,35 @@
-"""Agent adapters module for AI Code Guard.
+"""Agent adapters package for AI Code Guard.
 
-Provides AgentAdapter abstract base class, AgentCapabilities dataclass,
-and registry functions for managing Agent-specific file generation strategies.
+Public surface:
 
-Built-in adapters are auto-registered on module import:
-- claude-code (can_block=True, can_ask=True)
-- cursor (can_block=True, can_ask=False)
-- opencode (can_block=True, can_ask=True)
-- copilot (can_block=False, can_ask=False)
-- kilocode (can_block=False, can_ask=False)
+- :class:`AgentAdapter` — abstract base class for vendor-specific
+  artifact generation strategies.
+- :class:`AgentCapabilities` — capability declaration dataclass.
+- :func:`get_adapter` / :func:`list_adapters` — name-based lookup
+  against the closed set of built-in adapters.
+- :class:`AdapterNotFoundError` — raised by ``get_adapter`` on miss.
+
+The five built-ins (constructed once as an immutable mapping at import
+time):
+
+- ``claude-code`` (can_block=True, can_ask=True)
+- ``cursor`` (can_block=True, can_ask=False)
+- ``opencode`` (can_block=True, can_ask=True)
+- ``copilot`` (can_block=False, can_ask=False)
+- ``kilocode`` (can_block=False, can_ask=False)
 """
 
 from ac_guard.adapters.base import AgentAdapter, AgentCapabilities
 from ac_guard.adapters.registry import (
     AdapterNotFoundError,
-    clear_registry,
     get_adapter,
     list_adapters,
-    register_adapter,
 )
 
 __all__ = [
-    # Base types
+    "AdapterNotFoundError",
     "AgentAdapter",
     "AgentCapabilities",
-    # Registry functions
-    "register_adapter",
     "get_adapter",
     "list_adapters",
-    "clear_registry",
-    # Exceptions
-    "AdapterNotFoundError",
 ]

@@ -1,30 +1,44 @@
-"""AgentAdapter registry for registration and lookup.
+"""AgentAdapter registry — closed-set built-in lookup.
 
-Provides a central registry where adapters are registered by name
-and can be retrieved for use by the Generator module.
+Holds the immutable, eagerly-constructed mapping of built-in
+:class:`AgentAdapter` instances and exposes name-based lookup helpers.
+
+The set is closed: there is no registration / unregistration API and
+no plugin-discovery mechanism. To add a new built-in adapter, add a
+module under :mod:`ac_guard.adapters.builtins` and append the class to
+the ``_BUILTINS`` tuple below. External extensibility (third-party
+adapters via entry points) is intentionally out of scope; if it ever
+becomes a real requirement it should be a separate, explicit design
+proposal.
 """
 
 from __future__ import annotations
 
+from types import MappingProxyType
 from typing import TYPE_CHECKING, Final
 
+from ac_guard.adapters.builtins import (
+    ClaudeCodeAdapter,
+    CopilotAdapter,
+    CursorAdapter,
+    KiloCodeAdapter,
+    OpenCodeAdapter,
+)
+
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from ac_guard.adapters.base import AgentAdapter
 
 __all__ = [
     "AdapterNotFoundError",
-    "register_adapter",
     "get_adapter",
     "list_adapters",
-    "clear_registry",
 ]
-
-# Internal registry storage
-_REGISTRY: dict[str, AgentAdapter] = {}
 
 
 class AdapterNotFoundError(Exception):
-    """Raised when get_adapter is called with an unregistered name."""
+    """Raised when ``get_adapter`` is called with an unknown name."""
 
     def __init__(self, name: str, available: list[str]) -> None:
         super().__init__(
@@ -34,87 +48,41 @@ class AdapterNotFoundError(Exception):
         self.available = available
 
 
-def register_adapter(adapter: AgentAdapter) -> None:
-    """Register an AgentAdapter by its name.
+_BUILTINS: Final[tuple[AgentAdapter, ...]] = (
+    ClaudeCodeAdapter(),
+    CursorAdapter(),
+    OpenCodeAdapter(),
+    CopilotAdapter(),
+    KiloCodeAdapter(),
+)
 
-    Args:
-        adapter: The AgentAdapter instance to register.
-
-    Raises:
-        ValueError: If an adapter with the same name is already registered.
-    """
-    name = adapter.name
-    if name in _REGISTRY:
-        raise ValueError(f"Adapter '{name}' is already registered")
-    _REGISTRY[name] = adapter
+_REGISTRY: Final[Mapping[str, AgentAdapter]] = MappingProxyType(
+    {adapter.name: adapter for adapter in _BUILTINS}
+)
 
 
 def get_adapter(name: str) -> AgentAdapter:
-    """Retrieve a registered AgentAdapter by name.
+    """Retrieve a built-in AgentAdapter by name.
 
     Args:
-        name: The adapter identifier (e.g., "claude-code").
+        name: The adapter identifier (e.g., ``"claude-code"``).
 
     Returns:
-        The registered AgentAdapter instance.
+        The built-in :class:`AgentAdapter` instance.
 
     Raises:
         AdapterNotFoundError: If no adapter is registered with that name.
     """
-    if name not in _REGISTRY:
-        raise AdapterNotFoundError(name, list_adapters())
-    return _REGISTRY[name]
+    try:
+        return _REGISTRY[name]
+    except KeyError:
+        raise AdapterNotFoundError(name, list_adapters()) from None
 
 
 def list_adapters() -> list[str]:
-    """List all registered adapter names.
+    """List all built-in adapter names.
 
     Returns:
-        Sorted list of registered adapter identifiers.
+        Sorted list of adapter identifiers.
     """
-    return sorted(_REGISTRY.keys())
-
-
-def clear_registry() -> None:
-    """Clear all registered adapters.
-
-    Used primarily for testing to reset the registry state.
-    """
-    _REGISTRY.clear()
-
-
-# ---------------------------------------------------------------------------
-# Built-in Adapters
-# ---------------------------------------------------------------------------
-
-# Import adapters lazily to avoid circular imports at module load time.
-# The _register_builtins function is called when this module is imported,
-# but actual adapter classes are imported only when needed.
-_BUILTIN_ADAPTER_NAMES: Final[tuple[str, ...]] = (
-    "claude-code",
-    "cursor",
-    "opencode",
-    "copilot",
-    "kilocode",
-)
-
-
-def _register_builtins() -> None:
-    """Register all built-in adapters."""
-    from ac_guard.adapters.builtins import (
-        ClaudeCodeAdapter,
-        CopilotAdapter,
-        CursorAdapter,
-        KiloCodeAdapter,
-        OpenCodeAdapter,
-    )
-
-    register_adapter(ClaudeCodeAdapter())
-    register_adapter(CursorAdapter())
-    register_adapter(OpenCodeAdapter())
-    register_adapter(CopilotAdapter())
-    register_adapter(KiloCodeAdapter())
-
-
-# Auto-register builtins when this module is imported
-_register_builtins()
+    return sorted(_REGISTRY)
