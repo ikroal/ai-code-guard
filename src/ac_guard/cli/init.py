@@ -6,6 +6,7 @@ Generates a guard.yaml configuration file based on presets and user options.
 from __future__ import annotations
 
 import copy
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -15,7 +16,27 @@ from jinja2 import Environment, FileSystemLoader
 from ac_guard import __version__
 from ac_guard.cli.presets import AVAILABLE_PRESETS, load_preset
 
-__all__ = ["init_command"]
+__all__ = ["InitRequest", "init_command"]
+
+
+@dataclass(frozen=True)
+class InitRequest:
+    """Bundle of inputs that drive a single ``ac-guard init`` invocation.
+
+    Attributes:
+        language: Project programming language (required).
+        preset: Configuration preset name (``minimal`` / ``standard`` / ``strict``).
+        rulesets: Ruleset references to embed in the generated config.
+        force: Overwrite an existing ``guard.yaml`` if present.
+        output: Destination path of the generated ``guard.yaml``.
+    """
+
+    language: str
+    preset: str
+    rulesets: list[str]
+    force: bool
+    output: Path
+
 
 # Jinja2 environment for header template
 _TEMPLATE_DIR = Path(__file__).parent / "_templates"
@@ -143,54 +164,32 @@ def _render_guard_yaml(
     return header.rstrip() + "\n" + body + "\n"
 
 
-def init_command(
-    language: str,
-    preset: str,
-    rulesets: list[str],
-    force: bool,
-    output: Path,
-) -> None:
+def init_command(request: InitRequest) -> None:
     """Execute the init command.
 
     Creates a guard.yaml configuration file based on the selected preset
-    and user-provided parameters.
-
-    Args:
-        language: Project programming language (required).
-        preset: Configuration preset name (minimal/standard/strict).
-        rulesets: List of ruleset references to include.
-        force: Whether to overwrite existing guard.yaml.
-        output: Output file path for guard.yaml.
+    and the parameters carried by ``request``.
     """
-    # Check if output file already exists
-    if output.exists() and not force:
-        print(f"Error: {output} already exists. Use --force to overwrite.")
+    if request.output.exists() and not request.force:
+        print(f"Error: {request.output} already exists. Use --force to overwrite.")
         raise SystemExit(1)
 
-    # Validate preset
-    if preset not in AVAILABLE_PRESETS:
-        print(f"Error: Unknown preset '{preset}'. Available: {AVAILABLE_PRESETS}")
+    if request.preset not in AVAILABLE_PRESETS:
+        print(
+            f"Error: Unknown preset '{request.preset}'. Available: {AVAILABLE_PRESETS}"
+        )
         raise SystemExit(1)
 
-    # Load preset configuration
-    preset_config = load_preset(preset)
-
-    # Get project name
+    preset_config = load_preset(request.preset)
     project_name = _get_project_name()
+    config = _merge_config(
+        preset_config, request.language, request.rulesets, project_name
+    )
+    yaml_content = _render_guard_yaml(config, request.preset)
 
-    # Merge configuration
-    config = _merge_config(preset_config, language, rulesets, project_name)
+    request.output.write_text(yaml_content, encoding="utf-8")
 
-    # Render YAML content
-    yaml_content = _render_guard_yaml(config, preset)
-
-    # Write to output file
-    output.write_text(yaml_content, encoding="utf-8")
-
-    # Print success message
-    print(f"Created {output}")
-
-    # Print next steps
+    print(f"Created {request.output}")
     print("\nNext steps:")
     print("  1. Review and edit the configuration file")
     print("  2. Run 'ac-guard install --agent <agent>' to generate artifacts")

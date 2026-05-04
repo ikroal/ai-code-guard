@@ -6,17 +6,35 @@ from typing import Annotated
 import typer
 
 from ac_guard import __version__
-from ac_guard.cli.check import RunRequest, run_command
-from ac_guard.cli.init import init_command
-from ac_guard.cli.install import install_command, uninstall_command, update_command
+from ac_guard.cli.init import InitRequest, init_command
+from ac_guard.cli.install import (
+    InstallRequest,
+    UninstallRequest,
+    UpdateRequest,
+    install_command,
+    uninstall_command,
+    update_command,
+)
 from ac_guard.cli.ruleset import (
+    RulesetCacheClearRequest,
+    RulesetFetchRequest,
+    RulesetListRequest,
+    RulesetShowRequest,
     ruleset_cache_clear_command,
     ruleset_fetch_command,
     ruleset_list_command,
     ruleset_show_command,
 )
-from ac_guard.cli.status import agents_command, doctor_command, status_command
-from ac_guard.cli.validation import validation_list_command, validation_report_command
+from ac_guard.cli.run import RunRequest, run_command
+from ac_guard.cli.show import ShowRequest, show_command
+from ac_guard.cli.status import (
+    AgentsRequest,
+    DoctorRequest,
+    StatusRequest,
+    agents_command,
+    doctor_command,
+    status_command,
+)
 
 app = typer.Typer(
     name="ac-guard",
@@ -100,11 +118,13 @@ def init(
     with the provided language and optional ruleset references.
     """
     init_command(
-        language=language,
-        preset=preset,
-        rulesets=ruleset or [],
-        force=force,
-        output=output,
+        InitRequest(
+            language=language,
+            preset=preset,
+            rulesets=ruleset or [],
+            force=force,
+            output=output,
+        )
     )
 
 
@@ -143,7 +163,12 @@ def install(
     agents = [a.strip() for a in agent.split(",") if a.strip()] if agent else []
     project_root = config.parent.resolve()
     install_command(
-        agents=agents, project_root=project_root, config_path=config, force=force
+        InstallRequest(
+            agents=agents,
+            project_root=project_root,
+            config_path=config,
+            force=force,
+        )
     )
 
 
@@ -172,7 +197,13 @@ def update(
     artifacts based on the latest guard.yaml configuration.
     """
     project_root = config.parent.resolve()
-    update_command(project_root=project_root, config_path=config, force=force)
+    update_command(
+        UpdateRequest(
+            project_root=project_root,
+            config_path=config,
+            force=force,
+        )
+    )
 
 
 @app.command()
@@ -191,18 +222,16 @@ def uninstall(
     Use --keep-config to preserve guard.yaml.
     """
     project_root = Path.cwd()
-    uninstall_command(project_root=project_root, keep_config=keep_config)
+    uninstall_command(
+        UninstallRequest(
+            project_root=project_root,
+            keep_config=keep_config,
+        )
+    )
 
 
 @app.command()
 def status(
-    rules: Annotated[
-        bool,
-        typer.Option(
-            "--rules",
-            help="Display active rule list with sources",
-        ),
-    ] = False,
     config: Annotated[
         Path,
         typer.Option(
@@ -219,13 +248,18 @@ def status(
         ),
     ] = "text",
 ) -> None:
-    """Show installation status, drift detection, and artifact integrity."""
+    """Show installation status, drift detection, and artifact integrity.
+
+    To inspect *configured* content of guard.yaml (rules, gates,
+    rulesets) use ``ac-guard show`` instead.
+    """
     project_root = config.parent.resolve()
     status_command(
-        project_root=project_root,
-        config_path=config,
-        show_rules=rules,
-        output_format=output_format,
+        StatusRequest(
+            project_root=project_root,
+            config_path=config,
+            output_format=output_format,
+        )
     )
 
 
@@ -250,9 +284,11 @@ def doctor(
     """Run environment diagnostics and check system health."""
     project_root = config.parent.resolve()
     doctor_command(
-        project_root=project_root,
-        config_path=config,
-        strict=strict,
+        DoctorRequest(
+            project_root=project_root,
+            config_path=config,
+            strict=strict,
+        )
     )
 
 
@@ -260,7 +296,7 @@ def doctor(
 def agents() -> None:
     """Display agent capability matrix and installation status."""
     project_root = Path.cwd()
-    agents_command(project_root=project_root)
+    agents_command(AgentsRequest(project_root=project_root))
 
 
 @app.command(name="run")
@@ -342,7 +378,9 @@ def ruleset_fetch(
     ] = Path("."),
 ) -> None:
     """Fetch or update a ruleset from a Git repository."""
-    ruleset_fetch_command(url=url, project_root=project_root.resolve())
+    ruleset_fetch_command(
+        RulesetFetchRequest(url=url, project_root=project_root.resolve())
+    )
 
 
 @ruleset_app.command(name="list")
@@ -353,7 +391,7 @@ def ruleset_list(
     ] = Path("."),
 ) -> None:
     """List cached rulesets."""
-    ruleset_list_command(project_root=project_root.resolve())
+    ruleset_list_command(RulesetListRequest(project_root=project_root.resolve()))
 
 
 @ruleset_app.command(name="show")
@@ -368,7 +406,9 @@ def ruleset_show(
     ] = Path("."),
 ) -> None:
     """Show details of a cached ruleset."""
-    ruleset_show_command(name=name, project_root=project_root.resolve())
+    ruleset_show_command(
+        RulesetShowRequest(name=name, project_root=project_root.resolve())
+    )
 
 
 @cache_app.command(name="clear")
@@ -379,36 +419,47 @@ def cache_clear(
     ] = Path("."),
 ) -> None:
     """Remove all cached rulesets."""
-    ruleset_cache_clear_command(project_root=project_root.resolve())
+    ruleset_cache_clear_command(
+        RulesetCacheClearRequest(project_root=project_root.resolve())
+    )
 
 
 ruleset_app.add_typer(cache_app)
 app.add_typer(ruleset_app)
 
-# validation subcommand group
-validation_app = typer.Typer(name="validation", help="Inspect configured checks.")
 
-
-@validation_app.command(name="list")
-def validation_list(
+@app.command()
+def show(
+    section: Annotated[
+        str,
+        typer.Option(
+            "--section",
+            "-s",
+            help=(
+                "Top-level guard.yaml section to render: "
+                "behavior | code | rulesets | all"
+            ),
+        ),
+    ] = "all",
     config: Annotated[
         Path,
         typer.Option("--config", "-c", help="Path to guard.yaml"),
     ] = Path("guard.yaml"),
+    output_format: Annotated[
+        str,
+        typer.Option("--format", help="Output format: text | table | json"),
+    ] = "text",
 ) -> None:
-    """List all configured checks by stage."""
-    validation_list_command(config_path=config)
+    """Show configured content of guard.yaml.
 
-
-@validation_app.command(name="report")
-def validation_report(
-    config: Annotated[
-        Path,
-        typer.Option("--config", "-c", help="Path to guard.yaml"),
-    ] = Path("guard.yaml"),
-) -> None:
-    """Generate a formatted check configuration report."""
-    validation_report_command(config_path=config)
-
-
-app.add_typer(validation_app)
+    Subsumes the older ``validation list/report`` (code section) and
+    ``status --rules`` (behavior section) into one symmetric inspection
+    entry point that mirrors the top-level keys of guard.yaml.
+    """
+    show_command(
+        ShowRequest(
+            section=section,
+            config_path=config,
+            output_format=output_format,
+        )
+    )

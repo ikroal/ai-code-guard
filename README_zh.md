@@ -95,10 +95,9 @@ code:
 | `ac-guard ruleset list` | 列出已缓存的规则集 |
 | `ac-guard ruleset show <name>` | 显示规则集详情和规则 |
 | `ac-guard ruleset cache clear` | 清空规则集缓存 |
-| `ac-guard validation list` | 按阶段列出已配置的检查项 |
-| `ac-guard validation report` | 检查项配置报告表格 |
+| `ac-guard show` | 展示已解析的 `guard.yaml` 内容（`--section=behavior\|code\|rulesets\|all`、`--format=text\|table\|json`）|
 
-`ac-guard run` 和 `ac-guard status` 支持 `--format json` 输出，用于 CI/CD 管道的机器可读格式。
+`ac-guard run`、`ac-guard status` 和 `ac-guard show` 支持 `--format json` 输出，用于 CI/CD 管道的机器可读格式。
 
 ## 工作原理
 

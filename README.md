@@ -95,10 +95,9 @@ See [guard.yaml reference](design/AI_GUARD_SYSTEM_DESIGN.md) for full schema.
 | `ac-guard ruleset list` | List cached rulesets |
 | `ac-guard ruleset show <name>` | Show ruleset details and rules |
 | `ac-guard ruleset cache clear` | Clear the ruleset cache |
-| `ac-guard validation list` | List configured checks by stage |
-| `ac-guard validation report` | Check configuration report table |
+| `ac-guard show` | Show resolved `guard.yaml` content (use `--section=behavior\|code\|rulesets\|all`, `--format=text\|table\|json`) |
 
-`ac-guard run` and `ac-guard status` support `--format json` for machine-readable output in CI/CD pipelines.
+`ac-guard run`, `ac-guard status`, and `ac-guard show` support `--format json` for machine-readable output in CI/CD pipelines.
 
 ## How It Works
 

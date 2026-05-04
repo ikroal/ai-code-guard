@@ -10,6 +10,7 @@ import hashlib
 import json
 import shutil
 import sys
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from ac_guard import __version__
@@ -26,7 +27,57 @@ if TYPE_CHECKING:
 
     from ac_guard.config import ResolvedConfig
 
-__all__ = ["status_command", "doctor_command", "agents_command"]
+__all__ = [
+    "AgentsRequest",
+    "DoctorRequest",
+    "StatusRequest",
+    "agents_command",
+    "doctor_command",
+    "status_command",
+]
+
+
+@dataclass(frozen=True)
+class StatusRequest:
+    """Inputs for ``ac-guard status``.
+
+    ``status`` is purely about *deployment* observation — installed
+    agents, drift between guard.yaml and the install state, and
+    artifact integrity. *Configuration content* observation lives in
+    ``ac-guard show`` (e.g. ``show --section=behavior`` for the rules
+    list that ``status --rules`` used to print).
+
+    Attributes:
+        project_root: Project root directory.
+        config_path: Path to ``guard.yaml``.
+        output_format: ``"text"`` or ``"json"``.
+    """
+
+    project_root: Path
+    config_path: Path
+    output_format: str = "text"
+
+
+@dataclass(frozen=True)
+class DoctorRequest:
+    """Inputs for ``ac-guard doctor``.
+
+    Attributes:
+        project_root: Project root directory.
+        config_path: Path to ``guard.yaml``.
+        strict: Treat WARN severity as failure (CI-friendly).
+    """
+
+    project_root: Path
+    config_path: Path
+    strict: bool = False
+
+
+@dataclass(frozen=True)
+class AgentsRequest:
+    """Inputs for ``ac-guard agents``."""
+
+    project_root: Path
 
 
 # ---------------------------------------------------------------------------
@@ -44,46 +95,25 @@ def _compute_config_hash(path: Path) -> str:
 # ---------------------------------------------------------------------------
 
 
-def status_command(
-    project_root: Path,
-    config_path: Path,
-    show_rules: bool,
-    *,
-    output_format: str = "text",
-) -> None:
+def status_command(request: StatusRequest) -> None:
     """Execute the status command.
 
     Shows installation status, drift detection, and artifact integrity.
-
-    Args:
-        project_root: Path to project root directory.
-        config_path: Path to guard.yaml.
-        show_rules: Whether to display the active rule list.
-        output_format: Output format (``"text"`` or ``"json"``).
     """
-    state = read_installation(project_root)
+    state = read_installation(request.project_root)
 
-    if output_format == "json":
-        _status_json(state, project_root, config_path)
+    if request.output_format == "json":
+        _status_json(state, request.project_root, request.config_path)
     else:
-        _status_text(state, project_root, config_path, show_rules=show_rules)
+        _status_text(state, request.project_root, request.config_path)
 
 
 def _status_text(
     state: object,
     project_root: Path,
     config_path: Path,
-    *,
-    show_rules: bool,
 ) -> None:
-    """Output status as text.
-
-    Args:
-        state: Installation or None.
-        project_root: Path to project root.
-        config_path: Path to guard.yaml.
-        show_rules: Whether to display active rules.
-    """
+    """Output status as text."""
     if state is None:
         print("AI Code Guard is not installed.")
         print("Run 'ac-guard install --agent <name>' to install.")
@@ -127,10 +157,6 @@ def _status_text(
     else:
         print(f"\nAll {len(state.artifacts)} artifact(s) present.")
 
-    # Rules display
-    if show_rules:
-        _print_rules(config_path)
-
 
 def _status_json(state: object, project_root: Path, config_path: Path) -> None:
     """Output status as JSON.
@@ -167,53 +193,16 @@ def _status_json(state: object, project_root: Path, config_path: Path) -> None:
     print(json.dumps(data, indent=2))
 
 
-def _print_rules(config_path: Path) -> None:
-    """Print active rules from resolved config.
-
-    Args:
-        config_path: Path to guard.yaml.
-    """
-    try:
-        resolved = resolve_config(config_path)
-    except ConfigError as e:
-        print(f"\nCannot load rules: {e}")
-        return
-
-    print("\nActive rules:")
-    for op_name, op_rules in [
-        ("read", resolved.behavior.read),
-        ("write", resolved.behavior.write),
-        ("execute", resolved.behavior.execute),
-    ]:
-        for tier_name, rules in [
-            ("forbidden", op_rules.forbidden),
-            ("require_approval", op_rules.require_approval),
-            ("allow", op_rules.allow),
-        ]:
-            for rule in rules:
-                print(f"  {op_name}.{tier_name}: {rule.pattern} [{rule.source}]")
-
-
 # ---------------------------------------------------------------------------
 # doctor command
 # ---------------------------------------------------------------------------
 
 
-def doctor_command(
-    project_root: Path,
-    config_path: Path,
-    *,
-    strict: bool = False,
-) -> None:
+def doctor_command(request: DoctorRequest) -> None:
     """Execute the doctor command.
 
     Performs systematic environment diagnostics. FAIL always exits 1;
     with ``strict=True`` any WARN also exits 1 (useful for CI).
-
-    Args:
-        project_root: Path to project root directory.
-        config_path: Path to guard.yaml.
-        strict: Treat WARN severity as failure.
     """
     tally = _Tally()
 
@@ -228,15 +217,15 @@ def doctor_command(
 
     # 2. Configuration state
     print("\n2. Configuration")
-    resolved = _check_config(config_path, tally)
+    resolved = _check_config(request.config_path, tally)
 
     # 3. File integrity
     print("\n3. File Integrity")
-    _check_file_integrity(project_root, tally)
+    _check_file_integrity(request.project_root, tally)
 
     # 4. Drift detection
     print("\n4. Drift Detection")
-    _check_drift(project_root, config_path, tally)
+    _check_drift(request.project_root, request.config_path, tally)
 
     # 5. Config-environment consistency diagnosis (skip if load failed).
     # Stage-semantic fit (format/lint placement) is enforced at semantic
@@ -246,10 +235,10 @@ def doctor_command(
     # renders the Diagnostic list and aggregates the tally.
     if resolved is not None:
         print("\n5. Configuration Diagnosis")
-        _render_diagnosis(resolved, project_root, tally)
+        _render_diagnosis(resolved, request.project_root, tally)
 
     # Exit policy: FAIL always exits 1. WARN exits 1 only under --strict.
-    if tally.fail > 0 or (strict and tally.warn > 0):
+    if tally.fail > 0 or (request.strict and tally.warn > 0):
         print(
             f"\n{tally.fail} failure(s), {tally.warn} warning(s). "
             "Run 'ac-guard install' or fix guard.yaml and re-run doctor."
@@ -403,15 +392,12 @@ def _render_diagnosis(
 # ---------------------------------------------------------------------------
 
 
-def agents_command(project_root: Path) -> None:
+def agents_command(request: AgentsRequest) -> None:
     """Execute the agents command.
 
     Displays agent capability matrix with installation status.
-
-    Args:
-        project_root: Path to project root directory.
     """
-    state = read_installation(project_root)
+    state = read_installation(request.project_root)
     installed = set(state.installed_agents) if state else set()
 
     print("Agent Capability Matrix")

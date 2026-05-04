@@ -131,13 +131,16 @@ class TestStatusCommand:
         assert result.exit_code == 0
         assert "CLAUDE.md" in result.output
 
-    def test_status_with_rules_flag(self, installed_project: Path) -> None:
-        """status --rules shows rule listing."""
+    def test_status_no_longer_accepts_rules_flag(self, installed_project: Path) -> None:
+        """``status --rules`` retired; rule listing moved to ``show --section=behavior``."""
         config = installed_project / "guard.yaml"
         result = runner.invoke(app, ["status", "--rules", "--config", str(config)])
-        assert result.exit_code == 0
-        # Should show rules section (system protection rules at minimum)
-        assert "rule" in result.output.lower()
+        # Typer rejects unknown options with exit code 2.
+        assert result.exit_code == 2
+        assert (
+            "rules" in result.output.lower()
+            or "no such option" in result.output.lower()
+        )
 
     def test_status_version_mismatch(self, installed_project: Path) -> None:
         """status detects tool version mismatch."""

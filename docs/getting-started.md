@@ -354,8 +354,10 @@ scripts. `ac-guard ruleset cache clear` wipes the local cache.
 
 - **Verify your setup any time**: `ac-guard doctor` — environment diagnostics
   plus drift detection.
-- **See what will run**: `ac-guard validation report` — tabular view of every
-  configured check.
+- **See what will run**: `ac-guard show --section=code --format=table` —
+  tabular view of every configured code gate. Drop `--format=table` for the
+  default per-stage text view, or pick `--section=behavior` to inspect
+  the action_guard rules instead.
 - **Full command list**: the [README](../README.md#commands).
 - **Full `guard.yaml` schema**:
   [design doc](../design/AI_GUARD_SYSTEM_DESIGN.md).
