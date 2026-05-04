@@ -20,15 +20,15 @@ import hashlib
 import warnings
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import yaml
 
 from ac_guard.config.exceptions import ConfigWarning
-from ac_guard.config.loader import (
-    RawConfig,
-    load_config,
-)
+from ac_guard.config.loader import RawConfig, load_config
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 from ac_guard.config.models import (
     AuditConfig,
     BehaviorConfig,
@@ -599,7 +599,9 @@ def _compute_config_hash(path: Path) -> str:
 def resolve_config(
     path: str | Path,
     *,
-    rulesets: list[tuple[str, RawConfig]] | None = None,
+    rulesets: list[tuple[str, dict[str, Any]]] | None = None,
+    fetch_rulesets: Callable[[list[str]], list[tuple[str, dict[str, Any]]]]
+    | None = None,
 ) -> ResolvedConfig:
     """Load and merge all config sources into a :class:`ResolvedConfig`.
 
@@ -608,8 +610,17 @@ def resolve_config(
 
     Args:
         path: Path to the project's ``guard.yaml``.
-        rulesets: Pre-loaded rulesets as ``(name, raw_config)`` pairs,
-            in merge order.  Defaults to an empty list.
+        rulesets: Pre-fetched ``(name, raw_dict)`` pairs in merge
+            order. White-box convenience for tests and callers that
+            already have ruleset data on hand.
+        fetch_rulesets: Optional callback. When the user's
+            ``guard.yaml`` declares a non-empty ``rulesets`` list, the
+            callback is invoked with those names and must return
+            ``(name, raw_dict)`` pairs in merge order. Lets callers
+            control **where** rulesets come from (cache, remote git,
+            custom store, …) without peeking at the raw yaml first.
+
+        Pass at most one of the two; passing both raises ``TypeError``.
 
     Returns:
         A fully populated :class:`ResolvedConfig`.
@@ -618,7 +629,12 @@ def resolve_config(
         ConfigFileNotFoundError: ``guard.yaml`` does not exist.
         ConfigSyntaxError: YAML parsing failed.
         ConfigValidationError: Schema validation failed.
+        TypeError: Both ``rulesets`` and ``fetch_rulesets`` were given.
     """
+    if rulesets is not None and fetch_rulesets is not None:
+        raise TypeError(
+            "resolve_config(): pass at most one of 'rulesets' or 'fetch_rulesets'"
+        )
     resolved_path = Path(path)
 
     # 1. Load and validate the user's guard.yaml (may raise)
@@ -631,8 +647,13 @@ def resolve_config(
     merged = copy.deepcopy(_BUILTIN_DEFAULTS)
     _tag_rules(merged, "default")
 
-    # 4. Merge rulesets in order
-    for name, raw in rulesets or []:
+    # 4. Resolve ruleset pairs (callback-driven or pre-fetched) and merge
+    ruleset_pairs: list[tuple[str, dict[str, Any]]] = list(rulesets or [])
+    if fetch_rulesets is not None:
+        declared = list(user_config.get("rulesets") or [])
+        if declared:
+            ruleset_pairs = list(fetch_rulesets(declared))
+    for name, raw in ruleset_pairs:
         ruleset_copy: dict[str, Any] = copy.deepcopy(dict(raw))
         _tag_rules(ruleset_copy, f"ruleset:{name}")
         merged = _merge_raw_configs(merged, ruleset_copy)

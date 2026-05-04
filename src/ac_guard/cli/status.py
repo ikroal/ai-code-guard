@@ -17,7 +17,6 @@ from ac_guard.adapters.registry import get_adapter, list_adapters
 from ac_guard.config import (
     ConfigError,
     diagnose_config,
-    load_config,
     resolve_config,
 )
 from ac_guard.generator.core import read_state
@@ -316,16 +315,9 @@ def _check_config(config_path: Path, tally: _Tally) -> ResolvedConfig | None:
         return None
 
     try:
-        load_config(config_path)
-    except ConfigError as e:
-        print(f"  [FAIL] guard.yaml invalid: {e}")
-        tally.fail_inc()
-        return None
-
-    try:
         resolved = resolve_config(config_path)
     except ConfigError as e:
-        print(f"  [FAIL] guard.yaml cannot be resolved: {e}")
+        print(f"  [FAIL] guard.yaml: {e}")
         tally.fail_inc()
         return None
 

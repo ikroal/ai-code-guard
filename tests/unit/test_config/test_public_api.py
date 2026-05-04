@@ -15,13 +15,10 @@ import ac_guard.config as config_pkg
 
 EXPECTED_PUBLIC_API: frozenset[str] = frozenset(
     {
-        # Entry-point functions (B1 / B2)
+        # Entry-point functions
         "resolve_config",
-        "load_config",
         # Configuration-environment diagnosis entry (IO-bearing, doctor-side).
         "diagnose_config",
-        # Input schema (S1)
-        "RawConfig",
         # Output schema tree (S2): 14 dataclasses reachable from ResolvedConfig
         "ResolvedConfig",
         "BehaviorConfig",

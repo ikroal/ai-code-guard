@@ -7,7 +7,7 @@ and state management to manage AI Code Guard artifact lifecycle.
 from __future__ import annotations
 
 import contextlib
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import yaml
 
@@ -15,8 +15,6 @@ from ac_guard.adapters.registry import AdapterNotFoundError, get_adapter, list_a
 from ac_guard.audit import prune_by_age
 from ac_guard.config import (
     ConfigError,
-    RawConfig,
-    load_config,
     resolve_config,
 )
 from ac_guard.generator.core import (
@@ -190,7 +188,7 @@ def _merge_agents(existing: list[str], new: list[str]) -> list[str]:
 def _load_ruleset_configs(
     project_root: Path,
     rulesets: list[str],
-) -> list[tuple[str, RawConfig]]:
+) -> list[tuple[str, dict[str, Any]]]:
     """Load guard.yaml from each cached ruleset.
 
     For each ruleset name listed in the project config, looks for
@@ -213,7 +211,7 @@ def _load_ruleset_configs(
         return []
 
     cache_dir = get_cache_dir(project_root)
-    pairs: list[tuple[str, RawConfig]] = []
+    pairs: list[tuple[str, dict[str, Any]]] = []
 
     for name in rulesets:
         rs_config_path = cache_dir / name / "guard.yaml"
@@ -294,12 +292,13 @@ def install_command(
         )
         raise SystemExit(1)
 
-    # Load and resolve config (with ruleset configs from cache)
+    # Resolve config; ruleset cache is fed to the resolver via callback
+    # so we never have to peek the raw yaml ourselves.
     try:
-        raw_config = load_config(config_path)
-        rulesets: list[str] = raw_config.get("rulesets", [])
-        ruleset_pairs = _load_ruleset_configs(project_root, rulesets)
-        resolved = resolve_config(config_path, rulesets=ruleset_pairs)
+        resolved = resolve_config(
+            config_path,
+            fetch_rulesets=lambda names: _load_ruleset_configs(project_root, names),
+        )
     except ConfigError as e:
         print(f"Error: {e}")
         raise SystemExit(1) from None
@@ -315,7 +314,7 @@ def install_command(
     # Run generator pipeline
     try:
         written_paths = _run_generator_pipeline(
-            resolved, adapters, project_root, rulesets, force=force
+            resolved, adapters, project_root, resolved.rulesets, force=force
         )
     except ArtifactWriteError as e:
         print(f"Error: Failed to write artifacts: {', '.join(e.failed_paths)}")
@@ -350,12 +349,13 @@ def update_command(
         print("Error: AI Code Guard is not installed. Run 'ac-guard install' first.")
         raise SystemExit(1)
 
-    # Load and resolve config (with ruleset configs from cache)
+    # Resolve config; ruleset cache is fed to the resolver via callback
+    # so we never have to peek the raw yaml ourselves.
     try:
-        raw_config = load_config(config_path)
-        rulesets: list[str] = raw_config.get("rulesets", [])
-        ruleset_pairs = _load_ruleset_configs(project_root, rulesets)
-        resolved = resolve_config(config_path, rulesets=ruleset_pairs)
+        resolved = resolve_config(
+            config_path,
+            fetch_rulesets=lambda names: _load_ruleset_configs(project_root, names),
+        )
     except ConfigError as e:
         print(f"Error: {e}")
         raise SystemExit(1) from None
@@ -371,7 +371,7 @@ def update_command(
     # Run generator pipeline
     try:
         written_paths = _run_generator_pipeline(
-            resolved, adapters, project_root, rulesets, force=force
+            resolved, adapters, project_root, resolved.rulesets, force=force
         )
     except ArtifactWriteError as e:
         print(f"Error: Failed to write artifacts: {', '.join(e.failed_paths)}")
