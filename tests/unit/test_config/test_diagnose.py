@@ -1,12 +1,12 @@
-"""Tests for ac_guard.config.runtime_check — L4 semantic-runtime checks.
+"""Tests for ac_guard.config.diagnose — IO-bearing config-environment checks.
 
-L4 holds the semantic checks that need a runtime context (filesystem,
-PATH, git working tree). They live in ``config.runtime_check`` rather
-than ``config.semantic`` so the file boundary makes the IO contract
-visible: ``semantic.py`` is zero-IO, ``runtime_check.py`` is the only
-config-layer module allowed to touch the outside world.
+These checks need a runtime context (filesystem, PATH, git working
+tree). They live in ``config.diagnose`` rather than ``config.semantic``
+so the file boundary makes the IO contract visible: ``semantic.py``
+is zero-IO, ``diagnose.py`` is the only config-layer module allowed
+to touch the outside world.
 
-doctor consumes ``runtime_check(resolved, project_root)`` and renders
+doctor consumes ``diagnose_config(resolved, project_root)`` and renders
 the returned ``Diagnostic`` list; these tests exercise the helpers in
 isolation under a controlled tmp_path.
 """
@@ -14,17 +14,11 @@ isolation under a controlled tmp_path.
 from __future__ import annotations
 
 import subprocess
-import sys
 from pathlib import Path
 
 import pytest
 
-# Importing the submodule populates ``sys.modules`` even though the
-# ``__init__.py`` rebinds the ``runtime_check`` *attribute* of the
-# config package to the function. Reaching into ``sys.modules`` is the
-# only way to get a handle on the actual submodule for ``__all__``
-# introspection.
-import ac_guard.config.runtime_check  # noqa: F401  (registers in sys.modules)
+from ac_guard.config import diagnose as rc
 from ac_guard.config.models import (
     BehaviorConfig,
     CodeConfig,
@@ -35,8 +29,6 @@ from ac_guard.config.models import (
     ResolvedConfig,
     StageBucket,
 )
-
-rc = sys.modules["ac_guard.config.runtime_check"]
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -273,16 +265,16 @@ class TestVerifyRulesetPaths:
 
 
 # ---------------------------------------------------------------------------
-# runtime_check public entry
+# diagnose_config public entry
 # ---------------------------------------------------------------------------
 
 
-class TestRuntimeCheck:
+class TestDiagnoseConfig:
     """The public entry runs all helpers and concatenates diagnostics."""
 
     def test_returns_list_of_diagnostics(self, tmp_path: Path) -> None:
         cfg = _resolved()
-        diags = rc.runtime_check(cfg, tmp_path)
+        diags = rc.diagnose_config(cfg, tmp_path)
         assert isinstance(diags, list)
         assert all(isinstance(d, rc.Diagnostic) for d in diags)
 
@@ -295,11 +287,11 @@ class TestRuntimeCheck:
             ),
             rulesets=[str(tmp_path / "missing.yaml")],
         )
-        diags = rc.runtime_check(cfg, tmp_path)
+        diags = rc.diagnose_config(cfg, tmp_path)
         fails = [d for d in diags if d.level == "fail"]
         # One from command-paths, one from ruleset-paths.
         assert len(fails) >= 2
 
     def test_public_module_surface(self) -> None:
-        assert "runtime_check" in rc.__all__
+        assert "diagnose_config" in rc.__all__
         assert "Diagnostic" in rc.__all__

@@ -1,34 +1,44 @@
-"""Semantic config validation — L2 (raw) and L3 (resolved), zero-IO.
+"""Semantic config validation — zero-IO rules over yaml or merged config.
 
 L1 ``validator.py`` checks structural shape (types, required fields,
 enum values). This module checks **semantic** correctness that schema
-shape can't express:
+shape can't express. All rules are zero-IO; the IO-bearing
+configuration-vs-environment diagnostics live in ``diagnose.py``.
 
-L2 (raw dict, after ``validate_raw_config``):
-    * ``format-lint-stage-scope`` — ``format``/``lint`` toggles only
-      apply on file-scoped stages (``pre-commit``/``pre-push``).
-    * ``command-syntax`` — user-supplied command strings must be
-      ``shlex.split``-parseable (balanced quotes, etc.).
+The four rules currently implemented:
 
-L3 (ResolvedConfig, after merge / system-rule injection):
-    * ``tier-consistency`` — same pattern must not appear in both
-      ``forbidden`` and ``allow`` under one operation.
-    * ``pattern-uniqueness`` — within a tier list, no pattern should
-      appear twice (system-injected rules excluded — they may
-      legitimately overlap user patterns).
+* ``format-lint-stage-scope`` — ``format``/``lint`` toggles only apply
+  on file-scoped stages (``pre-commit`` / ``pre-push``); judged from a
+  parsed yaml.
+* ``command-syntax`` — user-supplied command strings must be
+  ``shlex.split``-parseable (balanced quotes, etc.); judged from a
+  parsed yaml.
+* ``tier-consistency`` — same pattern must not appear in both
+  ``forbidden`` and ``allow`` under one operation; judged from the
+  merged tree.
+* ``pattern-uniqueness`` — within a tier list, no pattern should
+  appear twice (system-injected rules excluded — they may legitimately
+  overlap user patterns); judged from the merged tree.
 
-Each rule is a small function ``(data, issues) -> None``; the
-``_SemanticRule`` struct binds it to a stable ``code``. The driver
-runs all rules, post-injects ``rule_code`` on every issue produced,
-and raises ``ConfigValidationError`` once at the end so the user sees
-every problem in a single pass.
+Public surface (within the ``ac_guard.config`` package only — this
+module's ``__all__`` is empty):
 
-Adding a new rule is mechanical: write ``_verify_xxx``, append a
-``_SemanticRule(code=..., apply=_verify_xxx)`` to the relevant tuple,
-and add a ``rule_code``-asserting test in ``test_semantic.py``.
+* ``validate_semantic(payload, rules)`` — single driver. Runs the
+  given rules against ``payload``, aggregates ``ValidationIssue``
+  entries (each tagged with ``rule.code``), and raises
+  ``ConfigValidationError`` once if any rule fired. Caller decides
+  which rules apply to its payload.
+* ``_FORMAT_LINT_SCOPE`` / ``_COMMAND_SYNTAX`` / ``_TIER_CONSISTENCY``
+  / ``_PATTERN_UNIQUENESS`` — named rule constants. ``loader.py`` and
+  ``merger.py`` each import the rules that match the data they have
+  on hand (parsed yaml for loader, merged tree for merger).
 
-Internal submodule — import the public surface via
-:mod:`ac_guard.config` rather than reaching in here directly.
+Adding a new rule is mechanical: write ``_verify_xxx``, define a
+module-level ``_SemanticRule(code=..., apply=_verify_xxx)`` constant, and
+have the relevant caller import it into its rule list. Add a
+``rule_code``-asserting test in ``test_semantic.py``.
+
+Internal submodule — never imported across packages.
 """
 
 from __future__ import annotations
@@ -41,11 +51,11 @@ from typing import TYPE_CHECKING, Any
 from ac_guard.config.exceptions import ConfigValidationError, ValidationIssue
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterator
+    from collections.abc import Callable, Iterable, Iterator
 
     from ac_guard.config.models import OperationRules, ResolvedConfig
 
-__all__ = ["validate_semantic_resolved", "validate_semantic_static"]
+__all__: list[str] = []  # package-internal — accessed via submodule path
 
 
 # Stages whose pre-commit ``types:`` filter matches source files. Only
@@ -80,7 +90,7 @@ class _SemanticRule:
     apply: Callable[[Any, list[ValidationIssue]], None]
 
 
-def _run_rules(rules: tuple[_SemanticRule, ...], data: Any) -> list[ValidationIssue]:
+def _run_rules(rules: Iterable[_SemanticRule], data: Any) -> list[ValidationIssue]:
     """Run every rule against ``data``, post-inject ``rule_code``."""
     issues: list[ValidationIssue] = []
     for rule in rules:
@@ -256,54 +266,51 @@ def _verify_pattern_uniqueness(
 
 
 # ---------------------------------------------------------------------------
-# Rule registries — adding a new rule means appending a line here.
+# Named rule constants — caller imports the ones it cares about.
 # ---------------------------------------------------------------------------
 
 
-_STATIC_RULES: tuple[_SemanticRule, ...] = (
-    _SemanticRule(code="format-lint-stage-scope", apply=_verify_format_lint_scope),
-    _SemanticRule(code="command-syntax", apply=_verify_command_syntax),
+_FORMAT_LINT_SCOPE = _SemanticRule(
+    code="format-lint-stage-scope",
+    apply=_verify_format_lint_scope,
+)
+_COMMAND_SYNTAX = _SemanticRule(
+    code="command-syntax",
+    apply=_verify_command_syntax,
+)
+_TIER_CONSISTENCY = _SemanticRule(
+    code="tier-consistency",
+    apply=_verify_tier_consistency,
+)
+_PATTERN_UNIQUENESS = _SemanticRule(
+    code="pattern-uniqueness",
+    apply=_verify_pattern_uniqueness,
 )
 
 
-_RESOLVED_RULES: tuple[_SemanticRule, ...] = (
-    _SemanticRule(code="tier-consistency", apply=_verify_tier_consistency),
-    _SemanticRule(code="pattern-uniqueness", apply=_verify_pattern_uniqueness),
-)
-
-
 # ---------------------------------------------------------------------------
-# Public entry points
+# Driver
 # ---------------------------------------------------------------------------
 
 
-def validate_semantic_static(raw: dict[str, Any], *, source: str) -> None:
-    """Run L2 semantic rules over a raw config dict.
+def validate_semantic(payload: Any, rules: Iterable[_SemanticRule]) -> None:
+    """Run the given semantic rules over *payload*; raise on any issue.
+
+    Callers (loader.py / merger.py) decide which rules apply to their
+    payload by passing the rule constants they want to enforce. The
+    driver itself stays oblivious to "phase" / "stage" / "raw vs
+    resolved" concepts — those are caller-side strategy.
 
     Args:
-        raw: Parsed YAML dict, post-L1 schema validation.
-        source: Label kept for parity with ``validate_raw_config``;
-            currently unused by the rules but reserved for future
-            error context (e.g. yaml line numbers).
+        payload: The data each rule will inspect. For rules judging
+            yaml content, pass the parsed dict (post-L1). For rules
+            judging the merged tree, pass the ``ResolvedConfig``.
+        rules: Iterable of rule constants to run. Issues from each
+            rule are tagged with that rule's ``code`` automatically.
 
     Raises:
-        ConfigValidationError: If any L2 rule fires.
+        ConfigValidationError: If any rule produces issues.
     """
-    del source  # reserved
-    issues = _run_rules(_STATIC_RULES, raw)
-    if issues:
-        raise ConfigValidationError(issues)
-
-
-def validate_semantic_resolved(resolved: ResolvedConfig) -> None:
-    """Run L3 semantic rules over a fully merged ``ResolvedConfig``.
-
-    Args:
-        resolved: ResolvedConfig returned by the merger.
-
-    Raises:
-        ConfigValidationError: If any L3 rule fires.
-    """
-    issues = _run_rules(_RESOLVED_RULES, resolved)
+    issues = _run_rules(rules, payload)
     if issues:
         raise ConfigValidationError(issues)

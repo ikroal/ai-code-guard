@@ -7,16 +7,17 @@ that downstream modules consume.
 
 Entry points
 ------------
-``resolve_config(path, rulesets=None) -> ResolvedConfig``
-    Main entry. Loads, merges, validates, and hashes.
-``load_config(path) -> RawConfig``
-    Raw pass-through: parse + validate a single file, no merge.
-``runtime_check(resolved, project_root) -> list[Diagnostic]``
-    Semantic-runtime checks (IO-bearing, doctor-side).
+``resolve_config(path, *, fetch_rulesets=None) -> ResolvedConfig``
+    Single entry for the load → merge → validate pipeline. Pass a
+    ``fetch_rulesets`` callback if the project uses rulesets and you
+    want the resolver to invoke your fetcher instead of expecting
+    pre-fetched data.
+``diagnose_config(resolved, project_root) -> list[Diagnostic]``
+    Diagnose configuration consistency against the current environment
+    (IO-bearing; consumed by doctor and other sanity-check callers).
 
 Schemas
 -------
-- ``RawConfig`` (input): the ``guard.yaml`` structure.
 - ``ResolvedConfig`` (output): the merged value tree. The 13 nested
   dataclasses (``BehaviorConfig``, ``OperationRules``, ``Rule``,
   ``CodeConfig``, ``StageBucket``, ``CheckItem``, ``PreCommitHook``,
@@ -44,6 +45,7 @@ Everything intended for cross-module use lives in this package's
 from :mod:`ac_guard.config` directly.
 """
 
+from ac_guard.config.diagnose import Diagnostic, diagnose_config
 from ac_guard.config.exceptions import (
     ConfigError,
     ConfigFileNotFoundError,
@@ -52,7 +54,6 @@ from ac_guard.config.exceptions import (
     ConfigWarning,
     ValidationIssue,
 )
-from ac_guard.config.loader import RawConfig, load_config
 from ac_guard.config.merger import resolve_config
 from ac_guard.config.models import (
     AuditConfig,
@@ -70,15 +71,11 @@ from ac_guard.config.models import (
     Rule,
     StageBucket,
 )
-from ac_guard.config.runtime_check import Diagnostic, runtime_check
 
 __all__ = [
     # Entry-point functions
     "resolve_config",
-    "load_config",
-    "runtime_check",
-    # Input schema
-    "RawConfig",
+    "diagnose_config",
     # Output schema tree (14 dataclasses reachable from ResolvedConfig)
     "ResolvedConfig",
     "BehaviorConfig",

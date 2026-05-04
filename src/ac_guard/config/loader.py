@@ -22,7 +22,11 @@ from ac_guard.config.exceptions import (
     ConfigValidationError,
     ValidationIssue,
 )
-from ac_guard.config.semantic import validate_semantic_static
+from ac_guard.config.semantic import (
+    _COMMAND_SYNTAX,
+    _FORMAT_LINT_SCOPE,
+    validate_semantic,
+)
 from ac_guard.config.validator import validate_raw_config
 
 __all__ = ["RawConfig", "load_config"]
@@ -213,8 +217,9 @@ def load_config(path: str | Path) -> RawConfig:
     data = _read_yaml(resolved)
     _check_is_dict(data, resolved)
     validate_raw_config(data, source=str(resolved))
-    # L2 semantic checks run after L1 schema passes — typing is safe.
-    validate_semantic_static(data, source=str(resolved))
+    # Semantic rules judging yaml content — run after L1 passes so
+    # field types are guaranteed by the time the rules read them.
+    validate_semantic(data, [_FORMAT_LINT_SCOPE, _COMMAND_SYNTAX])
     return data  # type: ignore[return-value]
 
 

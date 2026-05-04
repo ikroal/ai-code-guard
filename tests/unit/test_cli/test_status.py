@@ -380,7 +380,7 @@ class TestDoctorLanguageCoverage:
         config = _yaml_with_languages(tmp_path, {"python": {}})
         # No .git dir in tmp_path → git ls-files returns non-zero
         result = runner.invoke(app, ["doctor", "--config", str(config)])
-        assert "5. Config Semantic Runtime" in result.output
+        assert "5. Configuration Diagnosis" in result.output
 
 
 # ---------------------------------------------------------------------------
