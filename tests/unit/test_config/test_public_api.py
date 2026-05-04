@@ -15,11 +15,10 @@ import ac_guard.config as config_pkg
 
 EXPECTED_PUBLIC_API: frozenset[str] = frozenset(
     {
-        # Entry-point functions (B1 / B2 / B3)
+        # Entry-point functions (B1 / B2)
         "resolve_config",
         "load_config",
-        "validate_raw_config",
-        # Semantic-runtime entry (L4) — IO-bearing config check used by doctor.
+        # Semantic-runtime entry — IO-bearing config check used by doctor.
         "runtime_check",
         # Input schema (S1)
         "RawConfig",

@@ -11,8 +11,8 @@ Entry points
     Main entry. Loads, merges, validates, and hashes.
 ``load_config(path) -> RawConfig``
     Raw pass-through: parse + validate a single file, no merge.
-``validate_raw_config(data, source="guard.yaml") -> None``
-    In-memory validation for dicts that did not come from ``load_config``.
+``runtime_check(resolved, project_root) -> list[Diagnostic]``
+    Semantic-runtime checks (IO-bearing, doctor-side).
 
 Schemas
 -------
@@ -71,13 +71,11 @@ from ac_guard.config.models import (
     StageBucket,
 )
 from ac_guard.config.runtime_check import Diagnostic, runtime_check
-from ac_guard.config.validator import validate_raw_config
 
 __all__ = [
     # Entry-point functions
     "resolve_config",
     "load_config",
-    "validate_raw_config",
     "runtime_check",
     # Input schema
     "RawConfig",
