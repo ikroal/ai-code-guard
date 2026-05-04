@@ -11,6 +11,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **BREAKING — `ac-guard version` subcommand removed.** The
+  `@app.callback` already exposes a `--version` / `-V` flag; the
+  `version` subcommand printed the same string and was a redundant
+  second exit. Use `ac-guard --version` (matches `python --version`,
+  `git --version`, `gh --version`, `pip --version` convention). Note
+  `uv version` has *bump-the-version* semantics, not the same thing.
+
+  **Migration:** `ac-guard version` → `ac-guard --version`.
+
 - **BREAKING — Module rename: `checker` → `code_gate`, `enforcer` → `action_guard`.**
   The two core modules now name their roles directly: `code_gate` is the
   git hook-time code quality gate (pass/fail), `action_guard` is the

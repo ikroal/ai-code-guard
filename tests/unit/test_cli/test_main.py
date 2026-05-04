@@ -8,12 +8,6 @@ from ac_guard.cli.main import app
 runner = CliRunner()
 
 
-def test_version_command() -> None:
-    result = runner.invoke(app, ["version"])
-    assert result.exit_code == 0
-    assert __version__ in result.output
-
-
 def test_version_flag() -> None:
     result = runner.invoke(app, ["--version"])
     assert result.exit_code == 0

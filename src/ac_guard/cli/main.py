@@ -64,12 +64,6 @@ def main(
 
 
 @app.command()
-def version() -> None:
-    """Print AI Code Guard version."""
-    typer.echo(f"ac-guard {__version__} — AI Code Guard")
-
-
-@app.command()
 def init(
     language: Annotated[
         str,
