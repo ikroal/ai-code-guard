@@ -92,17 +92,24 @@ def _resolve_ac_guard_executable() -> Path:
 
     Resolution order:
 
-    1. ``Path(sys.executable).parent / "ac-guard"`` — standard
-       entry-point layout (covers venv, ``~/.local``, pipx, conda).
-       Stat-checked so we never bake a non-existent path.
+    1. ``Path(sys.executable).parent / "ac-guard"`` (with ``.exe``
+       fallback on Windows where console scripts get the suffix) —
+       standard entry-point layout (covers venv, ``~/.local``, pipx,
+       conda). Stat-checked so we never bake a non-existent path.
     2. ``shutil.which("ac-guard")`` — fall-through for non-standard
        packagings (e.g. system distros that scatter entry points).
+       ``shutil.which`` consults ``PATHEXT`` on Windows automatically.
     3. ``GeneratorError`` — refusing to bake a bogus path is safer
        than silently producing a broken hook.
     """
-    candidate = Path(sys.executable).parent / "ac-guard"
-    if candidate.is_file() and os.access(candidate, os.X_OK):
-        return candidate.resolve()
+    bin_dir = Path(sys.executable).parent
+    # On Windows, console_scripts entry points are named ``<name>.exe``
+    # and live in ``Scripts\``; on POSIX they are bare ``<name>`` in
+    # ``bin/``. Probe both so we don't depend on platform.
+    candidates = [bin_dir / "ac-guard", bin_dir / "ac-guard.exe"]
+    for candidate in candidates:
+        if candidate.is_file() and os.access(candidate, os.X_OK):
+            return candidate.resolve()
 
     found = shutil.which("ac-guard")
     if found:

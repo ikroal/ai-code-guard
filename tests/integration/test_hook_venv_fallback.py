@@ -10,9 +10,13 @@ the rendered files at install time.
 
 from __future__ import annotations
 
+import os
+import re
 import subprocess
+import sys
 from typing import TYPE_CHECKING
 
+import pytest
 from typer.testing import CliRunner
 
 from ac_guard.cli.main import app
@@ -28,6 +32,16 @@ runner = CliRunner()
 # need to support.
 _MINIMAL_PATH = "/usr/bin:/bin"
 
+# The generated hooks use POSIX shebangs (``#!/bin/bash``) and bash
+# pipelines, so the "execute the hook" subset of these tests can only
+# meaningfully run on POSIX hosts. On Windows, git itself falls back
+# to git-bash for hook execution; reproducing that environment from
+# Python's subprocess is not the contract we care about here.
+_skip_on_windows = pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="POSIX shebang hook execution is not exercised on Windows runners",
+)
+
 
 def _scaffold_project(tmp_path: Path, agent: str) -> Path:
     """Init a project with .git and run install for the requested agent."""
@@ -41,6 +55,20 @@ def _scaffold_project(tmp_path: Path, agent: str) -> Path:
     return config
 
 
+def _baked_path(content: str, pattern: str) -> str:
+    """Extract the path from the first capturing group of ``pattern``.
+
+    The pattern must contain exactly one capturing group around the
+    path. Fails the test if the regex does not match — that means the
+    template structure changed in a way the assertion didn't anticipate.
+    """
+    match = re.search(pattern, content)
+    assert match is not None, (
+        f"baked-path pattern {pattern!r} did not match generated hook"
+    )
+    return match.group(1)
+
+
 class TestGitHooksBakeAbsolutePath:
     """Generated git hooks embed an absolute ac-guard path."""
 
@@ -50,9 +78,10 @@ class TestGitHooksBakeAbsolutePath:
         assert hook_path.is_file()
         content = hook_path.read_text(encoding="utf-8")
         # Pre-fix shape: `ac-guard run --stage pre-commit` (relies on PATH).
-        # Post-fix shape: `exec "/abs/path/ac-guard" run --stage pre-commit`.
-        assert 'exec "/' in content
-        assert content.rstrip().endswith("run --stage pre-commit")
+        # Post-fix shape: `exec "<abs path>" run --stage pre-commit`.
+        baked = _baked_path(content, r'exec "([^"]+)" run --stage pre-commit')
+        assert os.path.isabs(baked), f"baked ac-guard path is not absolute: {baked!r}"
+        assert "ac-guard" in os.path.basename(baked).lower()
 
     def test_pre_push_uses_absolute_path(self, tmp_path: Path) -> None:
         _scaffold_project(tmp_path, agent="claude-code")
@@ -61,15 +90,17 @@ class TestGitHooksBakeAbsolutePath:
             # pre-push is optional based on active stages; skip if absent.
             return
         content = hook_path.read_text(encoding="utf-8")
-        assert 'exec "/' in content
-        assert content.rstrip().endswith("run --stage pre-push")
+        baked = _baked_path(content, r'exec "([^"]+)" run --stage pre-push')
+        assert os.path.isabs(baked), f"baked ac-guard path is not absolute: {baked!r}"
+        assert "ac-guard" in os.path.basename(baked).lower()
 
+    @_skip_on_windows
     def test_pre_commit_runs_with_minimal_path(self, tmp_path: Path) -> None:
         """Hook executes successfully with PATH stripped of any venv.
 
         This is the contract: a tool that doesn't activate the venv
         (e.g. Claude Code's PreToolUse hook) must still be able to fire
-        the gate.
+        the gate. POSIX-only because the hook uses a bash shebang.
         """
         _scaffold_project(tmp_path, agent="claude-code")
         hook_path = tmp_path / ".git" / "hooks" / "pre-commit"
@@ -104,13 +135,15 @@ class TestCursorHookBakesPython:
         assert hook_path.is_file()
         content = hook_path.read_text(encoding="utf-8")
         # Pre-fix shape: `... | python3 -m ac_guard.action_guard ...`.
-        # Post-fix shape: `... | "/abs/python3" -m ac_guard.action_guard ...`.
+        # Post-fix shape: `... | "<abs python>" -m ac_guard.action_guard ...`.
         assert "-m ac_guard.action_guard" in content
         assert "| python3 -m" not in content
-        assert '| "/' in content
+        baked = _baked_path(content, r'\| "([^"]+)" -m ac_guard\.action_guard')
+        assert os.path.isabs(baked), f"baked python path is not absolute: {baked!r}"
 
+    @_skip_on_windows
     def test_check_sh_runs_with_minimal_path(self, tmp_path: Path) -> None:
-        """Cursor hook fires under a stripped PATH."""
+        """Cursor hook fires under a stripped PATH (POSIX-only)."""
         _scaffold_project(tmp_path, agent="cursor")
         hook_path = tmp_path / ".cursor" / "hooks" / "check.sh"
 
@@ -139,7 +172,6 @@ class TestOpenCodePluginBakesPython:
         plugin_path = tmp_path / ".opencode" / "plugins" / "ac-guard.ts"
         assert plugin_path.is_file()
         content = plugin_path.read_text(encoding="utf-8")
-        # Constant must hold an absolute path so `execSync` does not
-        # depend on the surrounding `$PATH`.
-        assert 'const PYTHON_EXECUTABLE = "/' in content
         assert "python3 -m ac_guard.action_guard" not in content
+        baked = _baked_path(content, r'const PYTHON_EXECUTABLE = "([^"]+)";')
+        assert os.path.isabs(baked), f"baked python path is not absolute: {baked!r}"

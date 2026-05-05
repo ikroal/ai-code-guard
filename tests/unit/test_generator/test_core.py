@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import os
+import re
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -551,9 +553,14 @@ class TestGenerateGitHooks:
         for hook in result:
             # ac-guard path is baked absolute so the hook fires even without
             # the venv on PATH (claude code, ci runners, etc.).
-            assert 'exec "/' in hook.content
-            assert "ac-guard" in hook.content
-            assert "run --stage" in hook.content
+            match = re.search(r'exec "([^"]+)" run --stage', hook.content)
+            assert match is not None, (
+                f"git hook {hook.path} missing baked exec invocation"
+            )
+            assert os.path.isabs(match.group(1)), (
+                f"baked path is not absolute in {hook.path}: {match.group(1)!r}"
+            )
+            assert "ac-guard" in os.path.basename(match.group(1)).lower()
 
     def test_pre_commit_has_correct_stage(self, tmp_path: Path) -> None:
         (tmp_path / ".git").mkdir()
@@ -1066,21 +1073,27 @@ class TestDeleteInstallation:
 class TestResolveAcGuardExecutable:
     """Tests for the ac-guard path resolver baked into git hooks."""
 
+    # Windows console_scripts entry points have ``.exe`` suffix and
+    # live in ``Scripts\``; POSIX has bare names in ``bin/``. The
+    # resolver probes both variants — these fixtures mirror that.
+    _AC_GUARD_NAME = "ac-guard.exe" if sys.platform == "win32" else "ac-guard"
+    _PYTHON_NAME = "python.exe" if sys.platform == "win32" else "python3"
+
     def test_returns_sibling_of_sys_executable_when_present(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Fast path: ac-guard sits next to the running interpreter."""
-        fake_python = tmp_path / "python3"
+        fake_python = tmp_path / self._PYTHON_NAME
         fake_python.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
         fake_python.chmod(0o755)
-        fake_ac_guard = tmp_path / "ac-guard"
+        fake_ac_guard = tmp_path / self._AC_GUARD_NAME
         fake_ac_guard.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
         fake_ac_guard.chmod(0o755)
 
         monkeypatch.setattr(sys, "executable", str(fake_python))
         # Make PATH lookup yield a wrong answer so we know the fast path
         # was taken (not the fallback).
-        monkeypatch.setenv("PATH", "/usr/bin:/bin")
+        monkeypatch.setenv("PATH", "")
 
         resolved = _resolve_ac_guard_executable()
         assert resolved == fake_ac_guard.resolve()
@@ -1089,14 +1102,14 @@ class TestResolveAcGuardExecutable:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Fallback path: sibling does not exist, shutil.which finds one."""
-        fake_python = tmp_path / "python3"
+        fake_python = tmp_path / self._PYTHON_NAME
         fake_python.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
         fake_python.chmod(0o755)
-        # Deliberately do NOT create tmp_path / "ac-guard".
+        # Deliberately do NOT create the sibling ac-guard binary.
 
         path_dir = tmp_path / "elsewhere"
         path_dir.mkdir()
-        path_ac_guard = path_dir / "ac-guard"
+        path_ac_guard = path_dir / self._AC_GUARD_NAME
         path_ac_guard.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
         path_ac_guard.chmod(0o755)
 
@@ -1110,7 +1123,7 @@ class TestResolveAcGuardExecutable:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Refusing to bake bogus path is the contract — must raise."""
-        fake_python = tmp_path / "python3"
+        fake_python = tmp_path / self._PYTHON_NAME
         fake_python.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
         fake_python.chmod(0o755)
 
