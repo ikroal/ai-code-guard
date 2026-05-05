@@ -101,7 +101,7 @@ See [guard.yaml reference](design/AI_GUARD_SYSTEM_DESIGN.md) for full schema.
 
 ## How It Works
 
-`ac-guard install` reads `guard.yaml` and generates all artifacts at once — rule documents, hook scripts, `.pre-commit-config.yaml`, and `.ac-guard/runtime.json`. No config parsing happens at runtime.
+`ac-guard install` reads `guard.yaml` and generates all artifacts at once — rule documents, hook scripts, `.pre-commit-config.yaml`, and `.ac-guard/runtime.json`. No config parsing happens at runtime. Generated hooks bake the absolute path of the `ac-guard` and `python` binaries from the venv used at install time, so they fire correctly even when the caller (Claude Code, IDE, generic CI runner) hasn't activated the venv. Re-run `ac-guard install` (or `update`) whenever the venv changes — the install banner echoes which `ac-guard` the hooks are linked to.
 
 When the agent runs, its hook script loads the pre-built policy and matches each operation against the rules. Forbidden operations are blocked. Operations requiring approval prompt the user. Everything else is allowed. Every decision is logged to `.ac-guard/audit.jsonl`.
 

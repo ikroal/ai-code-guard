@@ -7,6 +7,8 @@ and error recovery scenarios using real file I/O.
 from __future__ import annotations
 
 import json
+import os
+import re
 from pathlib import Path
 
 import yaml
@@ -99,12 +101,20 @@ class TestHookActionGuardIntegration:
         assert "from ac_guard.action_guard.core import evaluate" in content
 
     def test_cursor_hook_calls_action_guard(self, tmp_path: Path) -> None:
-        """Cursor hook script calls python3 -m ac_guard.action_guard."""
+        """Cursor hook invokes ac_guard.action_guard via the baked python."""
         _init_and_install(tmp_path, agents="cursor")
         hook_path = tmp_path / ".cursor" / "hooks" / "check.sh"
         assert hook_path.is_file()
         content = hook_path.read_text(encoding="utf-8")
-        assert "python3 -m ac_guard.action_guard" in content
+        assert "-m ac_guard.action_guard" in content
+        # Path must be baked absolute (not a bare `python3`) so the hook
+        # works without the project venv on PATH.
+        assert "| python3 -m" not in content
+        match = re.search(r'\| "([^"]+)" -m ac_guard\.action_guard', content)
+        assert match is not None, "cursor hook missing baked python invocation"
+        assert os.path.isabs(match.group(1)), (
+            f"baked python path is not absolute: {match.group(1)!r}"
+        )
 
     def test_multi_agent_hooks(self, tmp_path: Path) -> None:
         """Multi-agent install generates hooks for each agent."""

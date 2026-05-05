@@ -27,6 +27,7 @@ from ac_guard.generator import (
     write_artifacts,
     write_installation,
 )
+from ac_guard.generator.core import _resolve_ac_guard_executable
 from ac_guard.ruleset import load_ruleset_config
 
 _LEGACY_RUNTIME_CACHE = ".ac-guard/policy.json"
@@ -159,6 +160,19 @@ def _print_install_summary(
     print(f"\nGenerated {len(written_paths)} artifact(s):")
     for path in sorted(written_paths):
         print(f"  {path}")
+    _print_baked_executable()
+
+
+def _print_baked_executable() -> None:
+    """Surface the ac-guard path baked into git hooks.
+
+    The generator embeds an absolute path so hooks fire even when the
+    project venv is not on $PATH. Echo it after install/update so the
+    user can confirm which ac-guard the hooks link to (especially when
+    they have both global and venv installs).
+    """
+    with contextlib.suppress(Exception):
+        print(f"\nHooks linked to: {_resolve_ac_guard_executable()}")
 
 
 def _merge_agents(existing: list[str], new: list[str]) -> list[str]:
@@ -352,6 +366,7 @@ def update_command(request: UpdateRequest) -> None:
 
     agents_str = ", ".join(existing_state.installed_agents)
     print(f"Updated {len(written_paths)} artifact(s) for agents: {agents_str}")
+    _print_baked_executable()
 
 
 def uninstall_command(request: UninstallRequest) -> None:

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import os
+import re
 import sys
 
 from ac_guard.adapters._render import render_hook
@@ -81,9 +83,16 @@ class TestCursorHook:
         assert content.startswith("#!/bin/bash")
 
     def test_calls_action_guard_subprocess(self) -> None:
-        """Cursor hook calls Python action_guard via subprocess."""
+        """Cursor hook calls action_guard via the baked python interpreter."""
         content = render_hook(_CURSOR, BehaviorConfig.empty())
-        assert "python3 -m ac_guard.action_guard" in content
+        assert "-m ac_guard.action_guard" in content
+        # Bake-time injection: must use an absolute path, not bare `python3`.
+        assert "| python3 -m" not in content
+        match = re.search(r'\| "([^"]+)" -m ac_guard\.action_guard', content)
+        assert match is not None, "expected baked python path in cursor hook"
+        assert os.path.isabs(match.group(1)), (
+            f"baked python path is not absolute: {match.group(1)!r}"
+        )
 
     def test_outputs_permission_format(self) -> None:
         """Cursor hook outputs permission JSON."""
@@ -105,9 +114,16 @@ class TestOpenCodeHook:
         assert "export function intercept" in content
 
     def test_calls_action_guard_subprocess(self) -> None:
-        """OpenCode hook calls Python action_guard via subprocess."""
+        """OpenCode hook calls action_guard via the baked python interpreter."""
         content = render_hook(_OPENCODE, BehaviorConfig.empty())
-        assert "python3 -m ac_guard.action_guard" in content
+        assert "-m ac_guard.action_guard" in content
+        assert "python3 -m ac_guard.action_guard" not in content
+        # Bake-time injection: PYTHON_EXECUTABLE must hold an absolute path.
+        match = re.search(r'const PYTHON_EXECUTABLE = "([^"]+)";', content)
+        assert match is not None, "expected PYTHON_EXECUTABLE constant in opencode hook"
+        assert os.path.isabs(match.group(1)), (
+            f"baked python path is not absolute: {match.group(1)!r}"
+        )
 
     def test_throws_on_deny(self) -> None:
         """OpenCode hook throws Error on deny."""
