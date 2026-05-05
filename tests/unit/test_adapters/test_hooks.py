@@ -81,9 +81,12 @@ class TestCursorHook:
         assert content.startswith("#!/bin/bash")
 
     def test_calls_action_guard_subprocess(self) -> None:
-        """Cursor hook calls Python action_guard via subprocess."""
+        """Cursor hook calls action_guard via the baked python interpreter."""
         content = render_hook(_CURSOR, BehaviorConfig.empty())
-        assert "python3 -m ac_guard.action_guard" in content
+        assert "-m ac_guard.action_guard" in content
+        # Bake-time injection: must use an absolute path, not bare `python3`.
+        assert "| python3 -m" not in content
+        assert '| "/' in content
 
     def test_outputs_permission_format(self) -> None:
         """Cursor hook outputs permission JSON."""
@@ -105,9 +108,12 @@ class TestOpenCodeHook:
         assert "export function intercept" in content
 
     def test_calls_action_guard_subprocess(self) -> None:
-        """OpenCode hook calls Python action_guard via subprocess."""
+        """OpenCode hook calls action_guard via the baked python interpreter."""
         content = render_hook(_OPENCODE, BehaviorConfig.empty())
-        assert "python3 -m ac_guard.action_guard" in content
+        assert "-m ac_guard.action_guard" in content
+        # Bake-time injection: PYTHON_EXECUTABLE must hold an absolute path.
+        assert 'const PYTHON_EXECUTABLE = "/' in content
+        assert "python3 -m ac_guard.action_guard" not in content
 
     def test_throws_on_deny(self) -> None:
         """OpenCode hook throws Error on deny."""

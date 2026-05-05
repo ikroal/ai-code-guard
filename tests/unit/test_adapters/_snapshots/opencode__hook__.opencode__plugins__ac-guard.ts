@@ -13,6 +13,11 @@
 import type { Tool, ToolCall } from "opencode";
 import { execSync } from "child_process";
 
+// Absolute path to the Python interpreter, baked at `ac-guard install`
+// time. Lets the plugin call ac-guard even when OpenCode launches it
+// from a shell whose $PATH lacks the project's venv.
+const PYTHON_EXECUTABLE = "/usr/local/bin/python3";
+
 // Policy evaluation via Python Action guard subprocess
 function evaluatePolicy(call: ToolCall): {
   decision: string;
@@ -25,7 +30,7 @@ function evaluatePolicy(call: ToolCall): {
   });
 
   try {
-    const output = execSync(`echo '${input.replace(/'/g, "\\'")}' | python3 -m ac_guard.action_guard`, {
+    const output = execSync(`echo '${input.replace(/'/g, "\\'")}' | "${PYTHON_EXECUTABLE}" -m ac_guard.action_guard`, {
       encoding: "utf-8",
       timeout: 5000,
       stdio: ["pipe", "pipe", "pipe"],

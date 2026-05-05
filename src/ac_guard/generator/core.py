@@ -14,7 +14,10 @@ existing file content solely through that Domain Service.
 from __future__ import annotations
 
 import json
+import os
+import shutil
 import stat
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -24,7 +27,7 @@ from jinja2 import Environment, FileSystemLoader
 from ac_guard import __version__
 from ac_guard.config import PreCommitMeta
 from ac_guard.domain import FileSpec, managed_block
-from ac_guard.generator.exceptions import ArtifactWriteError
+from ac_guard.generator.exceptions import ArtifactWriteError, GeneratorError
 from ac_guard.generator.models import Installation, installation_path
 from ac_guard.ruleset import get_ruleset_dir
 
@@ -78,6 +81,39 @@ def _get_generator_env() -> Environment:
             lstrip_blocks=True,
         )
     return _generator_env
+
+
+def _resolve_ac_guard_executable() -> Path:
+    """Resolve absolute path of the ``ac-guard`` console script.
+
+    The path is baked into generated git hooks so they don't depend on
+    callers having the project's venv activated (Claude Code, generic
+    CI runners, IDEs that don't auto-source venv).
+
+    Resolution order:
+
+    1. ``Path(sys.executable).parent / "ac-guard"`` — standard
+       entry-point layout (covers venv, ``~/.local``, pipx, conda).
+       Stat-checked so we never bake a non-existent path.
+    2. ``shutil.which("ac-guard")`` — fall-through for non-standard
+       packagings (e.g. system distros that scatter entry points).
+    3. ``GeneratorError`` — refusing to bake a bogus path is safer
+       than silently producing a broken hook.
+    """
+    candidate = Path(sys.executable).parent / "ac-guard"
+    if candidate.is_file() and os.access(candidate, os.X_OK):
+        return candidate.resolve()
+
+    found = shutil.which("ac-guard")
+    if found:
+        return Path(found).resolve()
+
+    msg = (
+        "Could not locate the ac-guard executable to bake into git hooks. "
+        "Re-run install with the project venv active "
+        "(e.g. `uv run ac-guard install`) or install ac-guard so it is on PATH."
+    )
+    raise GeneratorError(msg)
 
 
 # ---------------------------------------------------------------------------
@@ -475,13 +511,14 @@ def _generate_git_hooks(
 
     artifacts: list[FileSpec] = []
     env = _get_generator_env()
+    ac_guard_executable = str(_resolve_ac_guard_executable())
 
     for stage in stages:
         template = env.get_template(f"git_hooks/{stage}.j2")
         artifacts.append(
             FileSpec(
                 path=f".git/hooks/{stage}",
-                content=template.render(),
+                content=template.render(ac_guard_executable=ac_guard_executable),
                 executable=True,
             )
         )

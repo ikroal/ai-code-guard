@@ -43,7 +43,9 @@ from ac_guard.generator.core import (
     _generate_policy_cache,
     _generate_precommit_config,
     _generate_tool_configs,
+    _resolve_ac_guard_executable,
 )
+from ac_guard.generator.exceptions import GeneratorError
 
 # Literal markers for fixture construction in this test module only.
 # Production code operates on managed blocks exclusively through
@@ -547,7 +549,11 @@ class TestGenerateGitHooks:
         (tmp_path / ".git" / "hooks").mkdir()
         result = _generate_git_hooks(tmp_path)
         for hook in result:
-            assert "ac-guard run --stage" in hook.content
+            # ac-guard path is baked absolute so the hook fires even without
+            # the venv on PATH (claude code, ci runners, etc.).
+            assert 'exec "/' in hook.content
+            assert "ac-guard" in hook.content
+            assert "run --stage" in hook.content
 
     def test_pre_commit_has_correct_stage(self, tmp_path: Path) -> None:
         (tmp_path / ".git").mkdir()
@@ -1050,3 +1056,69 @@ class TestDeleteInstallation:
         delete_installation(tmp_path)
         # Second call
         assert delete_installation(tmp_path) is False
+
+
+# ---------------------------------------------------------------------------
+# _resolve_ac_guard_executable Tests
+# ---------------------------------------------------------------------------
+
+
+class TestResolveAcGuardExecutable:
+    """Tests for the ac-guard path resolver baked into git hooks."""
+
+    def test_returns_sibling_of_sys_executable_when_present(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Fast path: ac-guard sits next to the running interpreter."""
+        fake_python = tmp_path / "python3"
+        fake_python.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        fake_python.chmod(0o755)
+        fake_ac_guard = tmp_path / "ac-guard"
+        fake_ac_guard.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        fake_ac_guard.chmod(0o755)
+
+        monkeypatch.setattr(sys, "executable", str(fake_python))
+        # Make PATH lookup yield a wrong answer so we know the fast path
+        # was taken (not the fallback).
+        monkeypatch.setenv("PATH", "/usr/bin:/bin")
+
+        resolved = _resolve_ac_guard_executable()
+        assert resolved == fake_ac_guard.resolve()
+
+    def test_falls_back_to_path_when_sibling_missing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Fallback path: sibling does not exist, shutil.which finds one."""
+        fake_python = tmp_path / "python3"
+        fake_python.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        fake_python.chmod(0o755)
+        # Deliberately do NOT create tmp_path / "ac-guard".
+
+        path_dir = tmp_path / "elsewhere"
+        path_dir.mkdir()
+        path_ac_guard = path_dir / "ac-guard"
+        path_ac_guard.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        path_ac_guard.chmod(0o755)
+
+        monkeypatch.setattr(sys, "executable", str(fake_python))
+        monkeypatch.setenv("PATH", str(path_dir))
+
+        resolved = _resolve_ac_guard_executable()
+        assert resolved == path_ac_guard.resolve()
+
+    def test_raises_generator_error_when_unresolvable(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Refusing to bake bogus path is the contract — must raise."""
+        fake_python = tmp_path / "python3"
+        fake_python.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        fake_python.chmod(0o755)
+
+        empty_dir = tmp_path / "empty"
+        empty_dir.mkdir()
+
+        monkeypatch.setattr(sys, "executable", str(fake_python))
+        monkeypatch.setenv("PATH", str(empty_dir))
+
+        with pytest.raises(GeneratorError, match="Could not locate the ac-guard"):
+            _resolve_ac_guard_executable()

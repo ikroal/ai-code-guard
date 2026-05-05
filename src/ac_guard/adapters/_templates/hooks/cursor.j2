@@ -33,8 +33,10 @@ action_guard_input=$(jq -n \
     --argjson ti "$(echo "$input" | jq '.args // .arguments // {}' 2>/dev/null || echo '{}')" \
     '{tool_name: $tn, tool_input: $ti, agent: "cursor"}')
 
-# Call Action guard via Python subprocess
-action_guard_output=$(echo "$action_guard_input" | python3 -m ac_guard.action_guard 2>/dev/null || echo '{"decision": "deny"}')
+# Call Action guard via Python subprocess.
+# python_executable is baked at install time so the hook works even when
+# Cursor launches it from a shell whose $PATH lacks the project's venv.
+action_guard_output=$(echo "$action_guard_input" | "{{ python_executable }}" -m ac_guard.action_guard 2>/dev/null || echo '{"decision": "deny"}')
 
 # Extract decision
 decision=$(echo "$action_guard_output" | jq -r '.decision // "deny"' 2>/dev/null || echo "deny")
