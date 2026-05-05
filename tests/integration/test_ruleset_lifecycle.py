@@ -16,7 +16,7 @@ import pytest
 import yaml
 from typer.testing import CliRunner
 
-from ac_guard.action_guard.engine import evaluate
+from ac_guard.action_guard.core import evaluate
 from ac_guard.action_guard.matcher import Decision
 from ac_guard.cli.main import app
 from ac_guard.generator import installation_path

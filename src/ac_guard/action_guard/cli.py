@@ -23,7 +23,7 @@ import json
 import sys
 from pathlib import Path
 
-from ac_guard.action_guard.engine import evaluate
+from ac_guard.action_guard.core import evaluate
 
 __all__: list[str] = []
 

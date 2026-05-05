@@ -9,7 +9,7 @@ import pytest
 from ac_guard.action_guard.matcher import (
     VALID_SCHEMES,
     Decision,
-    evaluate_rules,
+    decide,
     find_matching_rule,
     matches,
     parse_pattern,
@@ -192,12 +192,12 @@ class TestFindMatchingRule:
 
 
 # ---------------------------------------------------------------------------
-# TestEvaluateRules
+# TestDecide
 # ---------------------------------------------------------------------------
 
 
-class TestEvaluateRules:
-    """Tests for evaluate_rules function."""
+class TestDecide:
+    """Tests for decide function."""
 
     def _rules(
         self,
@@ -214,7 +214,7 @@ class TestEvaluateRules:
     def test_forbidden_returns_deny(self) -> None:
         """Matching forbidden rule returns DENY."""
         rules = self._rules(forbidden=[Rule(pattern="file:.git/**")])
-        result = evaluate_rules(".git/config", "file", rules)
+        result = decide(".git/config", "file", rules)
         assert result.decision == Decision.DENY
         assert result.tier == "forbidden"
         assert result.matched_rule is not None
@@ -222,21 +222,21 @@ class TestEvaluateRules:
     def test_require_approval_returns_ask(self) -> None:
         """Matching require_approval rule returns ASK."""
         rules = self._rules(require_approval=[Rule(pattern="file:guard.yaml")])
-        result = evaluate_rules("guard.yaml", "file", rules)
+        result = decide("guard.yaml", "file", rules)
         assert result.decision == Decision.ASK
         assert result.tier == "require_approval"
 
     def test_allow_returns_allow(self) -> None:
         """Matching allow rule returns ALLOW."""
         rules = self._rules(allow=[Rule(pattern="file:src/**")])
-        result = evaluate_rules("src/main.py", "file", rules)
+        result = decide("src/main.py", "file", rules)
         assert result.decision == Decision.ALLOW
         assert result.tier == "allow"
 
     def test_no_match_returns_default_allow(self) -> None:
         """No matching rule returns default ALLOW."""
         rules = self._rules(forbidden=[Rule(pattern="file:.git/**")])
-        result = evaluate_rules("src/main.py", "file", rules)
+        result = decide("src/main.py", "file", rules)
         assert result.decision == Decision.ALLOW
         assert result.tier == "default"
         assert result.matched_rule is None
@@ -247,7 +247,7 @@ class TestEvaluateRules:
             forbidden=[Rule(pattern="file:.git/**")],
             require_approval=[Rule(pattern="file:.git/**")],
         )
-        result = evaluate_rules(".git/config", "file", rules)
+        result = decide(".git/config", "file", rules)
         assert result.decision == Decision.DENY
         assert result.tier == "forbidden"
 
@@ -257,28 +257,28 @@ class TestEvaluateRules:
             require_approval=[Rule(pattern="file:*.yaml")],
             allow=[Rule(pattern="file:*.yaml")],
         )
-        result = evaluate_rules("config.yaml", "file", rules)
+        result = decide("config.yaml", "file", rules)
         assert result.decision == Decision.ASK
         assert result.tier == "require_approval"
 
     def test_regex_error_fail_closed(self) -> None:
         """Regex error results in DENY (fail-closed)."""
         rules = self._rules(forbidden=[Rule(pattern="file:[invalid", regex=True)])
-        result = evaluate_rules("test.py", "file", rules)
+        result = decide("test.py", "file", rules)
         assert result.decision == Decision.DENY
         assert result.tier == "error"
 
     def test_malformed_pattern_fail_closed(self) -> None:
         """Malformed pattern results in DENY (fail-closed)."""
         rules = self._rules(forbidden=[Rule(pattern="no_colon")])
-        result = evaluate_rules("test", "file", rules)
+        result = decide("test", "file", rules)
         assert result.decision == Decision.DENY
         assert result.tier == "error"
 
     def test_empty_rules_default_allow(self) -> None:
         """Empty OperationRules returns default ALLOW."""
         rules = OperationRules.empty()
-        result = evaluate_rules("anything", "file", rules)
+        result = decide("anything", "file", rules)
         assert result.decision == Decision.ALLOW
         assert result.tier == "default"
 
@@ -310,23 +310,23 @@ class TestRealisticScenarios:
 
     def test_write_to_src_allowed(self) -> None:
         """Writing to src/ is allowed."""
-        result = evaluate_rules("src/main.py", "file", self._build_rules())
+        result = decide("src/main.py", "file", self._build_rules())
         assert result.decision == Decision.ALLOW
         assert result.tier == "allow"
 
     def test_write_to_git_denied(self) -> None:
         """Writing to .git/ is denied."""
-        result = evaluate_rules(".git/config", "file", self._build_rules())
+        result = decide(".git/config", "file", self._build_rules())
         assert result.decision == Decision.DENY
 
     def test_write_to_config_asks(self) -> None:
         """Writing to guard.yaml asks for approval."""
-        result = evaluate_rules("guard.yaml", "file", self._build_rules())
+        result = decide("guard.yaml", "file", self._build_rules())
         assert result.decision == Decision.ASK
 
     def test_write_to_unknown_default_allow(self) -> None:
         """Writing to unmatched path gets default allow."""
-        result = evaluate_rules("README.md", "file", self._build_rules())
+        result = decide("README.md", "file", self._build_rules())
         assert result.decision == Decision.ALLOW
         assert result.tier == "default"
 
@@ -344,12 +344,11 @@ class TestRealisticScenarios:
             ],
         )
         assert (
-            evaluate_rules("git push --force origin", "shell", rules).decision
-            == Decision.DENY
+            decide("git push --force origin", "shell", rules).decision == Decision.DENY
         )
-        assert evaluate_rules("git status", "shell", rules).decision == Decision.ALLOW
+        assert decide("git status", "shell", rules).decision == Decision.ALLOW
         assert (
-            evaluate_rules("npm install", "shell", rules).decision == Decision.ALLOW
+            decide("npm install", "shell", rules).decision == Decision.ALLOW
         )  # default
 
     def test_mcp_tool_matching(self) -> None:
@@ -359,13 +358,8 @@ class TestRealisticScenarios:
             require_approval=[],
             allow=[Rule(pattern="mcp:memory:search_*")],
         )
-        assert (
-            evaluate_rules("memory:delete_all", "mcp", rules).decision == Decision.DENY
-        )
-        assert (
-            evaluate_rules("memory:search_query", "mcp", rules).decision
-            == Decision.ALLOW
-        )
+        assert decide("memory:delete_all", "mcp", rules).decision == Decision.DENY
+        assert decide("memory:search_query", "mcp", rules).decision == Decision.ALLOW
 
     def test_scheme_isolation(self) -> None:
         """File rules don't match shell targets."""
@@ -375,6 +369,6 @@ class TestRealisticScenarios:
             allow=[],
         )
         # ".git/config" as a shell target should not match file rules
-        result = evaluate_rules(".git/config", "shell", rules)
+        result = decide(".git/config", "shell", rules)
         assert result.decision == Decision.ALLOW
         assert result.tier == "default"

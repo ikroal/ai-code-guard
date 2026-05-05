@@ -1,4 +1,4 @@
-"""Action guard engine — top-level evaluate function.
+"""Action guard core — top-level evaluate function.
 
 Combines E1 (load_policy), E2 (classify), and E3/E4 (match + decide)
 into a single entry point for runtime behavior enforcement.
@@ -15,7 +15,7 @@ from ac_guard.action_guard.matcher import (
     Decision,
     MatchResult,
     PolicyDecision,
-    evaluate_rules,
+    decide,
 )
 from ac_guard.action_guard.policy import load_policy
 from ac_guard.audit import append_record
@@ -125,7 +125,7 @@ def evaluate(
         )
 
     # E3/E4: Match and decide
-    match_result = evaluate_rules(target, scheme, operation_rules)
+    match_result = decide(target, scheme, operation_rules)
 
     # E5: Post-rule guard rail — if the policy would otherwise allow a
     # `git commit` on a repository whose pre-commit hooks aren't

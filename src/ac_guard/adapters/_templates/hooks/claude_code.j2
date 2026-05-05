@@ -40,7 +40,7 @@ if sys.executable != _INSTALL_PY and os.path.exists(_INSTALL_PY):
 # removed, venv rebuilt, package uninstalled), never let the tool call
 # silently pass — emit an `ask` decision so the user sees the problem.
 try:
-    from ac_guard.action_guard.engine import evaluate
+    from ac_guard.action_guard.core import evaluate
 except ImportError as _exc:
     json.dump(
         {

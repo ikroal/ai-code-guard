@@ -12,7 +12,7 @@ from pathlib import Path
 import yaml
 from typer.testing import CliRunner
 
-from ac_guard.action_guard.engine import evaluate
+from ac_guard.action_guard.core import evaluate
 from ac_guard.action_guard.matcher import Decision
 from ac_guard.audit import append_record, prune_by_age
 from ac_guard.cli.main import app
@@ -91,12 +91,12 @@ class TestHookActionGuardIntegration:
     """Hook templates correctly reference Action guard."""
 
     def test_claude_code_hook_has_action_guard(self, tmp_path: Path) -> None:
-        """Claude Code hook script imports action_guard.engine."""
+        """Claude Code hook script imports action_guard.core."""
         _init_and_install(tmp_path)
         hook_path = tmp_path / ".claude" / "hooks" / "interceptor.py"
         assert hook_path.is_file()
         content = hook_path.read_text(encoding="utf-8")
-        assert "from ac_guard.action_guard.engine import evaluate" in content
+        assert "from ac_guard.action_guard.core import evaluate" in content
 
     def test_cursor_hook_calls_action_guard(self, tmp_path: Path) -> None:
         """Cursor hook script calls python3 -m ac_guard.action_guard."""

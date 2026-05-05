@@ -24,7 +24,7 @@ class TestClaudeCodeHook:
     def test_renders_python_script(self) -> None:
         """Claude Code hook renders a Python script."""
         content = render_hook(_CLAUDE_CODE, BehaviorConfig.empty())
-        assert "from ac_guard.action_guard.engine import evaluate" in content
+        assert "from ac_guard.action_guard.core import evaluate" in content
 
     def test_contains_main_entry(self) -> None:
         """Claude Code hook has main() entry point."""
