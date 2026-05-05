@@ -1,37 +1,23 @@
 """Action guard module — runtime behavior policy enforcement.
 
-Provides pattern matching, tool classification, policy loading,
-and the top-level evaluate() entry point for AI agent behavior
-enforcement.
+Public API: ``evaluate()`` is the sole entry point; ``PolicyDecision``
+is its return type; ``Decision`` is the decision enum;
+``ActionGuardError`` / ``PolicyCorruptError`` are the user-facing
+exceptions.
+
+Internal primitives (``classify``, ``load_policy``, matcher functions)
+remain in their submodules but are not re-exported. Tests import them
+via deep submodule paths.
 """
 
-from ac_guard.action_guard.classifier import classify
-from ac_guard.action_guard.engine import evaluate
+from ac_guard.action_guard.core import evaluate
 from ac_guard.action_guard.exceptions import ActionGuardError, PolicyCorruptError
-from ac_guard.action_guard.matcher import (
-    VALID_SCHEMES,
-    Decision,
-    MatchResult,
-    PolicyDecision,
-    evaluate_rules,
-    find_matching_rule,
-    matches,
-    parse_pattern,
-)
-from ac_guard.action_guard.policy import load_policy
+from ac_guard.action_guard.matcher import Decision, PolicyDecision
 
 __all__ = [
-    "Decision",
     "ActionGuardError",
-    "MatchResult",
+    "Decision",
     "PolicyCorruptError",
     "PolicyDecision",
-    "VALID_SCHEMES",
-    "classify",
     "evaluate",
-    "evaluate_rules",
-    "find_matching_rule",
-    "load_policy",
-    "matches",
-    "parse_pattern",
 ]

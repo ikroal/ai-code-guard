@@ -24,7 +24,7 @@ __all__ = [
     "MatchResult",
     "PolicyDecision",
     "VALID_SCHEMES",
-    "evaluate_rules",
+    "decide",
     "find_matching_rule",
     "matches",
     "parse_pattern",
@@ -54,7 +54,7 @@ class Decision(enum.Enum):
 
 @dataclass
 class MatchResult:
-    """Outcome of evaluate_rules().
+    """Outcome of decide().
 
     Attributes:
         decision: The policy decision (allow/deny/ask).
@@ -232,12 +232,12 @@ def find_matching_rule(
 # ---------------------------------------------------------------------------
 
 
-def evaluate_rules(
+def decide(
     target: str,
     scheme: str,
     operation_rules: OperationRules,
 ) -> MatchResult:
-    """Evaluate three-tier rules and return a policy decision.
+    """Arbitrate three-tier rules and return a policy decision.
 
     Checks tiers in precedence order:
 

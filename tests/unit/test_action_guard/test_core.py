@@ -1,4 +1,4 @@
-"""Tests for Action guard engine — top-level evaluate() (E1+E2+E3/E4)."""
+"""Tests for Action guard core — top-level evaluate() (E1+E2+E3/E4)."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from ac_guard.action_guard.engine import evaluate
+from ac_guard.action_guard.core import evaluate
 from ac_guard.action_guard.matcher import Decision, PolicyDecision
 
 
