@@ -3,7 +3,7 @@
 # Edit guard.yaml (code.<stage>.*) instead.
 # ac-guard version: 0.1.0
 minimum_pre_commit_version: "3.0.0"
-default_install_hook_types: ["pre-commit", "commit-msg"]
+default_install_hook_types: ["pre-commit", "commit-msg", "pre-push"]
 default_language_version:
   python: python3
 
@@ -103,3 +103,10 @@ repos:
         types: ["python"]
         pass_filenames: true
         stages: ["pre-push"]
+      - id: custom-pytest
+        name: "pytest"
+        entry: "uv run --no-sync pytest --cov --cov-fail-under=80"
+        language: "system"
+        pass_filenames: false
+        stages: ["pre-push"]
+        types: ["python"]
