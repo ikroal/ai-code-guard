@@ -1,13 +1,13 @@
-## AI Code Guard Check Report
+## 🤖 AI Code Guard Check Report
 
-{% if generated_at %}**Generated**: {{ generated_at }}
+{% if generated_at %}📅 **Generated**: {{ generated_at }}
 
-{% endif %}**Stage**: {{ report.stage }} | **Result**: {{ "✅ PASSED" if report.passed else "❌ FAILED" }}
+{% endif %}🔍 **Stage**: {{ report.stage }} | **Result**: {{ "✅ PASSED" if report.passed else "❌ FAILED" }}
 
 {% if checklist %}
 ---
 
-### Checklist
+### 📋 Checklist
 
 | Item | Status |
 |------|--------|
@@ -17,7 +17,7 @@
 {% endif %}
 ---
 
-### Results
+### 📊 Results
 
 | Check | Status | Time | Metrics |
 |-------|--------|------|---------|
@@ -30,7 +30,7 @@
 
 {% if violations %}
 <details>
-<summary>Violations ({{ violations | length }})</summary>
+<summary>⚠️ Violations ({{ violations | length }})</summary>
 
 ```
 {% for v in violations %}
@@ -48,7 +48,7 @@
 {% endif %}
 
 {% if guard_files_changed %}
-> **Note**: Guard system files changed in this PR: {{ guard_files_changed | join(", ") }}
+> 🔧 **Note**: Guard system files changed in this PR: {{ guard_files_changed | join(", ") }}
 
 {% endif %}
 **{{ passed }}/{{ total }}** checks passed

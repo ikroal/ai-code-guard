@@ -1,13 +1,13 @@
-## AI Code Guard 检查报告
+## 🤖 AI Code Guard 检查报告
 
-{% if generated_at %}**生成时间**: {{ generated_at }}
+{% if generated_at %}📅 **生成时间**: {{ generated_at }}
 
-{% endif %}**阶段**: {{ report.stage }} | **结果**: {{ "✅ 通过" if report.passed else "❌ 失败" }}
+{% endif %}🔍 **阶段**: {{ report.stage }} | **结果**: {{ "✅ 通过" if report.passed else "❌ 失败" }}
 
 {% if checklist %}
 ---
 
-### 检查清单
+### 📋 检查清单
 
 | 项目 | 状态 |
 |------|------|
@@ -17,7 +17,7 @@
 {% endif %}
 ---
 
-### 检查详情
+### 📊 检查详情
 
 | 检查项 | 状态 | 耗时 | 指标 |
 |--------|------|------|------|
@@ -30,7 +30,7 @@
 
 {% if violations %}
 <details>
-<summary>违规详情 ({{ violations | length }})</summary>
+<summary>⚠️ 违规详情 ({{ violations | length }})</summary>
 
 ```
 {% for v in violations %}
@@ -48,7 +48,7 @@
 {% endif %}
 
 {% if guard_files_changed %}
-> **注意**: 本 PR 修改了检查系统文件: {{ guard_files_changed | join(", ") }}
+> 🔧 **注意**: 本 PR 修改了检查系统文件: {{ guard_files_changed | join(", ") }}
 
 {% endif %}
 **{{ passed }}/{{ total }}** 项检查通过

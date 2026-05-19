@@ -109,8 +109,26 @@ class TestPrReportFlow:
         mock_resp.__enter__ = MagicMock(return_value=mock_resp)
         mock_resp.__exit__ = MagicMock(return_value=False)
 
+        # GET list (empty) + POST create
+        list_resp = MagicMock()
+        list_resp.status = 200
+        list_resp.read.return_value = b"[]"
+        list_resp.__enter__ = MagicMock(return_value=list_resp)
+        list_resp.__exit__ = MagicMock(return_value=False)
+
+        call_count = 0
+
+        def urlopen_side_effect(req: MagicMock) -> MagicMock:
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return list_resp
+            return mock_resp
+
         with (
-            patch("urllib.request.urlopen", return_value=mock_resp) as mock_urlopen,
+            patch(
+                "urllib.request.urlopen", side_effect=urlopen_side_effect
+            ) as mock_urlopen,
             patch.dict(
                 "os.environ",
                 {
@@ -128,8 +146,8 @@ class TestPrReportFlow:
                     locale="en",
                 ),
             )
-            mock_urlopen.assert_called_once()
-            req = mock_urlopen.call_args[0][0]
+            assert mock_urlopen.call_count == 2
+            req = mock_urlopen.call_args_list[-1][0][0]
             body = json.loads(req.data)
             assert "body" in body
             assert len(body["body"]) > 0
