@@ -9,8 +9,15 @@ a Domain Service in its own sub-module (e.g. ``managed_block.py``).
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 
-__all__ = ["CheckResult", "FileSpec", "StageOutcome", "Violation"]
+__all__ = [
+    "CheckMetrics",
+    "CheckResult",
+    "FileSpec",
+    "StageOutcome",
+    "Violation",
+]
 
 
 @dataclass
@@ -37,6 +44,34 @@ class Violation:
 
 
 @dataclass
+class CheckMetrics:
+    """Structured metrics extracted from a check's raw output.
+
+    All fields are optional; only populated when the corresponding
+    tool output is detected and parsed.
+
+    Attributes:
+        coverage_pct: Code coverage percentage (from pytest-cov).
+        tests_total: Total number of tests.
+        tests_passed: Number of passed tests.
+        tests_failed: Number of failed tests.
+        tests_skipped: Number of skipped tests.
+        docstring_pct: Docstring coverage percentage (from interrogate).
+        static_analysis_issues: Number of static analysis issues found.
+        extra: Tool-specific metrics that don't have dedicated fields.
+    """
+
+    coverage_pct: float | None = None
+    tests_total: int | None = None
+    tests_passed: int | None = None
+    tests_failed: int | None = None
+    tests_skipped: int | None = None
+    docstring_pct: float | None = None
+    static_analysis_issues: int | None = None
+    extra: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
 class CheckResult:
     """Result of running a single check or hook.
 
@@ -47,6 +82,7 @@ class CheckResult:
         duration_ms: Execution time in milliseconds.
         output: Captured stdout/stderr for diagnostics.
         skipped: Whether the check was skipped.
+        metrics: Structured metrics extracted from output.
     """
 
     name: str
@@ -55,6 +91,7 @@ class CheckResult:
     duration_ms: int = 0
     output: str = ""
     skipped: bool = False
+    metrics: CheckMetrics | None = None
 
 
 @dataclass
@@ -66,12 +103,16 @@ class StageOutcome:
         passed: Whether all checks in the stage passed.
         results: Per-check results.
         duration_ms: Total execution time in milliseconds.
+        guard_files_changed: Guard system files changed in this PR.
+        generated_at: Formatted timestamp of report generation.
     """
 
     stage: str
     passed: bool
     results: list[CheckResult] = field(default_factory=list)
     duration_ms: int = 0
+    guard_files_changed: list[str] = field(default_factory=list)
+    generated_at: str = ""
 
 
 @dataclass

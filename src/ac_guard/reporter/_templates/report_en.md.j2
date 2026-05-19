@@ -1,22 +1,36 @@
 ## AI Code Guard Check Report
 
-**Stage**: {{ report.stage }} | **Result**: {{ "✅ PASSED" if report.passed else "❌ FAILED" }}
+{% if generated_at %}**Generated**: {{ generated_at }}
 
-| Check | Status | Time |
-|-------|--------|------|
+{% endif %}**Stage**: {{ report.stage }} | **Result**: {{ "✅ PASSED" if report.passed else "❌ FAILED" }}
+
+{% if checklist %}
+---
+
+### Checklist
+
+| Item | Status |
+|------|--------|
+{% for item in checklist %}| {{ item.label }} | {{ status_emoji(item.status) }}{% if item.detail %} {{ item.detail }}{% endif %} |
+{% endfor %}
+
+{% endif %}
+---
+
+### Results
+
+| Check | Status | Time | Metrics |
+|-------|--------|------|---------|
 {% for r in report.results %}
-{% if r.skipped %}
-| {{ r.name }} | ⏭️ Skip | - |
-{% elif r.passed %}
-| {{ r.name }} | ✅ Pass | {{ r.duration_ms }}ms |
-{% else %}
-| {{ r.name }} | ❌ Fail | {{ r.duration_ms }}ms |
+{% if r.skipped %}| {{ r.name }} | ⏭️ Skip | - | |
+{% elif r.passed %}| {{ r.name }} | ✅ Pass | {{ r.duration_ms }}ms | {{ metrics_summary(r) }} |
+{% else %}| {{ r.name }} | ❌ Fail | {{ r.duration_ms }}ms | {{ metrics_summary(r) }} |
 {% endif %}
 {% endfor %}
 
 {% if violations %}
 <details>
-<summary>Violations</summary>
+<summary>Violations ({{ violations | length }})</summary>
 
 ```
 {% for v in violations %}
@@ -33,4 +47,8 @@
 </details>
 {% endif %}
 
+{% if guard_files_changed %}
+> **Note**: Guard system files changed in this PR: {{ guard_files_changed | join(", ") }}
+
+{% endif %}
 **{{ passed }}/{{ total }}** checks passed

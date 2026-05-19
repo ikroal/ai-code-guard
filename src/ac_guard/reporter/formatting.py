@@ -170,24 +170,56 @@ def format_markdown(
     Returns:
         Markdown-formatted string.
     """
+    from ac_guard.reporter.metrics import build_checklist, enrich_outcome
+
+    enriched = enrich_outcome(report)
+    checklist = build_checklist(enriched)
+
     template_name = _LOCALE_TEMPLATES.get(locale, "report_en.md.j2")
     env = _get_env()
     template = env.get_template(template_name)
 
     violations: list[Any] = []
-    for result in report.results:
+    for result in enriched.results:
         violations.extend(result.violations)
 
-    passed = sum(1 for r in report.results if r.passed)
-    total = len(report.results)
+    passed = sum(1 for r in enriched.results if r.passed)
+    total = len(enriched.results)
 
     rendered = template.render(
-        report=report,
+        report=enriched,
         violations=violations,
         passed=passed,
         total=total,
+        checklist=checklist,
+        guard_files_changed=enriched.guard_files_changed,
+        generated_at=enriched.generated_at,
+        status_emoji=_status_emoji,
+        metrics_summary=_metrics_summary,
     )
     return _MARKER + "\n" + rendered
+
+
+def _status_emoji(status: str) -> str:
+    """Map status string to emoji."""
+    return {"pass": "✅", "fail": "❌", "skip": "⏭️", "warn": "⚠️"}.get(status, "")
+
+
+def _metrics_summary(result: Any) -> str:
+    """Render compact metrics summary for a check result."""
+    if not result.metrics:
+        return ""
+    m = result.metrics
+    parts = []
+    if m.coverage_pct is not None:
+        parts.append(f"cov: {m.coverage_pct:.0f}%")
+    if m.tests_total is not None:
+        parts.append(f"{m.tests_passed}/{m.tests_total} tests")
+    if m.docstring_pct is not None:
+        parts.append(f"docs: {m.docstring_pct:.0f}%")
+    if m.static_analysis_issues is not None:
+        parts.append(f"{m.static_analysis_issues} issues")
+    return " | ".join(parts)
 
 
 # ---------------------------------------------------------------------------
