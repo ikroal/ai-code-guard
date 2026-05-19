@@ -73,44 +73,67 @@ def _get_env() -> Environment:
 
 
 def format_terminal(report: Any, locale: str = "en") -> str:
-    """Format a StageOutcome for terminal display.
+    """Format a StageOutcome for terminal display with emojis and metrics.
 
-    Produces a multi-line rendering: stage heading, one ``[PASS]`` /
-    ``[FAIL]`` / ``[SKIP]`` indicator per check, inline violation list,
-    and a passed/total summary + total elapsed. Serves both CLI users
-    and Git-hook environments; callers decide whether to truncate.
+    Produces a multi-line rendering with enriched data: checklist,
+    metrics summary per check, and guard-file change detection.
 
     Args:
         report: Any to format.
-        locale: Label locale (``"en"`` or ``"zh-CN"``). Unknown locales
-            fall back to English. Only full-line headings are localized;
-            the ``[PASS] / [FAIL] / [SKIP]`` indicators and check names
-            stay as stable ASCII tokens to preserve alignment.
+        locale: Label locale (``"en"`` or ``"zh-CN"``).
 
     Returns:
         Formatted multi-line string for terminal output.
     """
+    from ac_guard.reporter.metrics import build_checklist, enrich_outcome
+
+    enriched = enrich_outcome(report)
+    checklist = build_checklist(enriched)
+
     labels = _labels_for(locale)
-    status = labels["passed"] if report.passed else labels["failed"]
+    status_emoji = "✅" if enriched.passed else "❌"
+    status = labels["passed"] if enriched.passed else labels["failed"]
 
     lines: list[str] = []
-    lines.append(f"{labels['stage']}: {report.stage} — {status}")
+    lines.append(f"🤖 {labels['stage']}: {enriched.stage} — {status_emoji} {status}")
     lines.append("")
 
-    for result in report.results:
-        indicator = _result_indicator(result)
+    # Checklist
+    if checklist:
+        lines.append("📋 Checklist:")
+        for item in checklist:
+            emoji = _status_emoji(item.status)
+            detail = f" {item.detail}" if item.detail else ""
+            lines.append(f"  {emoji} {item.label}{detail}")
+        lines.append("")
+
+    # Results
+    lines.append("📊 Results:")
+    for result in enriched.results:
+        emoji = _status_emoji(
+            "skip" if result.skipped else ("pass" if result.passed else "fail")
+        )
         duration = f" ({result.duration_ms}ms)" if result.duration_ms else ""
-        lines.append(f"  [{indicator}] {result.name}{duration}")
+        metrics = _metrics_summary(result)
+        metrics_str = f" | {metrics}" if metrics else ""
+        lines.append(f"  {emoji} {result.name}{duration}{metrics_str}")
         lines.extend(f"    {_format_violation(v)}" for v in result.violations)
 
     lines.append("")
-    passed = sum(1 for r in report.results if r.passed)
-    total = len(report.results)
+    passed = sum(1 for r in enriched.results if r.passed)
+    total = len(enriched.results)
     failed = total - passed
     lines.append(labels["summary"].format(passed=passed, total=total, failed=failed))
 
-    if report.duration_ms:
-        lines.append(f"{labels['total_time']}: {report.duration_ms}ms")
+    if enriched.duration_ms:
+        lines.append(f"{labels['total_time']}: {enriched.duration_ms}ms")
+
+    # Guard file changes
+    if enriched.guard_files_changed:
+        lines.append("")
+        lines.append(
+            f"🔧 Guard files changed: {', '.join(enriched.guard_files_changed)}"
+        )
 
     return "\n".join(lines)
 
