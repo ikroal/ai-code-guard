@@ -12,6 +12,8 @@ The following rules define what operations are permitted, blocked, or require ap
 
 ### Write Operations
 
+**Forbidden** (blocked):
+- `file:.env*` — Environment files contain secrets- `file:**/credentials*` — Credential files are protected- `file:**/*.pem` — Private keys must not be checked in
 
 **Require Approval** (ask user):
 - `file:.importlinter` — Editing the import-linter contract changes module layering- `file:scripts/**` — scripts/ contains guard infrastructure (lint checkers etc.); edits weaken enforcement- `file:guard.yaml`- `file:.ac-guard/**`- `file:.pre-commit-config.yaml`- `file:.git/hooks/**`
