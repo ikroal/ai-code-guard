@@ -94,6 +94,8 @@ code:
 output:
   audit:
     enabled: true
+  pr_report:
+    enabled: true
 
 languages:
   python:
