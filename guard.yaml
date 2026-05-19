@@ -16,6 +16,13 @@ behavior:
     # guard.yaml, .ac-guard/**, .pre-commit-config.yaml, .git/hooks/** are
     # already protected by default. The extra entries below cover repo-specific
     # policy surface that, if edited unexpectedly, would silently weaken the gate.
+    forbidden:
+      - pattern: "file:.env*"
+        reason: "Environment files contain secrets"
+      - pattern: "file:**/credentials*"
+        reason: "Credential files are protected"
+      - pattern: "file:**/*.pem"
+        reason: "Private keys must not be checked in"
     require_approval:
       - pattern: "file:.importlinter"
         message: "Editing the import-linter contract changes module layering"
@@ -24,7 +31,7 @@ behavior:
 
 _pre_commit:
   minimum_version: "3.0.0"
-  default_install_hook_types: [pre-commit, commit-msg]
+  default_install_hook_types: [pre-commit, commit-msg, pre-push]
   default_language_version:
     python: python3
 
@@ -91,7 +98,15 @@ code:
           - id: conventional-pre-commit
             args: [--force-scope]
 
+  pre-push:
+    checks:
+      pytest:
+        command: "uv run --no-sync pytest --cov --cov-fail-under=80"
+        pass_filenames: false
+        types: [python]
+
 output:
+  locale: "zh-CN"
   audit:
     enabled: true
   pr_report:
