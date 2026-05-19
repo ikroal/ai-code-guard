@@ -3,4 +3,5 @@
 # Managed by ac-guard - do not edit manually
 # Run 'ac-guard install' to regenerate
 
+export PATH="{{ venv_bin_dir }}:$PATH"
 exec "{{ ac_guard_executable }}" run --stage pre-commit

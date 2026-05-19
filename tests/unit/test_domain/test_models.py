@@ -48,6 +48,7 @@ class TestValueObjectExports:
         import ac_guard.domain.models as models
 
         assert set(models.__all__) == {
+            "CheckMetrics",
             "CheckResult",
             "FileSpec",
             "StageOutcome",
@@ -62,6 +63,7 @@ class TestPackageApi:
         import ac_guard.domain as domain
 
         assert set(domain.__all__) == {
+            "CheckMetrics",
             "CheckResult",
             "FileSpec",
             "StageOutcome",

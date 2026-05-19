@@ -70,7 +70,7 @@ class TestValidDispatch:
         out = buf.getvalue()
         # Multi-line text rendering: stage heading + check indicator.
         assert "pre-commit" in out
-        assert "[PASS]" in out
+        assert "✅" in out
 
     def test_terminal_json(self) -> None:
         buf = io.StringIO()
@@ -90,7 +90,7 @@ class TestValidDispatch:
         )
         text = target.read_text(encoding="utf-8")
         assert "pre-commit" in text
-        assert "[PASS]" in text
+        assert "✅" in text
 
     def test_file_markdown(self, tmp_path: Path) -> None:
         target = tmp_path / "report.md"

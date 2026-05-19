@@ -42,9 +42,16 @@ Admission criteria for **Domain Services** (own sub-module, e.g.
 """
 
 from ac_guard.domain import languages, managed_block, stages
-from ac_guard.domain.models import CheckResult, FileSpec, StageOutcome, Violation
+from ac_guard.domain.models import (
+    CheckMetrics,
+    CheckResult,
+    FileSpec,
+    StageOutcome,
+    Violation,
+)
 
 __all__ = [
+    "CheckMetrics",
     "CheckResult",
     "FileSpec",
     "StageOutcome",

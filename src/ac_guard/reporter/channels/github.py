@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import re
+import subprocess
 
 from ac_guard.reporter.channels._git_info import get_current_branch
 from ac_guard.reporter.channels._http import get_json
@@ -48,7 +49,21 @@ class GitHubChannel(GitPlatformChannel):
         if match:
             return match.group(1)
 
-        # 3. API query by branch
+        # 3. gh CLI fallback (local development)
+        try:
+            result = subprocess.run(
+                ["gh", "pr", "view", "--json", "number", "-q", ".number"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                return result.stdout.strip()
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            pass
+
+        # 4. API query by branch
         branch = get_current_branch()
         if branch:
             owner = repo.split("/")[0] if "/" in repo else repo
@@ -85,3 +100,11 @@ class GitHubChannel(GitPlatformChannel):
             "Accept": "application/vnd.github+json",
             "Content-Type": "application/json",
         }
+
+    def _list_comments_url(self, api_url: str, repo: str, pr_id: str) -> str:
+        return f"{api_url}/repos/{repo}/issues/{pr_id}/comments"
+
+    def _comment_update_url(
+        self, api_url: str, repo: str, pr_id: str, comment_id: str
+    ) -> str:
+        return f"{api_url}/repos/{repo}/issues/comments/{comment_id}"

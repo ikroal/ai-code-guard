@@ -73,8 +73,35 @@ class TestGitHubChannel:
         monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
         monkeypatch.setenv("GITHUB_REF", "refs/pull/1/merge")
 
-        with pytest.raises(ChannelError, match="token"):
+        with (
+            patch(
+                "ac_guard.reporter.channels.git_platform.subprocess.run",
+                side_effect=FileNotFoundError,
+            ),
+            pytest.raises(ChannelError, match="token"),
+        ):
             GitHubChannel(self._make_config()).output("report")
+
+    def test_token_from_gh_cli(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Fallback: read token from `gh auth token`."""
+        monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+        monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
+        monkeypatch.setenv("GITHUB_REF", "refs/pull/42/merge")
+
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = "ghp_gh_cli_token\n"
+
+        with (
+            patch(
+                "ac_guard.reporter.channels.git_platform.subprocess.run",
+                return_value=mock_result,
+            ),
+            patch("urllib.request.urlopen", return_value=self._mock_urlopen()) as m,
+        ):
+            GitHubChannel(self._make_config()).output("## Report")
+            req = m.call_args[0][0]
+            assert req.get_header("Authorization") == "Bearer ghp_gh_cli_token"
 
     def test_custom_api_url(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("GITHUB_TOKEN", "ghp_test123")
@@ -127,6 +154,10 @@ class TestGitHubChannel:
 
         with (
             patch(
+                "ac_guard.reporter.channels.github.subprocess.run",
+                side_effect=FileNotFoundError,
+            ),
+            patch(
                 "ac_guard.reporter.channels.github.get_current_branch",
                 return_value="feat/test",
             ),
@@ -136,6 +167,27 @@ class TestGitHubChannel:
             # Second call (POST) should use PR 77
             post_req = m.call_args_list[-1][0][0]
             assert "/issues/77/comments" in post_req.full_url
+
+    def test_pr_number_from_gh_cli(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Fallback: get PR number from `gh pr view`."""
+        monkeypatch.setenv("GITHUB_TOKEN", "ghp_test123")
+        monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
+        monkeypatch.delenv("GITHUB_REF", raising=False)
+        monkeypatch.delenv("AI_GUARD_PR_NUMBER", raising=False)
+
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = "55\n"
+
+        with (
+            patch(
+                "ac_guard.reporter.channels.github.subprocess.run",
+                return_value=mock_result,
+            ),
+            patch("urllib.request.urlopen", return_value=self._mock_urlopen()) as m,
+        ):
+            GitHubChannel(self._make_config()).output("r")
+            assert "/issues/55/comments" in m.call_args[0][0].full_url
 
     def test_repo_from_git_remote(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Fallback: get repo from git remote when env var missing."""
@@ -176,6 +228,10 @@ class TestGitHubChannel:
 
         with (
             patch(
+                "ac_guard.reporter.channels.github.subprocess.run",
+                side_effect=FileNotFoundError,
+            ),
+            patch(
                 "ac_guard.reporter.channels.github.get_current_branch",
                 return_value=None,
             ),
@@ -193,6 +249,10 @@ class TestGitHubChannel:
         monkeypatch.delenv("AI_GUARD_PR_NUMBER", raising=False)
 
         with (
+            patch(
+                "ac_guard.reporter.channels.github.subprocess.run",
+                side_effect=FileNotFoundError,
+            ),
             patch(
                 "ac_guard.reporter.channels.github.get_current_branch",
                 return_value=None,
@@ -212,6 +272,10 @@ class TestGitHubChannel:
 
         with (
             patch(
+                "ac_guard.reporter.channels.github.subprocess.run",
+                side_effect=FileNotFoundError,
+            ),
+            patch(
                 "ac_guard.reporter.channels.github.get_current_branch",
                 return_value=None,
             ),
@@ -229,10 +293,98 @@ class TestGitHubChannel:
         monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
         monkeypatch.setenv("GITHUB_REF", "refs/pull/42/merge")
 
-        side_effect = [URLError("transient"), self._mock_urlopen()]
+        # GET list (empty) → POST fails → POST retry succeeds
+        side_effect = [
+            self._mock_urlopen(body=b"[]"),  # GET list comments
+            URLError("transient"),  # POST fails
+            self._mock_urlopen(),  # POST retry succeeds
+        ]
         with (
             patch("urllib.request.urlopen", side_effect=side_effect) as m,
             patch("ac_guard.reporter.channels._http.time.sleep"),
         ):
             GitHubChannel(self._make_config()).output("## Report")
-        assert m.call_count == 2
+        assert m.call_count == 3
+
+    def test_output_updates_existing_comment(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """When a comment with the ac-guard marker exists, PATCH it."""
+        monkeypatch.setenv("GITHUB_TOKEN", "ghp_test123")
+        monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
+        monkeypatch.setenv("GITHUB_REF", "refs/pull/42/merge")
+
+        existing_comments = json.dumps(
+            [
+                {"id": 999, "body": "<!-- ac-guard-report -->\n## Old Report"},
+            ]
+        ).encode()
+
+        call_count = 0
+
+        def urlopen_side_effect(req: MagicMock) -> MagicMock:
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                # GET list comments — returns existing comment with marker
+                return self._mock_urlopen(body=existing_comments)
+            # PATCH update comment
+            return self._mock_urlopen()
+
+        with patch("urllib.request.urlopen", side_effect=urlopen_side_effect) as m:
+            GitHubChannel(self._make_config()).output("## New Report")
+            # Second call should be PATCH to /issues/comments/999
+            patch_req = m.call_args_list[-1][0][0]
+            assert patch_req.method == "PATCH"
+            assert "/issues/comments/999" in patch_req.full_url
+
+    def test_output_creates_when_no_existing(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """When no comment with the marker exists, POST a new one."""
+        monkeypatch.setenv("GITHUB_TOKEN", "ghp_test123")
+        monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
+        monkeypatch.setenv("GITHUB_REF", "refs/pull/42/merge")
+
+        call_count = 0
+
+        def urlopen_side_effect(req: MagicMock) -> MagicMock:
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                # GET list comments — empty
+                return self._mock_urlopen(body=b"[]")
+            # POST new comment
+            return self._mock_urlopen()
+
+        with patch("urllib.request.urlopen", side_effect=urlopen_side_effect) as m:
+            GitHubChannel(self._make_config()).output("## Report")
+            post_req = m.call_args_list[-1][0][0]
+            assert post_req.method == "POST"
+            assert "/issues/42/comments" in post_req.full_url
+
+    def test_output_creates_on_list_failure(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """If listing comments fails, fall through to POST."""
+        from urllib.error import HTTPError
+
+        monkeypatch.setenv("GITHUB_TOKEN", "ghp_test123")
+        monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
+        monkeypatch.setenv("GITHUB_REF", "refs/pull/42/merge")
+
+        call_count = 0
+
+        def urlopen_side_effect(req: MagicMock) -> MagicMock:
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                # GET list comments — fails
+                raise HTTPError("", 403, "Forbidden", None, None)
+            # POST new comment
+            return self._mock_urlopen()
+
+        with patch("urllib.request.urlopen", side_effect=urlopen_side_effect) as m:
+            GitHubChannel(self._make_config()).output("## Report")
+            post_req = m.call_args_list[-1][0][0]
+            assert post_req.method == "POST"

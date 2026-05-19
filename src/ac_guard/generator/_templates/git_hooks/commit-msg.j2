@@ -6,4 +6,5 @@
 # Receives the commit message file path as $1; forward to the gate
 # runner so pre-commit hooks for the commit-msg stage can inspect it.
 
+export PATH="{{ venv_bin_dir }}:$PATH"
 exec "{{ ac_guard_executable }}" run --stage commit-msg --message-file "$1"

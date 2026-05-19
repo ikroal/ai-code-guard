@@ -23,7 +23,7 @@ from ac_guard.reporter.channels.base import ChannelError
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-__all__ = ["RetryPolicy", "get_json", "post_json"]
+__all__ = ["RetryPolicy", "get_json", "patch_json", "post_json"]
 
 # HTTP status codes considered transient and worth retrying.
 _RETRYABLE_STATUS = frozenset({408, 429, 500, 502, 503, 504})
@@ -111,6 +111,38 @@ def post_json(
     """
     return _do_request(
         _PreparedRequest(url=url, method="POST", headers=headers, body=body),
+        api_name=api_name,
+        retry=retry,
+    )
+
+
+def patch_json(
+    url: str,
+    *,
+    headers: dict[str, str],
+    body: dict | None = None,
+    api_name: str,
+    retry: RetryPolicy = _DEFAULT_RETRY,
+) -> dict | list | None:
+    """Issue a PATCH request with bounded retries and return parsed JSON.
+
+    Args:
+        url: Absolute URL to request.
+        headers: Fully built request headers (auth, accept, content-type).
+        body: Optional JSON-serializable request body.
+        api_name: Human-readable API name used in error messages.
+        retry: Retry/backoff policy.
+
+    Returns:
+        Parsed JSON body on success. Returns ``None`` when the response
+        body is empty.
+
+    Raises:
+        ChannelError: On non-retryable HTTP errors (4xx other than
+            408/429) or when retries are exhausted on retryable failures.
+    """
+    return _do_request(
+        _PreparedRequest(url=url, method="PATCH", headers=headers, body=body),
         api_name=api_name,
         retry=retry,
     )

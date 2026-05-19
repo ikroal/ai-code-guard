@@ -80,3 +80,11 @@ class BitbucketChannel(GitPlatformChannel):
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json",
         }
+
+    def _list_comments_url(self, api_url: str, repo: str, pr_id: str) -> str:
+        return f"{api_url}/2.0/repositories/{repo}/pullrequests/{pr_id}/comments"
+
+    def _comment_update_url(
+        self, api_url: str, repo: str, pr_id: str, comment_id: str
+    ) -> str:
+        return f"{api_url}/2.0/repositories/{repo}/pullrequests/{pr_id}/comments/{comment_id}"

@@ -36,6 +36,8 @@ _GIT_COMMIT_RE = re.compile(r"\bgit\s+commit\b")
 # Presence of both is the canonical "hooks installed" indicator used by
 # pre-commit itself (see their hook-impl template).
 _PRECOMMIT_HOOK_SIGNATURES = ("pre-commit", "hook-impl")
+# Signature in ac-guard's own generated hook template.
+_AC_GUARD_HOOK_SIGNATURE = "AI Code Guard"
 
 
 def evaluate(
@@ -159,19 +161,22 @@ def evaluate(
 
 
 def _precommit_hook_installed(project_root: Path) -> bool:
-    """Return True iff ``.git/hooks/pre-commit`` carries pre-commit's signature.
+    """Return True iff ``.git/hooks/pre-commit`` carries a known hook signature.
 
-    We look at the hook file contents rather than shelling out to
-    ``pre-commit`` so the check works on agents that don't have the
-    tool on PATH and so we don't pay subprocess startup on every
-    tool call.
+    Recognizes both the pre-commit framework's signature and ac-guard's
+    own generated hook. We look at the hook file contents rather than
+    shelling out to ``pre-commit`` so the check works on agents that
+    don't have the tool on PATH and so we don't pay subprocess startup
+    on every tool call.
     """
     hook_path = project_root / ".git" / "hooks" / "pre-commit"
     try:
         contents = hook_path.read_text(encoding="utf-8", errors="ignore")
     except OSError:
         return False
-    return all(sig in contents for sig in _PRECOMMIT_HOOK_SIGNATURES)
+    if all(sig in contents for sig in _PRECOMMIT_HOOK_SIGNATURES):
+        return True
+    return _AC_GUARD_HOOK_SIGNATURE in contents
 
 
 def _hooks_not_installed_result() -> MatchResult:

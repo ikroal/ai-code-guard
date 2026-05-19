@@ -387,6 +387,26 @@ class TestHooksNotInstalledEscalation:
         assert result.decision == Decision.ASK
         assert result.tier == "hooks_not_installed"
 
+    def test_ac_guard_hook_signature_allows_commit(self, tmp_path: Path) -> None:
+        """ac-guard's own generated hook should count as installed."""
+        policy = _standard_policy()
+        policy["behavior"]["execute"]["allow"].append(
+            {"pattern": "shell:git commit*", "source": "user"},
+        )
+        _write_policy(tmp_path, policy)
+        hooks = tmp_path / ".git" / "hooks"
+        hooks.mkdir(parents=True, exist_ok=True)
+        (hooks / "pre-commit").write_text(
+            "#!/bin/bash\n# AI Code Guard pre-commit hook\n"
+            "# Managed by ac-guard - do not edit manually\n"
+            'exec "/usr/bin/ac-guard" run --stage pre-commit\n',
+            encoding="utf-8",
+        )
+
+        result = evaluate("Bash", {"command": "git commit -m x"}, tmp_path)
+        assert result.decision == Decision.ALLOW
+        assert result.tier != "hooks_not_installed"
+
 
 def _policy_with_audit(enabled: bool) -> dict:
     policy = _standard_policy()

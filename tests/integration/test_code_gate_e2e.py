@@ -516,7 +516,7 @@ class TestLocalePropagation:
         with patch("ac_guard.code_gate.core._get_changed_files", return_value=[]):
             r = runner.invoke(app, ["run", "--stage", "pre-commit", "-c", str(config)])
         assert r.exit_code == 0
-        assert "阶段: pre-commit — 通过" in r.output
+        assert "🤖 阶段: pre-commit — ✅ 通过" in r.output
         assert "项检查通过" in r.output
         assert "PASSED" not in r.output
 
