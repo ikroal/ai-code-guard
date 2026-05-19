@@ -153,6 +153,9 @@ def _format_violation(v: Any) -> str:
 # Markdown format
 # ---------------------------------------------------------------------------
 
+_MARKER = "<!-- ac-guard-report -->"
+"""Hidden HTML marker prepended to PR comments for update-or-create."""
+
 
 def format_markdown(
     report: Any,
@@ -178,12 +181,13 @@ def format_markdown(
     passed = sum(1 for r in report.results if r.passed)
     total = len(report.results)
 
-    return template.render(
+    rendered = template.render(
         report=report,
         violations=violations,
         passed=passed,
         total=total,
     )
+    return _MARKER + "\n" + rendered
 
 
 # ---------------------------------------------------------------------------

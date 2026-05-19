@@ -184,10 +184,15 @@ class TestGitLabChannel:
         monkeypatch.setenv("CI_PROJECT_ID", "12345")
         monkeypatch.setenv("CI_MERGE_REQUEST_IID", "42")
 
-        side_effect = [URLError("transient"), self._mock_urlopen()]
+        # GET list (empty) → POST fails → POST retry succeeds
+        side_effect = [
+            self._mock_urlopen(body=b"[]"),  # GET list comments
+            URLError("transient"),  # POST fails
+            self._mock_urlopen(),  # POST retry succeeds
+        ]
         with (
             patch("urllib.request.urlopen", side_effect=side_effect) as m,
             patch("ac_guard.reporter.channels._http.time.sleep"),
         ):
             GitLabChannel(self._make_config()).output("## Report")
-        assert m.call_count == 2
+        assert m.call_count == 3

@@ -69,3 +69,11 @@ class GiteaChannel(GitPlatformChannel):
             "Authorization": f"token {token}",
             "Content-Type": "application/json",
         }
+
+    def _list_comments_url(self, api_url: str, repo: str, pr_id: str) -> str:
+        return f"{api_url}/api/v1/repos/{repo}/issues/{pr_id}/comments"
+
+    def _comment_update_url(
+        self, api_url: str, repo: str, pr_id: str, comment_id: str
+    ) -> str:
+        return f"{api_url}/api/v1/repos/{repo}/issues/comments/{comment_id}"

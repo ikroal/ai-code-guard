@@ -89,3 +89,11 @@ class GitLabChannel(GitPlatformChannel):
             "PRIVATE-TOKEN": token,
             "Content-Type": "application/json",
         }
+
+    def _list_comments_url(self, api_url: str, repo: str, pr_id: str) -> str:
+        return f"{api_url}/api/v4/projects/{repo}/merge_requests/{pr_id}/notes"
+
+    def _comment_update_url(
+        self, api_url: str, repo: str, pr_id: str, comment_id: str
+    ) -> str:
+        return f"{api_url}/api/v4/projects/{repo}/merge_requests/{pr_id}/notes/{comment_id}"

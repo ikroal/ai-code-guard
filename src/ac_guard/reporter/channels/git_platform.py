@@ -24,8 +24,9 @@ from abc import abstractmethod
 from typing import TYPE_CHECKING, ClassVar
 
 from ac_guard.reporter.channels._git_info import get_remote_repo
-from ac_guard.reporter.channels._http import post_json
+from ac_guard.reporter.channels._http import get_json, patch_json, post_json
 from ac_guard.reporter.channels.base import ChannelError, ReportChannel
+from ac_guard.reporter.formatting import _MARKER
 
 if TYPE_CHECKING:
     from ac_guard.reporter.core import GitPlatformCfg
@@ -64,7 +65,10 @@ class GitPlatformChannel(ReportChannel):
     # ---- template method ---------------------------------------------------
 
     def output(self, payload: str) -> None:
-        """Post ``payload`` (Markdown) as a comment on the associated PR/MR.
+        """Post or update ``payload`` (Markdown) as a comment on the PR/MR.
+
+        If an existing comment bearing the ac-guard marker is found, it
+        is updated via PATCH. Otherwise a new comment is created via POST.
 
         Args:
             payload: Rendered Markdown string.
@@ -78,13 +82,52 @@ class GitPlatformChannel(ReportChannel):
         repo = self._resolve_repo()
         api_url = (self.config.api_url or self.DEFAULT_API_URL).rstrip("/")
         pr_id = self._resolve_pr(token, repo, api_url)
-        url = self._post_url(api_url, repo, pr_id)
-        post_json(
-            url,
-            headers=self._auth_headers(token),
-            body=self._wrap_body(payload),
-            api_name=self._api_name(),
-        )
+        headers = self._auth_headers(token)
+        api = self._api_name()
+
+        existing_id = self._find_existing_comment(api_url, repo, pr_id, headers, api)
+        if existing_id:
+            url = self._comment_update_url(api_url, repo, pr_id, existing_id)
+            patch_json(
+                url,
+                headers=headers,
+                body=self._wrap_body(payload),
+                api_name=api,
+            )
+        else:
+            url = self._post_url(api_url, repo, pr_id)
+            post_json(
+                url,
+                headers=headers,
+                body=self._wrap_body(payload),
+                api_name=api,
+            )
+
+    def _find_existing_comment(
+        self,
+        api_url: str,
+        repo: str,
+        pr_id: str,
+        headers: dict[str, str],
+        api_name: str,
+    ) -> str | None:
+        """Search for an existing comment bearing the ac-guard marker."""
+        url = self._list_comments_url(api_url, repo, pr_id)
+        try:
+            comments = get_json(url, headers=headers, api_name=api_name)
+            if not comments or not isinstance(comments, list):
+                return None
+            for comment in comments:
+                body = (
+                    comment.get("body", "")
+                    or comment.get("content", {}).get("raw", "")
+                    or ""
+                )
+                if _MARKER in body:
+                    return str(comment["id"])
+        except ChannelError:
+            pass
+        return None
 
     # ---- common helpers ----------------------------------------------------
 
@@ -220,4 +263,33 @@ class GitPlatformChannel(ReportChannel):
 
         Returns:
             Dict of request headers.
+        """
+
+    @abstractmethod
+    def _list_comments_url(self, api_url: str, repo: str, pr_id: str) -> str:
+        """Build the URL to list comments on a PR/MR.
+
+        Args:
+            api_url: API base URL (no trailing slash).
+            repo: Repository identifier.
+            pr_id: PR/MR identifier.
+
+        Returns:
+            Full URL for a GET request returning a JSON array of comments.
+        """
+
+    @abstractmethod
+    def _comment_update_url(
+        self, api_url: str, repo: str, pr_id: str, comment_id: str
+    ) -> str:
+        """Build the URL to update a specific comment.
+
+        Args:
+            api_url: API base URL (no trailing slash).
+            repo: Repository identifier.
+            pr_id: PR/MR identifier.
+            comment_id: Comment identifier.
+
+        Returns:
+            Full URL for a PATCH request to update the comment.
         """
