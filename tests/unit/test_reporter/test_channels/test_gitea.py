@@ -73,7 +73,13 @@ class TestGiteaChannel:
         monkeypatch.setenv("GITEA_REPOSITORY", "owner/repo")
         monkeypatch.setenv("AI_GUARD_PR_NUMBER", "1")
 
-        with pytest.raises(ChannelError, match="token"):
+        with (
+            patch(
+                "ac_guard.reporter.channels.git_platform.subprocess.run",
+                side_effect=FileNotFoundError,
+            ),
+            pytest.raises(ChannelError, match="token"),
+        ):
             GiteaChannel(self._make_config()).output("report")
 
     def test_custom_api_url(self, monkeypatch: pytest.MonkeyPatch) -> None:

@@ -19,6 +19,7 @@ channel-implementation concern.
 from __future__ import annotations
 
 import os
+import subprocess
 from abc import abstractmethod
 from typing import TYPE_CHECKING, ClassVar
 
@@ -88,21 +89,39 @@ class GitPlatformChannel(ReportChannel):
     # ---- common helpers ----------------------------------------------------
 
     def _read_token(self) -> str:
-        """Read the API token from ``config.token_env``.
+        """Read the API token from ``config.token_env`` or ``gh`` CLI.
+
+        Priority:
+            1. ``config.token_env`` environment variable
+            2. ``gh auth token`` (local development fallback)
 
         Returns:
             The token string.
 
         Raises:
-            ChannelError: If the environment variable is not set.
+            ChannelError: If neither source provides a token.
         """
         token = os.environ.get(self.config.token_env)
-        if not token:
-            raise ChannelError(
-                f"{self._api_name()} token not found: set the "
-                f"{self.config.token_env} environment variable"
+        if token:
+            return token
+        # Fallback: gh CLI (local development)
+        try:
+            result = subprocess.run(
+                ["gh", "auth", "token"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False,
             )
-        return token
+            if result.returncode == 0 and result.stdout.strip():
+                return result.stdout.strip()
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            pass
+        raise ChannelError(
+            f"{self._api_name()} token not found: set the "
+            f"{self.config.token_env} environment variable "
+            f"or run 'gh auth login'"
+        )
 
     def _resolve_repo(self) -> str:
         """Resolve the repository identifier.

@@ -518,14 +518,18 @@ def _generate_git_hooks(
 
     artifacts: list[FileSpec] = []
     env = _get_generator_env()
-    ac_guard_executable = str(_resolve_ac_guard_executable())
+    ac_guard_executable = _resolve_ac_guard_executable()
+    venv_bin_dir = str(ac_guard_executable.parent)
 
     for stage in stages:
         template = env.get_template(f"git_hooks/{stage}.j2")
         artifacts.append(
             FileSpec(
                 path=f".git/hooks/{stage}",
-                content=template.render(ac_guard_executable=ac_guard_executable),
+                content=template.render(
+                    ac_guard_executable=str(ac_guard_executable),
+                    venv_bin_dir=venv_bin_dir,
+                ),
                 executable=True,
             )
         )

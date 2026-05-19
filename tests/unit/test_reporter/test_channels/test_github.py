@@ -73,8 +73,35 @@ class TestGitHubChannel:
         monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
         monkeypatch.setenv("GITHUB_REF", "refs/pull/1/merge")
 
-        with pytest.raises(ChannelError, match="token"):
+        with (
+            patch(
+                "ac_guard.reporter.channels.git_platform.subprocess.run",
+                side_effect=FileNotFoundError,
+            ),
+            pytest.raises(ChannelError, match="token"),
+        ):
             GitHubChannel(self._make_config()).output("report")
+
+    def test_token_from_gh_cli(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Fallback: read token from `gh auth token`."""
+        monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+        monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
+        monkeypatch.setenv("GITHUB_REF", "refs/pull/42/merge")
+
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = "ghp_gh_cli_token\n"
+
+        with (
+            patch(
+                "ac_guard.reporter.channels.git_platform.subprocess.run",
+                return_value=mock_result,
+            ),
+            patch("urllib.request.urlopen", return_value=self._mock_urlopen()) as m,
+        ):
+            GitHubChannel(self._make_config()).output("## Report")
+            req = m.call_args[0][0]
+            assert req.get_header("Authorization") == "Bearer ghp_gh_cli_token"
 
     def test_custom_api_url(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("GITHUB_TOKEN", "ghp_test123")
@@ -127,6 +154,10 @@ class TestGitHubChannel:
 
         with (
             patch(
+                "ac_guard.reporter.channels.github.subprocess.run",
+                side_effect=FileNotFoundError,
+            ),
+            patch(
                 "ac_guard.reporter.channels.github.get_current_branch",
                 return_value="feat/test",
             ),
@@ -136,6 +167,27 @@ class TestGitHubChannel:
             # Second call (POST) should use PR 77
             post_req = m.call_args_list[-1][0][0]
             assert "/issues/77/comments" in post_req.full_url
+
+    def test_pr_number_from_gh_cli(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Fallback: get PR number from `gh pr view`."""
+        monkeypatch.setenv("GITHUB_TOKEN", "ghp_test123")
+        monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
+        monkeypatch.delenv("GITHUB_REF", raising=False)
+        monkeypatch.delenv("AI_GUARD_PR_NUMBER", raising=False)
+
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = "55\n"
+
+        with (
+            patch(
+                "ac_guard.reporter.channels.github.subprocess.run",
+                return_value=mock_result,
+            ),
+            patch("urllib.request.urlopen", return_value=self._mock_urlopen()) as m,
+        ):
+            GitHubChannel(self._make_config()).output("r")
+            assert "/issues/55/comments" in m.call_args[0][0].full_url
 
     def test_repo_from_git_remote(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Fallback: get repo from git remote when env var missing."""
@@ -176,6 +228,10 @@ class TestGitHubChannel:
 
         with (
             patch(
+                "ac_guard.reporter.channels.github.subprocess.run",
+                side_effect=FileNotFoundError,
+            ),
+            patch(
                 "ac_guard.reporter.channels.github.get_current_branch",
                 return_value=None,
             ),
@@ -194,6 +250,10 @@ class TestGitHubChannel:
 
         with (
             patch(
+                "ac_guard.reporter.channels.github.subprocess.run",
+                side_effect=FileNotFoundError,
+            ),
+            patch(
                 "ac_guard.reporter.channels.github.get_current_branch",
                 return_value=None,
             ),
@@ -211,6 +271,10 @@ class TestGitHubChannel:
         monkeypatch.delenv("AI_GUARD_PR_NUMBER", raising=False)
 
         with (
+            patch(
+                "ac_guard.reporter.channels.github.subprocess.run",
+                side_effect=FileNotFoundError,
+            ),
             patch(
                 "ac_guard.reporter.channels.github.get_current_branch",
                 return_value=None,

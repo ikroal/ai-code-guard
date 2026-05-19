@@ -76,7 +76,13 @@ class TestBitbucketChannel:
         monkeypatch.setenv("BITBUCKET_REPO_FULL_NAME", "workspace/repo")
         monkeypatch.setenv("BITBUCKET_PR_ID", "1")
 
-        with pytest.raises(ChannelError, match="token"):
+        with (
+            patch(
+                "ac_guard.reporter.channels.git_platform.subprocess.run",
+                side_effect=FileNotFoundError,
+            ),
+            pytest.raises(ChannelError, match="token"),
+        ):
             BitbucketChannel(self._make_config()).output("report")
 
     def test_custom_api_url(self, monkeypatch: pytest.MonkeyPatch) -> None:

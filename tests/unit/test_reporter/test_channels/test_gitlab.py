@@ -73,7 +73,13 @@ class TestGitLabChannel:
         monkeypatch.setenv("CI_PROJECT_ID", "12345")
         monkeypatch.setenv("CI_MERGE_REQUEST_IID", "1")
 
-        with pytest.raises(ChannelError, match="token"):
+        with (
+            patch(
+                "ac_guard.reporter.channels.git_platform.subprocess.run",
+                side_effect=FileNotFoundError,
+            ),
+            pytest.raises(ChannelError, match="token"),
+        ):
             GitLabChannel(self._make_config()).output("report")
 
     def test_custom_api_url(self, monkeypatch: pytest.MonkeyPatch) -> None:
