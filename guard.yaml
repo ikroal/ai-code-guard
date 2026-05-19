@@ -106,9 +106,6 @@ code:
         pass_filenames: false
         types: [python]
 
-build:
-  command: "uv build --sdist --wheel --no-build-isolation"
-
 output:
   audit:
     enabled: true
