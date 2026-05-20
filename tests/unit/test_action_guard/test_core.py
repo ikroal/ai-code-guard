@@ -470,9 +470,9 @@ class TestEvaluateAuditWiring:
 
     def test_passes_agent_to_record(self, tmp_path: Path) -> None:
         _write_policy(tmp_path, _policy_with_audit(enabled=True))
-        evaluate("Write", {"file_path": "guard.yaml"}, tmp_path, agent="cursor")
+        evaluate("Write", {"file_path": "guard.yaml"}, tmp_path, agent="opencode")
         audit_path = tmp_path / ".ac-guard" / "audit.jsonl"
         record = json.loads(
             audit_path.read_text(encoding="utf-8").strip().split("\n")[0]
         )
-        assert record["agent"] == "cursor"
+        assert record["agent"] == "opencode"

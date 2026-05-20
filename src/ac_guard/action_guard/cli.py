@@ -1,14 +1,14 @@
 """Action guard CLI entry point for subprocess invocation.
 
 Provides a thin JSON stdin/stdout interface for non-Python hooks
-(Cursor bash, OpenCode TypeScript) to call the Action guard engine.
+(OpenCode TypeScript) to call the Action guard engine.
 
 Usage:
     echo '{"tool_name": "Write", "tool_input": {"file_path": "x.py"}}' | \
         python3 -m ac_guard.action_guard
 
 Input (stdin JSON):
-    {"tool_name": "...", "tool_input": {...}, "agent": "cursor", "project_root": "."}
+    {"tool_name": "...", "tool_input": {...}, "agent": "opencode", "project_root": "."}
     Only ``tool_name`` and ``tool_input`` are required. ``agent`` is
     recorded in the audit log to identify the caller; ``project_root``
     defaults to ``.``.

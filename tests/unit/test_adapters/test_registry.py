@@ -13,7 +13,7 @@ from ac_guard.adapters.registry import (
 
 # Expected closed set of built-in adapters; cross-checked against the
 # snapshot suite (test_snapshots.py) that exercises render output.
-_BUILTIN_NAMES = ("claude-code", "cursor", "opencode", "copilot", "kilocode")
+_BUILTIN_NAMES = ("claude-code", "opencode", "copilot", "kilocode")
 
 
 # ---------------------------------------------------------------------------
@@ -37,8 +37,8 @@ class TestGetAdapter:
     def test_returns_same_instance_each_call(self) -> None:
         # The registry holds singletons; lookup must not construct a
         # fresh adapter on each call.
-        first = get_adapter("cursor")
-        second = get_adapter("cursor")
+        first = get_adapter("claude-code")
+        second = get_adapter("claude-code")
         assert first is second
 
 

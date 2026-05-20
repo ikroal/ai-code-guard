@@ -25,7 +25,7 @@ from ac_guard.config.models import BehaviorConfig, OperationRules, Rule
 _SNAPSHOT_DIR = Path(__file__).parent / "_snapshots"
 _UPDATE = os.environ.get("AC_GUARD_UPDATE_SNAPSHOTS") == "1"
 
-_BUILTIN_NAMES = ("claude-code", "cursor", "opencode", "copilot", "kilocode")
+_BUILTIN_NAMES = ("claude-code", "opencode", "copilot", "kilocode")
 
 # Hook templates bake ``sys.executable`` so the rendered hook can
 # re-exec into the interpreter that ran ``ac-guard install``. That

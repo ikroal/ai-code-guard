@@ -13,7 +13,6 @@ The five built-ins (constructed once as an immutable mapping at import
 time):
 
 - ``claude-code`` (can_block=True, can_ask=True)
-- ``cursor`` (can_block=True, can_ask=False)
 - ``opencode`` (can_block=True, can_ask=True)
 - ``copilot`` (can_block=False, can_ask=False)
 - ``kilocode`` (can_block=False, can_ask=False)

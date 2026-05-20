@@ -57,7 +57,7 @@ def evaluate(
         tool_input: Tool arguments dict.
         project_root: Path to project root directory.
         agent: Identifier of the invoking agent (``"claude-code"``,
-            ``"cursor"``, ``"opencode"``, ...). Empty string is
+            ``"opencode"``, ...). Empty string is
             accepted for backward-compatible callers but leaves the
             audit record's ``agent`` field empty.
 

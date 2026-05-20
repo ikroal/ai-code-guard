@@ -126,44 +126,6 @@ class TestGitHooksBakeAbsolutePath:
         )
 
 
-class TestCursorHookBakesPython:
-    """Cursor hook embeds an absolute python interpreter path."""
-
-    def test_check_sh_uses_absolute_python(self, tmp_path: Path) -> None:
-        _scaffold_project(tmp_path, agent="cursor")
-        hook_path = tmp_path / ".cursor" / "hooks" / "check.sh"
-        assert hook_path.is_file()
-        content = hook_path.read_text(encoding="utf-8")
-        # Pre-fix shape: `... | python3 -m ac_guard.action_guard ...`.
-        # Post-fix shape: `... | "<abs python>" -m ac_guard.action_guard ...`.
-        assert "-m ac_guard.action_guard" in content
-        assert "| python3 -m" not in content
-        baked = _baked_path(content, r'\| "([^"]+)" -m ac_guard\.action_guard')
-        assert os.path.isabs(baked), f"baked python path is not absolute: {baked!r}"
-
-    @_skip_on_windows
-    def test_check_sh_runs_with_minimal_path(self, tmp_path: Path) -> None:
-        """Cursor hook fires under a stripped PATH (POSIX-only)."""
-        _scaffold_project(tmp_path, agent="cursor")
-        hook_path = tmp_path / ".cursor" / "hooks" / "check.sh"
-
-        # Cursor hook reads stdin JSON and prints a JSON decision.
-        result = subprocess.run(
-            [str(hook_path)],
-            input='{"tool":"Read","args":{}}',
-            cwd=tmp_path,
-            env={"PATH": _MINIMAL_PATH, "HOME": str(tmp_path)},
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        # 127 = "command not found" — would mean the bake failed and
-        # the hook fell back to PATH lookup of `python3`.
-        assert result.returncode != 127, (
-            f"cursor hook fell back to PATH lookup; stderr={result.stderr!r}"
-        )
-
-
 class TestOpenCodePluginBakesPython:
     """OpenCode TS plugin source embeds an absolute python path constant."""
 

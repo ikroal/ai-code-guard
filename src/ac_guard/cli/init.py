@@ -194,4 +194,4 @@ def init_command(request: InitRequest) -> None:
     print("  1. Review and edit the configuration file")
     print("  2. Run 'ac-guard install --agent <agent>' to generate artifacts")
     print("\nAvailable agents:")
-    print("  claude-code, cursor, opencode, copilot, kilocode")
+    print("  claude-code, opencode, copilot, kilocode")

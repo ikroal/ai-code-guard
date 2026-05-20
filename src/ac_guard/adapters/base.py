@@ -63,7 +63,7 @@ class AgentAdapter(ABC):
         """Agent identifier used in --agent CLI argument.
 
         Must be lowercase with hyphens between words.
-        Examples: "claude-code", "cursor", "opencode".
+        Examples: "claude-code", "opencode".
         """
 
     @property
@@ -89,7 +89,6 @@ class AgentAdapter(ABC):
 
         Examples:
         - "CLAUDE.md" for Claude Code
-        - ".cursor/rules/behavior.mdc" for Cursor
         - ".github/copilot-instructions.md" for GitHub Copilot
         """
 

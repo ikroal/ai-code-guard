@@ -484,7 +484,6 @@ class TestAgentsCommand:
         result = runner.invoke(app, ["agents"])
         assert result.exit_code == 0
         assert "claude-code" in result.output.lower()
-        assert "cursor" in result.output.lower()
         assert "opencode" in result.output.lower()
         assert "copilot" in result.output.lower()
         assert "kilocode" in result.output.lower()

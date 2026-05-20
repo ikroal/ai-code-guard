@@ -5,14 +5,12 @@ from __future__ import annotations
 from ac_guard.adapters._render import _TEMPLATE_DIR, render_hook, render_rule_doc
 from ac_guard.adapters.builtins.claude_code import ClaudeCodeAdapter
 from ac_guard.adapters.builtins.copilot import CopilotAdapter
-from ac_guard.adapters.builtins.cursor import CursorAdapter
 from ac_guard.adapters.builtins.kilocode import KiloCodeAdapter
 from ac_guard.adapters.builtins.opencode import OpenCodeAdapter
 from ac_guard.config.models import BehaviorConfig, OperationRules, Rule
 from ac_guard.domain import managed_block
 
 _CLAUDE_CODE = ClaudeCodeAdapter()
-_CURSOR = CursorAdapter()
 _OPENCODE = OpenCodeAdapter()
 _COPILOT = CopilotAdapter()
 _KILOCODE = KiloCodeAdapter()
@@ -26,18 +24,6 @@ class TestRenderRuleDoc:
         result = render_rule_doc(_CLAUDE_CODE, behavior)
         assert isinstance(result, str)
         assert len(result) > 0
-
-    def test_cursor_template_exists(self) -> None:
-        behavior = BehaviorConfig.empty()
-        result = render_rule_doc(_CURSOR, behavior)
-        assert isinstance(result, str)
-        assert len(result) > 0
-
-    def test_cursor_has_frontmatter(self) -> None:
-        behavior = BehaviorConfig.empty()
-        result = render_rule_doc(_CURSOR, behavior)
-        assert "---" in result
-        assert "globs:" in result
 
     def test_opencode_template_exists(self) -> None:
         behavior = BehaviorConfig.empty()
@@ -89,13 +75,6 @@ class TestRenderHook:
         assert len(result) > 0
         assert "import json" in result  # Python script
 
-    def test_cursor_hook_exists(self) -> None:
-        behavior = BehaviorConfig.empty()
-        result = render_hook(_CURSOR, behavior)
-        assert isinstance(result, str)
-        assert len(result) > 0
-        assert "#!/bin/bash" in result  # Shell script
-
     def test_opencode_hook_exists(self) -> None:
         behavior = BehaviorConfig.empty()
         result = render_hook(_OPENCODE, behavior)
@@ -108,12 +87,6 @@ class TestRenderHook:
         result = render_hook(_CLAUDE_CODE, behavior)
         assert "def main()" in result
         assert "sys.stdin" in result
-
-    def test_cursor_hook_is_shell(self) -> None:
-        behavior = BehaviorConfig.empty()
-        result = render_hook(_CURSOR, behavior)
-        assert "input=$(cat)" in result
-        assert "jq" in result
 
     def test_opencode_hook_is_typescript(self) -> None:
         behavior = BehaviorConfig.empty()
@@ -130,7 +103,7 @@ class TestTemplateStems:
     """
 
     def test_rule_doc_template_exists_for_each_builtin(self) -> None:
-        adapters = [_CLAUDE_CODE, _CURSOR, _OPENCODE, _COPILOT, _KILOCODE]
+        adapters = [_CLAUDE_CODE, _OPENCODE, _COPILOT, _KILOCODE]
         rule_doc_dir = _TEMPLATE_DIR / "rule_docs"
         for adapter in adapters:
             template = rule_doc_dir / f"{adapter._template_stem}.md.j2"
@@ -140,7 +113,7 @@ class TestTemplateStems:
 
     def test_hook_template_exists_for_each_block_capable_builtin(self) -> None:
         # Only adapters with can_block=True render hook scripts.
-        block_capable = [_CLAUDE_CODE, _CURSOR, _OPENCODE]
+        block_capable = [_CLAUDE_CODE, _OPENCODE]
         hook_dir = _TEMPLATE_DIR / "hooks"
         for adapter in block_capable:
             template = hook_dir / f"{adapter._template_stem}.j2"

@@ -77,7 +77,6 @@ class TestInstallCommand:
         )
         assert result.exit_code == 0
         assert "claude-code" in result.output
-        assert "cursor" in result.output
 
     def test_install_single_agent_creates_artifacts(
         self, project_with_config: Path
@@ -102,26 +101,26 @@ class TestInstallCommand:
         config = project_with_config / "guard.yaml"
         result = runner.invoke(
             app,
-            ["install", "--agent", "claude-code,cursor", "--config", str(config)],
+            ["install", "--agent", "claude-code,opencode", "--config", str(config)],
         )
         assert result.exit_code == 0
         state_path = installation_path(project_with_config)
         state = Installation.from_json(state_path.read_text(encoding="utf-8"))
         assert "claude-code" in state.installed_agents
-        assert "cursor" in state.installed_agents
+        assert "opencode" in state.installed_agents
 
     def test_install_incremental_appends_agents(self, installed_project: Path) -> None:
         """Second install appends new agent to existing agents."""
         config = installed_project / "guard.yaml"
         result = runner.invoke(
             app,
-            ["install", "--agent", "cursor", "--config", str(config)],
+            ["install", "--agent", "opencode", "--config", str(config)],
         )
         assert result.exit_code == 0
         state_path = installation_path(installed_project)
         state = Installation.from_json(state_path.read_text(encoding="utf-8"))
         assert "claude-code" in state.installed_agents
-        assert "cursor" in state.installed_agents
+        assert "opencode" in state.installed_agents
 
     def test_install_duplicate_agent_is_idempotent(
         self, installed_project: Path

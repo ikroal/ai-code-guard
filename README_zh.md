@@ -5,7 +5,7 @@
 
 # AI Code Guard
 
-AI 编码 Agent 的看护系统。一份 `guard.yaml` 约束行为并保障代码质量，适配 Claude Code、Cursor、OpenCode、Copilot 和 KiloCode。
+AI 编码 Agent 的看护系统。一份 `guard.yaml` 约束行为并保障代码质量，适配 Claude Code、OpenCode、Copilot 和 KiloCode。
 
 一个配置文件替代分散的 Agent 规则文档、零散的 Hook 脚本和手动的 pre-commit 配置。
 
@@ -42,7 +42,6 @@ ac-guard ruleset fetch <url>#v1.0                     # 拉取共享规则集
 | Agent | 运行时 Hook | 代码质量 | 规则文档 |
 |-------|:---:|:---:|---|
 | Claude Code | deny + ask | 是 | `CLAUDE.md` |
-| Cursor | deny | 是 | `.cursor/rules/behavior.mdc` |
 | OpenCode | deny + ask | 是 | `AGENTS.md` |
 | GitHub Copilot | — | 是 | `.github/copilot-instructions.md` |
 | KiloCode | — | 是 | `.kilocode/rules/behavior.md` |

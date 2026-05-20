@@ -243,7 +243,6 @@ _GUARD_FILE_PATTERNS = [
     ".ac-guard/",
     ".git/hooks/",
     ".claude/",
-    ".cursor/",
     "pyproject.toml",
 ]
 

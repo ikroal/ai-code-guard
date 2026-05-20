@@ -115,17 +115,17 @@ class TestWriteInstallation:
     def test_writes_valid_json(self, tmp_path: Path) -> None:
         state = Installation(
             ac_guard_version="0.1.0",
-            installed_agents=["claude-code", "cursor"],
+            installed_agents=["claude-code", "opencode"],
             config_hash="abc123",
             installed_at=datetime(2026, 4, 16, 14, 0, 0),
-            artifacts=["CLAUDE.md", ".cursor/rules"],
+            artifacts=["CLAUDE.md", "AGENTS.md"],
         )
         write_installation(tmp_path, state)
 
         content = (installation_path(tmp_path)).read_text(encoding="utf-8")
         data = json.loads(content)
         assert data["ac_guard_version"] == "0.1.0"
-        assert data["installed_agents"] == ["claude-code", "cursor"]
+        assert data["installed_agents"] == ["claude-code", "opencode"]
 
     def test_overwrites_existing_state(self, tmp_path: Path) -> None:
         # Write initial state
@@ -139,14 +139,14 @@ class TestWriteInstallation:
         # Write updated state
         state2 = Installation(
             ac_guard_version="0.1.0",
-            installed_agents=["claude-code", "cursor"],
+            installed_agents=["claude-code", "opencode"],
             installed_at=datetime.now(),
         )
         write_installation(tmp_path, state2)
 
         result = read_installation(tmp_path)
         assert result is not None
-        assert result.installed_agents == ["claude-code", "cursor"]
+        assert result.installed_agents == ["claude-code", "opencode"]
 
 
 class TestCreateInstallation:
@@ -330,13 +330,13 @@ class TestMarkerDuplication:
         assert "v2" in content
         assert "v1" not in content
 
-    def test_install_wraps_mdc_rule_docs_too(self, tmp_path: Path) -> None:
-        """Cursor uses .mdc; it must be wrapped like .md."""
+    def test_install_wraps_non_md_rule_docs_too(self, tmp_path: Path) -> None:
+        """Non-.md rule docs must be wrapped like .md."""
         write_artifacts(
             tmp_path,
-            [FileSpec(path=".cursor/rules/behavior.mdc", content="raw")],
+            [FileSpec(path=".github/copilot-instructions.md", content="raw")],
         )
-        content = (tmp_path / ".cursor" / "rules" / "behavior.mdc").read_text(
+        content = (tmp_path / ".github" / "copilot-instructions.md").read_text(
             encoding="utf-8"
         )
         assert self._count(content, MARKER_BEGIN) == 1
