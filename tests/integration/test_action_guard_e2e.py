@@ -7,8 +7,6 @@ and error recovery scenarios using real file I/O.
 from __future__ import annotations
 
 import json
-import os
-import re
 from pathlib import Path
 
 import yaml
