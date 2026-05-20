@@ -13,9 +13,6 @@ behavior:
   #   --no-verify / SKIP= / CI= / -c core.hooksPath / git config core.hooksPath /
   #   git rebase --exec / --force / --force-with-lease / -f / +branch to main).
   write:
-    # guard.yaml, .ac-guard/**, .pre-commit-config.yaml, .git/hooks/** are
-    # already protected by default. The extra entries below cover repo-specific
-    # policy surface that, if edited unexpectedly, would silently weaken the gate.
     forbidden:
       - pattern: "file:.env*"
         reason: "Environment files contain secrets"
@@ -23,6 +20,9 @@ behavior:
         reason: "Credential files are protected"
       - pattern: "file:**/*.pem"
         reason: "Private keys must not be checked in"
+    # guard.yaml, .ac-guard/**, .pre-commit-config.yaml, .git/hooks/** are
+    # already protected by default. The extra entries below cover repo-specific
+    # policy surface that, if edited unexpectedly, would silently weaken the gate.
     require_approval:
       - pattern: "file:.importlinter"
         message: "Editing the import-linter contract changes module layering"
@@ -99,6 +99,7 @@ code:
             args: [--force-scope]
 
   pre-push:
+    lint: true
     checks:
       pytest:
         command: "uv run --no-sync pytest --cov --cov-fail-under=80"
