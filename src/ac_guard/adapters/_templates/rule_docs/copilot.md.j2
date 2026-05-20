@@ -1,22 +1,16 @@
 {#
 GitHub Copilot rule document template.
 
-Copilot has no Hook capability (can_block=False, can_ask=False).
-Rules are soft constraints only - no runtime interception.
+Copilot supports Hook capability via onPreToolUse events:
+- PreToolUse Hook for runtime interception (can_block=True)
+- Permission decision for user confirmation (can_ask=True)
 
-This template adds a warning about limited capability
-and treats forbidden/require_approval the same (soft deny).
+This template extends the base template with Copilot-specific formatting.
 #}
 
-{% block header %}
-## Behavior Constraints
+{% extends "rule_docs/base.md.j2" %}
 
-> **Warning**: GitHub Copilot does not support runtime interception.
-> The rules below are soft constraints in the instructions document.
-> Enforcement relies on Git Hooks and manual code review.
-
-The following rules define recommended constraints for AI operations.
-{% endblock %}
+{# Copilot uses base template without modifications #}
 
 {% for op_name, op_rules in operations %}
 ### {{ op_name }} Operations

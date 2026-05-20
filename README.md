@@ -5,7 +5,7 @@
 
 # AI Code Guard
 
-Guardrails for AI coding agents. One `guard.yaml` constrains behavior and enforces code quality across Claude Code, OpenCode, Copilot, and KiloCode.
+Guardrails for AI coding agents. One `guard.yaml` constrains behavior and enforces code quality across Claude Code, OpenCode, Copilot, Codex, and KiloCode.
 
 A single config file replaces per-agent rule documents, scattered hook scripts, and manual pre-commit setup.
 
@@ -43,7 +43,8 @@ New here? Walk through the full flow in the
 |-------|:---:|:---:|---|
 | Claude Code | deny + ask | yes | `CLAUDE.md` |
 | OpenCode | deny + ask | yes | `AGENTS.md` |
-| GitHub Copilot | — | yes | `.github/copilot-instructions.md` |
+| GitHub Copilot | deny + ask | yes | `.github/copilot-instructions.md` |
+| OpenAI Codex | deny + ask | yes | `AGENTS.md` |
 | KiloCode | — | yes | `.kilocode/rules/behavior.md` |
 
 Agents with runtime hooks intercept operations before execution. Agents without hooks receive behavior rules as soft constraints in their rule documents. All agents get pre-commit quality gates.

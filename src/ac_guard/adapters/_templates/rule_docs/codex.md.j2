@@ -1,0 +1,15 @@
+{#
+OpenAI Codex rule document template.
+
+Codex uses AGENTS.md format (pure Markdown).
+Extends base.md.j2 without modifications since Codex
+supports both can_block=True and can_ask=True.
+
+Codex supports:
+- PreToolUse Hook for runtime interception (can_block=True)
+- PermissionRequest for user confirmation (can_ask=True)
+#}
+
+{% extends "rule_docs/base.md.j2" %}
+
+{# Codex uses base template without modifications #}

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from ac_guard.adapters._render import _TEMPLATE_DIR, render_hook, render_rule_doc
 from ac_guard.adapters.builtins.claude_code import ClaudeCodeAdapter
+from ac_guard.adapters.builtins.codex import CodexAdapter
 from ac_guard.adapters.builtins.copilot import CopilotAdapter
 from ac_guard.adapters.builtins.kilocode import KiloCodeAdapter
 from ac_guard.adapters.builtins.opencode import OpenCodeAdapter
@@ -11,6 +12,7 @@ from ac_guard.config.models import BehaviorConfig, OperationRules, Rule
 from ac_guard.domain import managed_block
 
 _CLAUDE_CODE = ClaudeCodeAdapter()
+_CODEX = CodexAdapter()
 _OPENCODE = OpenCodeAdapter()
 _COPILOT = CopilotAdapter()
 _KILOCODE = KiloCodeAdapter()
@@ -31,11 +33,13 @@ class TestRenderRuleDoc:
         assert isinstance(result, str)
         assert len(result) > 0
 
-    def test_copilot_template_has_warning(self) -> None:
+    def test_copilot_template_uses_base(self) -> None:
+        """Copilot now has hook capability and uses the base template."""
         behavior = BehaviorConfig.empty()
         result = render_rule_doc(_COPILOT, behavior)
-        assert "Warning" in result or "warning" in result.lower()
-        assert "soft constraints" in result.lower()
+        assert "Behavior Constraints" in result
+        # No longer has soft-constraint warning
+        assert "soft constraints" not in result.lower()
 
     def test_kilocode_template_has_warning(self) -> None:
         behavior = BehaviorConfig.empty()
@@ -103,7 +107,7 @@ class TestTemplateStems:
     """
 
     def test_rule_doc_template_exists_for_each_builtin(self) -> None:
-        adapters = [_CLAUDE_CODE, _OPENCODE, _COPILOT, _KILOCODE]
+        adapters = [_CLAUDE_CODE, _CODEX, _OPENCODE, _COPILOT, _KILOCODE]
         rule_doc_dir = _TEMPLATE_DIR / "rule_docs"
         for adapter in adapters:
             template = rule_doc_dir / f"{adapter._template_stem}.md.j2"
@@ -113,7 +117,7 @@ class TestTemplateStems:
 
     def test_hook_template_exists_for_each_block_capable_builtin(self) -> None:
         # Only adapters with can_block=True render hook scripts.
-        block_capable = [_CLAUDE_CODE, _OPENCODE]
+        block_capable = [_CLAUDE_CODE, _CODEX, _OPENCODE, _COPILOT]
         hook_dir = _TEMPLATE_DIR / "hooks"
         for adapter in block_capable:
             template = hook_dir / f"{adapter._template_stem}.j2"

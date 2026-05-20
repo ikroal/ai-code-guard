@@ -14,12 +14,14 @@ import them in one line.
 from __future__ import annotations
 
 from ac_guard.adapters.builtins.claude_code import ClaudeCodeAdapter
+from ac_guard.adapters.builtins.codex import CodexAdapter
 from ac_guard.adapters.builtins.copilot import CopilotAdapter
 from ac_guard.adapters.builtins.kilocode import KiloCodeAdapter
 from ac_guard.adapters.builtins.opencode import OpenCodeAdapter
 
 __all__ = [
     "ClaudeCodeAdapter",
+    "CodexAdapter",
     "CopilotAdapter",
     "KiloCodeAdapter",
     "OpenCodeAdapter",

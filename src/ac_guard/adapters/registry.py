@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Final
 
 from ac_guard.adapters.builtins import (
     ClaudeCodeAdapter,
+    CodexAdapter,
     CopilotAdapter,
     KiloCodeAdapter,
     OpenCodeAdapter,
@@ -49,6 +50,7 @@ class AdapterNotFoundError(Exception):
 
 _BUILTINS: Final[tuple[AgentAdapter, ...]] = (
     ClaudeCodeAdapter(),
+    CodexAdapter(),
     OpenCodeAdapter(),
     CopilotAdapter(),
     KiloCodeAdapter(),
