@@ -1,0 +1,2 @@
+.codex/hooks/ac-guard.json	executable=False
+.codex/hooks/ac-guard.py	executable=True

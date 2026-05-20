@@ -13,7 +13,7 @@ from ac_guard.adapters.registry import (
 
 # Expected closed set of built-in adapters; cross-checked against the
 # snapshot suite (test_snapshots.py) that exercises render output.
-_BUILTIN_NAMES = ("claude-code", "opencode", "copilot", "kilocode")
+_BUILTIN_NAMES = ("claude-code", "codex", "opencode", "copilot", "kilocode")
 
 
 # ---------------------------------------------------------------------------

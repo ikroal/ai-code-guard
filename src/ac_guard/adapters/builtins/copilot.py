@@ -1,24 +1,23 @@
 """GitHub Copilot Agent adapter implementation.
 
-GitHub Copilot has no Hook capability:
-- No runtime interception (can_block=False)
-- No user confirmation prompts (can_ask=False)
-
-Rules are soft constraints only, enforced via rule document.
+GitHub Copilot supports Hook capability via onPreToolUse events:
+- Runtime interception via onPreToolUse (can_block=True)
+- User confirmation via permission decision (can_ask=True)
 
 Rule document: .github/copilot-instructions.md
+Hook entry: .github/hooks/ac-guard.py (Python, stdin/stdout JSON)
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from ac_guard.adapters._render import render_rule_doc
+from ac_guard.adapters._render import render_hook, render_rule_doc
 from ac_guard.adapters.base import AgentAdapter, AgentCapabilities
+from ac_guard.domain import FileSpec
 
 if TYPE_CHECKING:
     from ac_guard.config import BehaviorConfig
-    from ac_guard.domain import FileSpec
 
 __all__ = ["CopilotAdapter"]
 
@@ -32,8 +31,7 @@ class CopilotAdapter(AgentAdapter):
 
     @property
     def capabilities(self) -> AgentCapabilities:
-        # Copilot has no Hook mechanism
-        return AgentCapabilities(can_block=False, can_ask=False)
+        return AgentCapabilities(can_block=True, can_ask=True)
 
     def rule_doc_path(self) -> str:
         return ".github/copilot-instructions.md"
@@ -47,5 +45,20 @@ class CopilotAdapter(AgentAdapter):
         return render_rule_doc(self, behavior)
 
     def hook_files(self, behavior: BehaviorConfig) -> list[FileSpec]:
-        """Copilot has no Hook capability — returns empty list."""
-        return []
+        """Generate Copilot Hook script.
+
+        Uses Jinja2 template (hooks/copilot.j2) for the Hook script.
+        Returns a Python Hook script that:
+        - Reads stdin JSON (Copilot format: tool_name, tool_input)
+        - Calls Action guard for policy decision
+        - Outputs stdout JSON (hookSpecificOutput.permissionDecision)
+        """
+        hook_content = render_hook(self, behavior)
+
+        return [
+            FileSpec(
+                path=".github/hooks/ac-guard.py",
+                content=hook_content,
+                executable=True,
+            ),
+        ]
