@@ -107,6 +107,7 @@ code:
         types: [python]
 
 output:
+  locale: "zh-CN"
   audit:
     enabled: true
   pr_report:
