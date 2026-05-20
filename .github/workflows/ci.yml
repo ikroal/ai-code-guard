@@ -47,3 +47,42 @@ jobs:
           enable-cache: true
       - run: uv sync --frozen --python ${{ matrix.python-version }}
       - run: uv run --no-sync pytest
+
+  e2e:
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      # Phase 1: Build + clean-venv install (#86)
+      - name: Build sdist and wheel
+        run: uv run python -m build
+      - name: Install wheel in clean venv
+        run: |
+          python3 -m venv /tmp/e2e-venv
+          /tmp/e2e-venv/bin/pip install dist/*.whl
+          /tmp/e2e-venv/bin/ac-guard --version
+
+      # Phase 2: Smoke test — full CLI journey (#83)
+      - name: Smoke test — full CLI journey
+        run: bash scripts/ci-e2e-smoke.sh
+        env:
+          AC_GUARD: /tmp/e2e-venv/bin/ac-guard
+
+      # Phase 3: Script syntax validation (#84)
+      - name: Validate generated script syntax
+        run: bash scripts/ci-e2e-syntax-check.sh
+
+      # Phase 4: Pre-commit config validation (#85)
+      - name: Validate generated pre-commit config
+        run: |
+          /tmp/e2e-venv/bin/pip install pre-commit
+          /tmp/e2e-venv/bin/pre-commit validate-config /tmp/e2e-workspace/.pre-commit-config.yaml
+
+      # Phase 5: Cleanup (must run inside the e2e workspace, not the checkout)
+      - name: Uninstall ac-guard from workspace
+        run: /tmp/e2e-venv/bin/ac-guard uninstall
+        working-directory: /tmp/e2e-workspace
