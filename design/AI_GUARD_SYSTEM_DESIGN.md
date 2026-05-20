@@ -29,13 +29,13 @@
 
 ### 1.1 背景与动机
 
-大语言模型（LLM）驱动的 AI 编码 Agent（如 Claude Code、Cursor、OpenCode 等）正在深刻改变软件开发流程。这些 Agent 具备文件读写、命令执行、代码生成等能力，能够显著提升开发效率。然而，Agent 的高度自主性也带来了两类系统性风险：
+大语言模型（LLM）驱动的 AI 编码 Agent（如 Claude Code、OpenCode 等）正在深刻改变软件开发流程。这些 Agent 具备文件读写、命令执行、代码生成等能力，能够显著提升开发效率。然而，Agent 的高度自主性也带来了两类系统性风险：
 
 **行为风险**。AI Agent 可能执行超出预期的操作，包括但不限于：修改敏感配置文件、执行破坏性命令（如 `git push --force`）、绕过代码检查机制（如 `git commit --no-verify`）、访问受限资源等。这些行为在缺乏约束的环境中难以被及时发现和阻止。
 
 **质量风险**。AI 生成的代码可能不符合项目编码规范（命名、格式、文档要求），引入架构层面的耦合（违反模块依赖规则），或缺少充分的测试覆盖。这些质量问题在 AI 高速生成代码的背景下尤为突出——人工 Review 的速度难以匹配 AI 的产出速度。
 
-当前，开发者通常依赖以下手段应对上述风险：手动配置各 Agent 的规则文件（如 CLAUDE.md、.cursor/rules/）、依赖 Agent 自身的权限系统、以及依靠人工 Code Review。这些手段存在三个共性缺陷：**规则分散**（不同 Agent 各自维护，难以统一）、**缺乏强制性**（规则文档仅为引导，不具备拦截能力）、**无法复用**（项目间无法共享规则集）。
+当前，开发者通常依赖以下手段应对上述风险：手动配置各 Agent 的规则文件（如 CLAUDE.md、AGENTS.md）、依赖 Agent 自身的权限系统、以及依靠人工 Code Review。这些手段存在三个共性缺陷：**规则分散**（不同 Agent 各自维护，难以统一）、**缺乏强制性**（规则文档仅为引导，不具备拦截能力）、**无法复用**（项目间无法共享规则集）。
 
 AI Guard 正是为解决上述问题而设计的系统。
 
@@ -94,7 +94,6 @@ AI Guard 是一个面向 AI 编码 Agent 的**看护系统**（Guardian System�
 | Agent | 核心能力 | Hook 机制 | 约束方式 |
 |---|---|---|---|
 | Claude Code | 文件读写、命令执行、MCP 调用 | PreToolUse / PostToolUse Hook | 规则文档（CLAUDE.md）+ Hook 拦截 |
-| Cursor | 文件编辑、命令执行、Web 搜索 | 多类型 Hook（beforeShellExecution 等） | 规则文件（.cursor/rules/）+ Hook |
 | OpenCode | 文件读写、命令执行、MCP 调用 | 插件内事件系统 | 规则文档（AGENTS.md）+ 插件拦截 |
 | GitHub Copilot | 代码补全、文件编辑 | 无 Hook 机制 | 规则文档（copilot-instructions.md） |
 | KiloCode | 文件读写、命令执行 | 无 Hook 机制 | 规则文档（.kilocode/rules/） |
@@ -103,7 +102,7 @@ AI Guard 是一个面向 AI 编码 Agent 的**看护系统**（Guardian System�
 
 1. **约束能力的碎片化**。不同 Agent 的 Hook 机制互不兼容，规则文档格式各异。同一套约束规则需要在每个 Agent 上分别配置，维护成本随 Agent 数量线性增长。
 
-2. **约束强度的不均衡**。具备 Hook 机制的 Agent（Claude Code、Cursor、OpenCode）可以实现运行时拦截，但无 Hook 机制的 Agent（Copilot、KiloCode）仅能通过规则文档进行"软约束"，无法强制阻止违规操作。
+2. **约束强度的不均衡**。具备 Hook 机制的 Agent（Claude Code、OpenCode）可以实现运行时拦截，但无 Hook 机制的 Agent（Copilot、KiloCode）仅能通过规则文档进行"软约束"，无法强制阻止违规操作。
 
 ### 2.2 现有工具与方案对比
 
@@ -196,7 +195,7 @@ AI Guard 旨在解决 AI 辅助编码过程中的五类核心问题：
 
 **S3 — 提交质量门禁**。AI 生成的代码在 `git commit` 时自动经过格式化、命名等静态检查，在 `git push` 时经过测试、覆盖率等动态验证。
 
-**S4 — 多 Agent 统一适配**。同一份 guard.yaml 配置可同时适配 Claude Code、Cursor 等不同 Agent，生成各自格式的规则文档和 Hook 配置。
+**S4 — 多 Agent 统一适配**。同一份 guard.yaml 配置可同时适配 Claude Code、OpenCode 等不同 Agent，生成各自格式的规则文档和 Hook 配置。
 
 **S5 — 规则集复用**。规则集作者维护一套公司规则，各项目通过 Git 仓库引用直接使用，项目配置可覆盖规则集的部分设置。
 
@@ -786,7 +785,6 @@ install 为增量操作：新增 Agent 追加至已有列表，为全部 Agent �
 | 适配器 | Agent | can_block | can_ask | 规则文档路径 |
 |---|---|---|---|---|
 | ClaudeCodeAdapter | Claude Code | ✅ | ✅ | `CLAUDE.md` |
-| CursorAdapter | Cursor | ✅ | ⚠️ 部分 | `.cursor/rules/behavior.mdc` |
 | OpenCodeAdapter | OpenCode | ✅ | ✅ | `AGENTS.md` |
 | CopilotAdapter | GitHub Copilot | ❌ | ❌ | `.github/copilot-instructions.md` |
 | KiloCodeAdapter | KiloCode | ❌ | ❌ | `.kilocode/rules/behavior.md` |
@@ -1030,7 +1028,6 @@ Enforcer → Reporter.append_audit_log(PolicyDecision)
 | Agent | Hook 入口 | 输入格式 | 输出格式 |
 |---|---|---|---|
 | Claude Code | `.claude/hooks/interceptor.py`（stdin JSON） | `{"tool_name": "...", "tool_input": {...}}` | `{"hookSpecificOutput": {"permissionDecision": "deny/allow/ask"}}` |
-| Cursor | `.cursor/hooks/check.sh`（stdin JSON） | Cursor 特定格式 | `{"permission": "deny"}` |
 | OpenCode | `.opencode/plugins/ai-guard.ts`（插件 API） | `{tool, args}` | `throw Error("...")` 阻止 |
 | Copilot / KiloCode | 无 Hook | — | — |
 
@@ -1131,7 +1128,7 @@ class ResolvedConfig:
 ```json
 {
   "ai_guard_version": "0.1.0",
-  "installed_agents": ["claude-code", "cursor"],
+  "installed_agents": ["claude-code", "opencode"],
   "config_hash": "a3f8c2e1",
   "installed_at": "2026-04-13T10:30:00",
   "artifacts": ["CLAUDE.md", ".claude/settings.json", ".pre-commit-config.yaml"]
@@ -1435,7 +1432,7 @@ class FileSpec:
 
 #### 12.1.3 规则文档约定
 
-输出必须包含托管块标记 `<!-- AI-GUARD:BEGIN -->` / `<!-- AI-GUARD:END -->`。Agent 特定格式差异（如 Cursor 的 `.mdc` frontmatter）由适配器自行处理。
+输出必须包含托管块标记 `<!-- AI-GUARD:BEGIN -->` / `<!-- AI-GUARD:END -->`。Agent 特定格式差异由适配器自行处理。
 
 #### 12.1.4 Hook 脚本协议
 
@@ -1686,7 +1683,6 @@ Skill（AI Agent 按规范自动生成扩展代码）
 | Agent | Hook 机制 | can_block | can_ask | 规则文档 |
 |---|---|---|---|---|
 | Claude Code | PreToolUse Hook | ✅ | ✅ | CLAUDE.md |
-| Cursor | 多类型 Hook | ✅ | ⚠️ 部分 | .cursor/rules/ |
 | OpenCode | 插件事件系统 | ✅ | ✅ | AGENTS.md |
 | GitHub Copilot | 无 | ❌ | ❌ | copilot-instructions.md |
 | KiloCode | 无 | ❌ | ❌ | .kilocode/rules/ |

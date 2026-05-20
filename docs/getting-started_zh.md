@@ -181,7 +181,6 @@ Agent         Block   Ask     Rule Doc                          Status
 ------------------------------------------------------------------------
 claude-code   yes     yes     CLAUDE.md                         INSTALLED
 copilot       no      no      .github/copilot-instructions.md   -
-cursor        yes     no      .cursor/rules/behavior.mdc        -
 kilocode      no      no      .kilocode/rules/behavior.md       -
 opencode      yes     yes     AGENTS.md                         -
 ```

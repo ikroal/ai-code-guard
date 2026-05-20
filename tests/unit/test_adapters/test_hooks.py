@@ -9,14 +9,12 @@ import sys
 
 from ac_guard.adapters._render import render_hook
 from ac_guard.adapters.builtins.claude_code import ClaudeCodeAdapter
-from ac_guard.adapters.builtins.cursor import CursorAdapter
 from ac_guard.adapters.builtins.opencode import OpenCodeAdapter
 from ac_guard.config.models import BehaviorConfig
 
 # Adapter instances are stateless and cheap; reuse module-level
 # singletons rather than constructing per-test.
 _CLAUDE_CODE = ClaudeCodeAdapter()
-_CURSOR = CursorAdapter()
 _OPENCODE = OpenCodeAdapter()
 
 
@@ -72,37 +70,6 @@ class TestClaudeCodeHook:
         """Rendered hook compiles as valid Python (no syntax errors)."""
         content = render_hook(_CLAUDE_CODE, BehaviorConfig.empty())
         compile(content, "<generated claude_code hook>", "exec")
-
-
-class TestCursorHook:
-    """Tests for Cursor hook template."""
-
-    def test_renders_bash_script(self) -> None:
-        """Cursor hook renders a bash script."""
-        content = render_hook(_CURSOR, BehaviorConfig.empty())
-        assert content.startswith("#!/bin/bash")
-
-    def test_calls_action_guard_subprocess(self) -> None:
-        """Cursor hook calls action_guard via the baked python interpreter."""
-        content = render_hook(_CURSOR, BehaviorConfig.empty())
-        assert "-m ac_guard.action_guard" in content
-        # Bake-time injection: must use an absolute path, not bare `python3`.
-        assert "| python3 -m" not in content
-        match = re.search(r'\| "([^"]+)" -m ac_guard\.action_guard', content)
-        assert match is not None, "expected baked python path in cursor hook"
-        assert os.path.isabs(match.group(1)), (
-            f"baked python path is not absolute: {match.group(1)!r}"
-        )
-
-    def test_outputs_permission_format(self) -> None:
-        """Cursor hook outputs permission JSON."""
-        content = render_hook(_CURSOR, BehaviorConfig.empty())
-        assert '"permission"' in content
-
-    def test_downgrades_ask_to_deny(self) -> None:
-        """Cursor hook downgrades ask to deny (no ask support)."""
-        content = render_hook(_CURSOR, BehaviorConfig.empty())
-        assert 'decision" = "ask"' in content or "ask" in content
 
 
 class TestOpenCodeHook:

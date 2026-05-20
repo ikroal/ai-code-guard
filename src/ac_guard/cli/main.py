@@ -129,7 +129,7 @@ def install(
         typer.Option(
             "--agent",
             "-a",
-            help="Comma-separated agent names (e.g., claude-code,cursor)",
+            help="Comma-separated agent names (e.g., claude-code,opencode)",
         ),
     ] = None,
     config: Annotated[

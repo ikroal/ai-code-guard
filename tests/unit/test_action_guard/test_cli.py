@@ -115,7 +115,7 @@ class TestActionGuardCliAudit:
             {
                 "tool_name": "Write",
                 "tool_input": {"file_path": ".git/config"},
-                "agent": "cursor",
+                "agent": "opencode",
             },
             tmp_path,
         )
@@ -124,4 +124,4 @@ class TestActionGuardCliAudit:
         record = json.loads(
             audit_path.read_text(encoding="utf-8").strip().split("\n")[0]
         )
-        assert record["agent"] == "cursor"
+        assert record["agent"] == "opencode"

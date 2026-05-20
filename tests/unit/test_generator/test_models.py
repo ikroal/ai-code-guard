@@ -40,14 +40,14 @@ class TestInstallation:
         now = datetime(2026, 4, 16, 12, 0, 0)
         inst = Installation(
             ac_guard_version="0.1.0",
-            installed_agents=["claude-code", "cursor"],
+            installed_agents=["claude-code", "opencode"],
             config_hash="abc123",
             installed_at=now,
             artifacts=["CLAUDE.md", ".claude/settings.json"],
         )
         d = inst.to_dict()
         assert d["ac_guard_version"] == "0.1.0"
-        assert d["installed_agents"] == ["claude-code", "cursor"]
+        assert d["installed_agents"] == ["claude-code", "opencode"]
         assert d["config_hash"] == "abc123"
         assert d["installed_at"] == "2026-04-16T12:00:00"
         assert d["artifacts"] == ["CLAUDE.md", ".claude/settings.json"]
@@ -67,14 +67,14 @@ class TestInstallation:
     def test_from_dict(self) -> None:
         d = {
             "ac_guard_version": "0.2.0",
-            "installed_agents": ["cursor"],
+            "installed_agents": ["opencode"],
             "config_hash": "def456",
             "installed_at": "2026-04-15T10:30:00",
             "artifacts": ["file1", "file2"],
         }
         inst = Installation.from_dict(d)
         assert inst.ac_guard_version == "0.2.0"
-        assert inst.installed_agents == ["cursor"]
+        assert inst.installed_agents == ["opencode"]
         assert inst.config_hash == "def456"
         assert inst.installed_at == datetime(2026, 4, 15, 10, 30, 0)
         assert inst.artifacts == ["file1", "file2"]
@@ -89,10 +89,10 @@ class TestInstallation:
     def test_json_roundtrip(self) -> None:
         original = Installation(
             ac_guard_version="0.1.0",
-            installed_agents=["claude-code", "cursor"],
+            installed_agents=["claude-code", "opencode"],
             config_hash="abc123",
             installed_at=datetime(2026, 4, 16, 14, 30, 0),
-            artifacts=["CLAUDE.md", ".cursor/rules/behavior.mdc"],
+            artifacts=["CLAUDE.md", "AGENTS.md"],
         )
         json_str = original.to_json()
         restored = Installation.from_json(json_str)

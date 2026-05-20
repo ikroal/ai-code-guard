@@ -139,25 +139,25 @@ class TestMultiAgentLifecycle:
         # install second agent (incremental)
         result = runner.invoke(
             app,
-            ["install", "--agent", "cursor", "--config", str(config)],
+            ["install", "--agent", "opencode", "--config", str(config)],
         )
         assert result.exit_code == 0
         state = Installation.from_json(
             (installation_path(tmp_path)).read_text(encoding="utf-8")
         )
         assert "claude-code" in state.installed_agents
-        assert "cursor" in state.installed_agents
+        assert "opencode" in state.installed_agents
 
         # status should show both agents
         result = runner.invoke(app, ["status", "--config", str(config)])
         assert "claude-code" in result.output
-        assert "cursor" in result.output
+        assert "opencode" in result.output
 
         # update regenerates for both
         result = runner.invoke(app, ["update", "--config", str(config)])
         assert result.exit_code == 0
         assert "claude-code" in result.output
-        assert "cursor" in result.output
+        assert "opencode" in result.output
 
     def test_comma_separated_install(self, tmp_path: Path) -> None:
         """Install multiple agents at once with comma-separated list."""
@@ -171,7 +171,7 @@ class TestMultiAgentLifecycle:
             [
                 "install",
                 "--agent",
-                "claude-code,cursor,copilot",
+                "claude-code,opencode,copilot",
                 "--config",
                 str(config),
             ],
@@ -182,7 +182,7 @@ class TestMultiAgentLifecycle:
         )
         assert len(state.installed_agents) == 3
         assert "claude-code" in state.installed_agents
-        assert "cursor" in state.installed_agents
+        assert "opencode" in state.installed_agents
         assert "copilot" in state.installed_agents
 
 
