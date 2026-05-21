@@ -129,32 +129,21 @@ _SYSTEM_EXECUTE_FORBIDDEN: list[dict[str, Any]] = [
         "reason": "CI= env-var can trick tools into skipping pre-commit checks",
     },
     {
-        "pattern": (
-            r"shell:git\s+push\s+.*--force(?:-with-lease)?\b.*"
-            r"\b(?:main|master)\b.*"
-        ),
+        "pattern": r"shell:git\s+push\s+.*--force(?:-with-lease)?\b.*",
         "regex": True,
-        "reason": "force push to protected branch rewrites shared history",
+        "reason": "force push rewrites shared history — use a human operator",
     },
     {
-        "pattern": (
-            r"shell:git\s+push\s+.*\b(?:main|master)\b.*"
-            r"--force(?:-with-lease)?\b.*"
-        ),
+        "pattern": r"shell:git\s+push\s+.*-f\b.*",
         "regex": True,
-        "reason": "force push to protected branch rewrites shared history",
+        "reason": "force push (-f) rewrites shared history — use a human operator",
     },
     {
-        "pattern": r"shell:git\s+push\s+.*-f\b.*\b(?:main|master)\b.*",
-        "regex": True,
-        "reason": "force push (-f) to protected branch rewrites shared history",
-    },
-    {
-        "pattern": r"shell:git\s+push\s+\S+\s+\+(?:main|master)\b.*",
+        "pattern": r"shell:git\s+push\s+\S+\s+\+\S+.*",
         "regex": True,
         "reason": (
-            "git push <remote> +<branch> is an alias for force push to the "
-            "protected branch"
+            "git push <remote> +<branch> is an alias for force push — "
+            "use a human operator"
         ),
     },
 ]
