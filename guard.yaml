@@ -9,9 +9,9 @@ project:
   language: "python"
 
 behavior:
-  # read/execute — use ac-guard defaults (Track A's 11 forbidden patterns:
+  # read/execute — use ac-guard defaults (Track A's 10 forbidden patterns:
   #   --no-verify / SKIP= / CI= / -c core.hooksPath / git config core.hooksPath /
-  #   git rebase --exec / --force / --force-with-lease / -f / +branch to main).
+  #   git rebase --exec / --force / --force-with-lease / -f / +branch).
   write:
     forbidden:
       - pattern: "file:.env*"

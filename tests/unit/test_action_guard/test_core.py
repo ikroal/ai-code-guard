@@ -202,30 +202,17 @@ def _bypass_policy() -> dict:
                         "source": "system",
                     },
                     {
-                        "pattern": (
-                            r"shell:git\s+push\s+.*--force(?:-with-lease)?\b.*"
-                            r"\b(?:main|master)\b.*"
-                        ),
+                        "pattern": r"shell:git\s+push\s+.*--force(?:-with-lease)?\b.*",
                         "regex": True,
                         "source": "system",
                     },
                     {
-                        "pattern": (
-                            r"shell:git\s+push\s+.*\b(?:main|master)\b.*"
-                            r"--force(?:-with-lease)?\b.*"
-                        ),
+                        "pattern": r"shell:git\s+push\s+.*-f\b.*",
                         "regex": True,
                         "source": "system",
                     },
                     {
-                        "pattern": (
-                            r"shell:git\s+push\s+.*-f\b.*\b(?:main|master)\b.*"
-                        ),
-                        "regex": True,
-                        "source": "system",
-                    },
-                    {
-                        "pattern": (r"shell:git\s+push\s+\S+\s+\+(?:main|master)\b.*"),
+                        "pattern": r"shell:git\s+push\s+\S+\s+\+\S+.*",
                         "regex": True,
                         "source": "system",
                     },
@@ -255,17 +242,22 @@ class TestSystemBypassPatterns:
             # CI= env-var bypass
             "CI=1 git commit -m x",
             "CI=true git push origin main",
-            # force push to protected branch, flag before branch
+            # force push (any branch), flag before branch
             "git push --force origin main",
             "git push --force-with-lease origin master",
+            "git push --force origin feature-x",
+            "git push --force-with-lease origin dev",
             # force push, flag after branch
             "git push origin main --force",
             "git push origin master --force-with-lease",
+            "git push origin feature --force",
             # -f short form
             "git push -f origin main",
+            "git push -f origin feature",
             # `+<branch>` shorthand
             "git push origin +main",
             "git push origin +master",
+            "git push origin +feature-x",
         ],
     )
     def test_bypass_command_denied(self, tmp_path: Path, cmd: str) -> None:
@@ -290,9 +282,6 @@ class TestSystemBypassPatterns:
             "git push origin feature",
             # CI= without git should pass through
             "CI=1 pytest",
-            # force push to feature branch (not protected) is fine
-            "git push --force origin feature-x",
-            "git push origin +feature-x",
         ],
     )
     def test_lookalike_command_allowed(self, tmp_path: Path, cmd: str) -> None:
